@@ -1,0 +1,51 @@
+#frame {
+    height: 400px;
+    width: 650px;
+    position: absolute;
+    z-index: 9;
+}
+#main {
+    width: 602px;
+    height: 350px;
+    position: absolute;
+    z-index: 9;
+    overflow: hidden;
+}
+#videoPanel {
+    position: absolute;
+}
+#controls {
+    height: 40px;
+    width: 100%;
+    position: absolute;
+    margin-top:33%;
+}
+#seekBar {
+    width: 100%;
+    height: 10px;
+    background-color: gray;
+    display: flex;
+    position: absolute;
+}
+#fill {
+    height: 100%;
+    
+    background-color: #DBA74A;
+}
+#currentTime{
+    font-family: monospace;
+    font-size: 14px;
+    color: #DBA74A;
+}
+input[type=range] {
+    -webkit-appearance: none !important;
+    background-color: #666;
+    height: 4px;
+    border-radius: 4px;
+    outline: none;
+}
+#videoPlayer {
+    width: 100%;
+    height: 100%;
+    background-color: black;
+}
