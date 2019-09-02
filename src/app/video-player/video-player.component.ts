@@ -55,10 +55,8 @@ export class VideoPlayerComponent implements OnInit {
           this.http.get('http://192.168.1.19:4012/api/mov/transcodedmovie').subscribe((res: any[]) => {
             if(res) {
             this.video = res[0]
-            
-          this.playerReady = true
-        
-          console.log(res[0],this.videoplayer.readyState)
+            this.playerReady = true
+            console.log(res[0],this.videoplayer.readyState)
           }
         })
     };

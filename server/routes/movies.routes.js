@@ -16,8 +16,7 @@ router.get('/movies', (req, res)=>{
 router.get('/transcodedmovie', (req, res)=>{
     models.getTranscodedMovie((err, results)=>{
         if(err){
-            
-                return res.send({err: err})
+            return res.send({err: err})
             
         } else {
             res.send(results)

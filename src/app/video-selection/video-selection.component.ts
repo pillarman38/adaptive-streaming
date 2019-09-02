@@ -52,7 +52,7 @@ export class VideoSelectionComponent implements OnInit {
     M= M? [M[1], M[2]]: [N, navigator.appVersion,'-?'];
     
     this.browserName = M[0]
-  
+
     console.log(this.browserName)
     this.http.get('http://192.168.1.19:4012/api/mov/movies').subscribe((res: any[]) => {
       console.log(res)
