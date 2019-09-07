@@ -52,13 +52,13 @@ export class VideoPlayerComponent implements OnInit {
   }
   
   ngOnInit() {
-  
-          this.http.get('http://192.168.1.19:4012/api/mov/transcodedmovie').subscribe((res: any[]) => {
-            if(res) {
-            this.video = res[0]
-            this.playerReady = true
-            console.log(res[0],this.videoplayer.readyState)
-          }
-        })
-    };
+    this.http.post('http://192.168.1.19:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
+      console.log(event);
+      if(event) {
+        this.video = event['err']
+        console.log(this.video)
+        this.playerReady = true
+      }
+    })
+  };
 }

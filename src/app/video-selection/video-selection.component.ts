@@ -31,17 +31,14 @@ export class VideoSelectionComponent implements OnInit {
       this.saveVid.savedvideo = e
       console.log("heheheheheheh",e)
       console.log('chrome')
-      this.http.post('http://192.168.1.19:4012/api/mov/pullVideo', e).subscribe(event => {
-      console.log(event);
-    })
+    //   this.http.post('http://192.168.1.19:4012/api/mov/pullVideo', e).subscribe(event => {
+    //   console.log(event);
+    // })
   }
     if (this.browserName == "Safari") {
         e['browser'] = "Safari"
         e['fileformat'] = ".m3u8"
-        this.http.post('http://192.168.1.19:4012/api/mov/pullVideo', e).subscribe(event => {
-      console.log(event);
-      
-    })
+        this.saveVid.savedvideo = e
   }
     this.router.navigateByUrl('/videoPlayer')
   }

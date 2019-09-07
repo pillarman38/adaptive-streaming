@@ -38,9 +38,7 @@ router.post('/pullVideo', (req, res)=>{
     , (err, results)=>{
         if(err){
             console.log(err)
-            console.log("yoooooooooooooooooooooooooooooo1",req.body)
             return res.send({err: err})
-            
         } else {
             res.send(results)
         }
