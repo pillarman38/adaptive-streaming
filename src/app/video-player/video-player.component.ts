@@ -12,6 +12,7 @@ import { SavedVideoInfoService } from '../saved-video-info.service';
   templateUrl: './video-player.component.html',
   styleUrls: ['./video-player.component.css']
 })
+
 export class VideoPlayerComponent implements OnInit {
   controls;
   video = new Object;

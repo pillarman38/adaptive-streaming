@@ -2,6 +2,7 @@ let express = require('express')
 let router = express.Router()
 let pool = require('../../config/connections')
 let models = require('../models/movies.models')
+let fs = require("fs")
 
 router.get('/movies', (req, res)=>{
     models.getAllMovies((err, results)=>{
