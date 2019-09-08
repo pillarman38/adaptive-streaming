@@ -23,7 +23,7 @@ let routeFunctions = {
         var thing = false
         pool.query('SELECT * FROM `moviesplaying` WHERE `title` = ?', movieTitle, (err, res)=>{
             console.log("hiiiiiiiiiiiiiiiiiiiiiiiiiiiii", movieTitle)
-            movieTitle['location'] = 'http://192.168.1.19:4012/transcoding/Captain%20Marvel.m3u8'
+            movieTitle['location'] = 'http://192.168.1.19:4012/transcoding' + movieTitle['title'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8'
            
             if(err) {
               pool.query('INSERT INTO `moviesplaying` SET ?',movieTitle, (err, resultstwo) =>{
@@ -34,7 +34,8 @@ let routeFunctions = {
                   console.log("Hello there", movieTitle['location'])
                   var ffstream = ffmpeg(movieTitle['location'])
                   .videoCodec('libx264')
-                  .size('1920x1080')
+                  .audioCodec('aac')
+                  
                   .on('error', function(err) {
                     console.log('An error occurred: ' + err.message);
                   })
@@ -48,7 +49,7 @@ let routeFunctions = {
                   
                   var watcher = fs.watch("F:/Videos/transcoding/", (event, filename) => {
                     console.log(filename)
-                    if(filename == "Captain Marvel.m3u8"){
+                    if(filename == `${movieTitle['title']}.m3u8`){
                       watcher.close()
                       console.log("its here")
                       var movieReturner = {
