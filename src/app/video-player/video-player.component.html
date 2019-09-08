@@ -1,7 +1,7 @@
 <div id="frame" *ngIf="playerReady">
   <div id="main">
       <div id="videoPanel">
-          <video src="{{video.location}}" type="video/mpd,.m3u8,.webm,.mp4" id="videoPlayer" (timeupdate)="setCurrentTime($event)" #videoPlayer controls preload="auto"></video>
+          <video data-dashjs-player src="{{video.location}}" type="video/mpd,.m3u8,.webm,.mp4,.mpd" id="videoPlayer" (timeupdate)="setCurrentTime($event)" #videoPlayer controls preload="auto"></video>
       </div>
       <div id="controls">
           <div id="seekBar">
