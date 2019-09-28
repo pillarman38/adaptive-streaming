@@ -23,7 +23,7 @@ let routeFunctions = {
         var thing = false
         pool.query('SELECT * FROM `moviesplaying` WHERE `title` = ?', movieTitle, (err, res)=>{
             console.log("hiiiiiiiiiiiiiiiiiiiiiiiiiiiii", movieTitle)
-            movieTitle['location'] = 'http://192.168.1.19:4012/transcoding/' + movieTitle['title'].replace(new RegExp(' ', 'g'), '%20') + '.mpd'
+            movieTitle['location'] = 'http://192.168.1.19:4012/transcoding/' + movieTitle['title'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8'
            
             if(err) {
               pool.query('INSERT INTO `moviesplaying` SET ?',movieTitle, (err, resultstwo) =>{
@@ -33,8 +33,6 @@ let routeFunctions = {
                 if (movieTitle['browser'] == "Safari") {
                   console.log("Hello there", movieTitle['location'])
                   var ffstream = ffmpeg(movieTitle['location'])
-                  .videoCodec('libx264')
-                  .audioCodec('aac')
                   
                   .on('error', function(err) {
                     console.log('An error occurred: ' + err.message);
@@ -63,9 +61,8 @@ let routeFunctions = {
                       return
                     }
                 });
-                
-                  return console.log("This video already exisits in the database")
-                  }
+              return console.log("This video already exisits in the database")
+            }
                   if(movieTitle['browser'] == "Chrome") {
                     console.log("Hello there", movieTitle['location'])
                   var ffstream = ffmpeg(movieTitle['location'])
@@ -85,14 +82,14 @@ let routeFunctions = {
                   
                   var watcher = fs.watch("F:/Videos/transcoding/", (event, filename) => {
                     console.log(filename)
-                    if(filename == `${movieTitle['title']}.mpd`){
+                    if(filename == `${movieTitle['title']}.m3u8`){
                       watcher.close()
                       console.log("its here")
                       var movieReturner = {
                         browser: movieTitle['browser'],
                         duration: movieTitle['duration'],
                         fileformat: movieTitle['fileformat'],
-                        location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['title'].replace(new RegExp(' ', 'g'), '%20') + '.mpd',
+                        location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['title'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
                         title: movieTitle['title']
                       }
                       setTimeout(() => {

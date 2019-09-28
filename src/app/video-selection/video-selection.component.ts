@@ -27,7 +27,7 @@ export class VideoSelectionComponent implements OnInit {
     
     if (this.browserName == "Chrome") {
       e['browser'] = "Chrome"
-      e['fileformat'] = ".mpd"
+      e['fileformat'] = ".m3u8"
       this.saveVid.savedvideo = e
       console.log("heheheheheheh",e)
       console.log('chrome')
