@@ -1,4 +1,4 @@
-<div *ngFor="let pic of selection">
+<div *ngFor="let pic of selection" id="in">
   <img src="{{pic.image}}" id="coverImg" (click)="saveSelected(pic)">
   <p>{{pic.title}}</p>
 </div>

@@ -2,3 +2,13 @@
     width: 150px;
     height: 250px;
 }
+#in {
+    display: inline-block;
+    margin: 20px;
+}
+/* API Key (v3 auth)
+490cd30bbbd167dd3eb65511a8bf2328
+Example API Request
+https://api.themoviedb.org/3/movie/550?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=Rogue%20One:%20A%20Star%20Wars%20Story
+API Read Access Token (v4 auth)
+eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0OTBjZDMwYmJiZDE2N2RkM2ViNjU1MTFhOGJmMjMyOCIsInN1YiI6IjVkOGVlYjU2MTA5Y2QwMDAxOTQxN2Q3ZiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.xWdfPXvslxiwxUgv0j2VsUtE3fdkv_76t8MJqqd5pW4 */
