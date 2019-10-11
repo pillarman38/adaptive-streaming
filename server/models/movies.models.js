@@ -5,11 +5,54 @@ const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
 let chokidar = require('chokidar')
 var showPlayer = false
+var fetch = require('node-fetch')
+
+var arrOfObj = []
+var movieObj = {}
+var newArr = []
+var url = ''
+var i = 0
 
 let routeFunctions = {
     getAllMovies: (callback) => {
-        pool.query('SELECT * FROM movies', (err, results)=>{
-            callback(err,results)
+        var prom = new Promise(function(resolve, reject) {
+          fs.readdir("F:/Videos", (err, files) => {
+          files.forEach(file => {
+          
+            url = file.replace('.mkv', '')
+
+            movieObj = {
+              title: url,
+              movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${url.replace(new RegExp(' ', 'g'), '%20')}`,
+              filename: file
+            }
+            arrOfObj.push(movieObj)
+              i++;
+            })
+            
+            for(var l = 0; l < i; l++) {
+              fetch(`${arrOfObj[l]['movieListUrl']}`).then((data) => {
+                  return data.json()
+              }).then((dataInJSON) => {
+                console.log(arrOfObj);
+                // console.log(dataInJSON['results'][0]['titlesss'] = arrOfObj[l]['title'])
+                
+                const newSrc = Object.assign(dataInJSON['results'][0], {
+                  photoUrl: `https://image.tmdb.org/t/p/w500${dataInJSON['results'][0]['poster_path']}`,
+                  videoUrl: `http://192.168.1.19:4012/${url.replace(new RegExp(' ', 'g'), '%20')}`,
+                  
+              })
+                newArr.push(dataInJSON['results'][0])
+                if(newArr.length == arrOfObj.length) {
+                  resolve(newArr)
+                }
+              })
+            }
+          })
+        })
+        
+        prom.then(resolve => {
+          callback(resolve)
         })
     },
 
@@ -23,13 +66,13 @@ let routeFunctions = {
         var thing = false
         pool.query('SELECT * FROM `moviesplaying` WHERE `title` = ?', movieTitle, (err, res)=>{
             console.log("hiiiiiiiiiiiiiiiiiiiiiiiiiiiii", movieTitle)
-            movieTitle['location'] = 'http://192.168.1.19:4012/transcoding/' + movieTitle['title'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8'
+            
            
             if(err) {
               pool.query('INSERT INTO `moviesplaying` SET ?',movieTitle, (err, resultstwo) =>{
                 
                 console.log(err, resultstwo)
-                movieTitle['location'] = 'http://192.168.1.19:4012/' + movieTitle['title'].replace(new RegExp(' ', 'g'), '%20') + '.mkv'
+               
                 if (movieTitle['browser'] == "Safari") {
                   console.log("Hello there", movieTitle['location'])
                   var ffstream = ffmpeg(movieTitle['location'])
@@ -43,9 +86,9 @@ let routeFunctions = {
                   .on('stderr', function(stderrLine) {
                     // console.log('Stderr output: ' + stderrLine);
                   })
-                  .save(`F:/Videos/transcoding/${movieTitle['title'] + movieTitle['fileformat']}`)
+                  .save(`F:/transcoding/${movieTitle['title'] + movieTitle['fileformat']}`)
                   
-                  var watcher = fs.watch("F:/Videos/transcoding/", (event, filename) => {
+                  var watcher = fs.watch("F:/Videos/", (event, filename) => {
                     console.log(filename)
                     if(filename == `${movieTitle['title']}.m3u8`){
                       watcher.close()
@@ -78,9 +121,9 @@ let routeFunctions = {
                   .on('stderr', function(stderrLine) {
                     // console.log('Stderr output: ' + stderrLine);
                   })
-                  .save(`F:/Videos/transcoding/${movieTitle['title'] + movieTitle['fileformat']}`)
+                  .save(`F:/tanscoding/${movieTitle['title'] + movieTitle['fileformat']}`)
                   
-                  var watcher = fs.watch("F:/Videos/transcoding/", (event, filename) => {
+                  var watcher = fs.watch("F:/Videos/", (event, filename) => {
                     console.log(filename)
                     if(filename == `${movieTitle['title']}.m3u8`){
                       watcher.close()
