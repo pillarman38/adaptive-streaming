@@ -7,13 +7,9 @@ let fetch = require('node-fetch')
 
 router.get('/movies', (req, res)=>{
     models.getAllMovies((err, results)=>{
-        
         if(err){
-         
             res.send(err)
-            
         } else {
-         
             res.send(results)
         }
     })

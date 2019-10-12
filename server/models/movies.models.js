@@ -18,7 +18,6 @@ var newSrc;
 var movieObj = {}
 var arr = []
 
-
 function runThis(movieObj, url) {
   fetch(`${movieObj['movieListUrl']}`).then((data) => {
         return data.json()
@@ -28,6 +27,7 @@ function runThis(movieObj, url) {
         moreData['results'][0]['fileName'] = url
         moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
         moreData['results'][0]['location'] = `F:/Videos/${url}.mkv`
+        moreData['results'][0]['filePath'] = `http://192.168.1.19:4012/transcoding/${url.replace(new RegExp(' ', 'g'), '%20')}.m3u8`
         return arrOfObj.push(moreData['results'])
       }
   })
