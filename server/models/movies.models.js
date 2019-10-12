@@ -7,57 +7,56 @@ let chokidar = require('chokidar')
 var showPlayer = false
 var fetch = require('node-fetch')
 
+
 var arrOfObj = []
-var movieObj = {}
+
 var newArr = []
 var url = ''
 var i = 0
 var fileLocation = ''
 var newSrc;
+var movieObj = {}
+var arr = []
+
+
+function runThis(movieObj, url) {
+  fetch(`${movieObj['movieListUrl']}`).then((data) => {
+        return data.json()
+        }).then((moreData) => {
+      if(moreData['results']) {
+        moreData['results'].length = 1
+        moreData['results'][0]['fileName'] = url
+        moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
+        moreData['results'][0]['location'] = `F:/Videos/${url}.mkv`
+        return arrOfObj.push(moreData['results'])
+      }
+  })
+}
 
 let routeFunctions = {
     getAllMovies: (callback) => {
-        var prom = new Promise(function(resolve, reject) {
-          fs.readdir("F:/Videos", (err, files) => {
-          files.forEach(file => {
-          
-            url = file.replace('.mkv', '')
-
+      fs.readdir("F:/Videos/", (err, files) => {
+        var prom = new Promise((resolve, reject) => {
+          for(var k = 0; k < files.length; k++) {
+            url = files[k].replace('.mkv', '')
             movieObj = {
               title: url,
               movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${url.replace(new RegExp(' ', 'g'), '%20')}`,
-              location: file
             }
-            
-            arrOfObj.push(movieObj)
-              i++;
-            })
-            
-            for(var l = 0; l < i; l++) {
-              
-              fetch(`${arrOfObj[l]['movieListUrl']}`).then((data) => {
-                  return data.json()
-              }).then((dataInJSON) => {
-              
-                // console.log(dataInJSON['results'][0]['titlesss'] = arrOfObj[l]['title'])
-                
-                newSrc = Object.assign(dataInJSON['results'][0], {
-                  photoUrl: `https://image.tmdb.org/t/p/w500${dataInJSON['results'][0]['poster_path']}`
-              })
-                newArr.push(dataInJSON['results'][0])
-                if(newArr.length == arrOfObj.length) {
-                  console.log(newArr);
-                  
-                  resolve(newArr)
-                }
-              })
-            }
-          })
+            runThis(movieObj, url)
+            if(arr.length == k) {
+            resolve(arrOfObj)
+          }
+        }
+      })
+    
+          prom.then(resolve => {
+            console.log(arrOfObj);
+            var array = [].concat.apply([], arrOfObj)
+          callback(array)
+        }) 
         })
-        
-        prom.then(resolve => {
-          callback(resolve)
-        })
+       
     },
 
     getTranscodedMovie: (callback) => {
@@ -81,7 +80,9 @@ let routeFunctions = {
                 if (movieTitle['browser'] == "Safari") {
                   console.log("Hello there", movieTitle['location'])
                   var ffstream = ffmpeg(movieTitle['location'])
-                  
+                  .videoCodec('libx264')
+                  .audioCodec('aac')
+
                   .on('error', function(err) {
                     console.log('An error occurred: ' + err.message);
                   })
@@ -126,7 +127,7 @@ let routeFunctions = {
                   .on('stderr', function(stderrLine) {
                     // console.log('Stderr output: ' + stderrLine);
                   })
-                  .save(`F:/tanscoding/${movieTitle['title'] + movieTitle['fileformat']}`)
+                  .save(`F:/transcoding/${movieTitle['title'] + movieTitle['fileformat']}`)
                   
                   var watcher = fs.watch("F:/Videos/", (event, filename) => {
                     console.log(filename)
