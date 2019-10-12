@@ -12,6 +12,8 @@ var movieObj = {}
 var newArr = []
 var url = ''
 var i = 0
+var fileLocation = ''
+var newSrc;
 
 let routeFunctions = {
     getAllMovies: (callback) => {
@@ -24,26 +26,28 @@ let routeFunctions = {
             movieObj = {
               title: url,
               movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${url.replace(new RegExp(' ', 'g'), '%20')}`,
-              filename: file
+              location: file
             }
+            
             arrOfObj.push(movieObj)
               i++;
             })
             
             for(var l = 0; l < i; l++) {
+              
               fetch(`${arrOfObj[l]['movieListUrl']}`).then((data) => {
                   return data.json()
               }).then((dataInJSON) => {
-                console.log(arrOfObj);
+              
                 // console.log(dataInJSON['results'][0]['titlesss'] = arrOfObj[l]['title'])
                 
-                const newSrc = Object.assign(dataInJSON['results'][0], {
-                  photoUrl: `https://image.tmdb.org/t/p/w500${dataInJSON['results'][0]['poster_path']}`,
-                  videoUrl: `http://192.168.1.19:4012/${url.replace(new RegExp(' ', 'g'), '%20')}`,
-                  
+                newSrc = Object.assign(dataInJSON['results'][0], {
+                  photoUrl: `https://image.tmdb.org/t/p/w500${dataInJSON['results'][0]['poster_path']}`
               })
                 newArr.push(dataInJSON['results'][0])
                 if(newArr.length == arrOfObj.length) {
+                  console.log(newArr);
+                  
                   resolve(newArr)
                 }
               })
@@ -65,6 +69,7 @@ let routeFunctions = {
     startconvertingMovie: (movieTitle, callback)=>{
         var thing = false
         pool.query('SELECT * FROM `moviesplaying` WHERE `title` = ?', movieTitle, (err, res)=>{
+            
             console.log("hiiiiiiiiiiiiiiiiiiiiiiiiiiiii", movieTitle)
             
            

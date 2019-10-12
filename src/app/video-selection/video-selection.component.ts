@@ -52,7 +52,6 @@ export class VideoSelectionComponent implements OnInit {
 
     console.log(this.browserName)
     this.http.get('http://192.168.1.19:4012/api/mov/movies').subscribe((res: any[]) => {
-      console.log(res)
     this.selection = res
       console.log(this.selection)
     });
