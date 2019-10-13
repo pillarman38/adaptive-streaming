@@ -7,7 +7,7 @@ import { FormsModule, ReactiveFormsModule, NgModel } from '@angular/forms';
 import { config } from 'rxjs';
 import { SavedVideoInfoService } from '../saved-video-info.service';
 import { MediaPlayer } from 'dashjs'
-import * as HLS from 'hls.js';
+import * as Hls from 'hls.js';
 
 @Component({
   selector: 'app-video-player',
@@ -29,7 +29,6 @@ export class VideoPlayerComponent implements OnInit {
   isPlaying = false;
   imgIcn = '../../assets/images/icons8_Circled_Play_50px.png'
 
-  @ViewChild('iosvideoplayer') iosvideoplayer: HTMLMediaElement;
   currentTime: number;
   duration: string;
   position: number;
@@ -56,30 +55,28 @@ export class VideoPlayerComponent implements OnInit {
   }
   
   ngOnInit() {
-    
     this.http.post('http://192.168.1.19:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
-      console.log(event)
+      console.log(event['err']['location']);
+      
       this.stream = this.video['location'];
-
-      if (this.hls) {
-        this.hls.destroy();
-      }
-
-      this.hls = new HLS({
-        startLevel: 2,
-        capLevelToPlayerSize: true,
-      });
-
-      if (HLS.isSupported()) {
-        this.hls.attachMedia(document.getElementById('videoplayer'));
-        this.hls.loadSource(this.stream);
-          this.hls.on(HLS.Events.MANIFEST_PARSED, (event, data) => {
-            console.log(event, data)
-            this.iosvideoplayer.play()
+          
+      if (Hls.isSupported()) {
+        var videoTwo = <HTMLMediaElement>document.getElementById('videoplayer');
+        var hls = new Hls();
+        // bind them together
+        hls.loadSource(this.stream);
+        hls.attachMedia(videoTwo);
+        hls.on(Hls.Events.MEDIA_ATTACHED, function (event, data) {
+          console.log("video and hls.js are now bound together !", event, data);
+          hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+            videoTwo.play()
+            console.log("manifest loaded, found " + data.levels.length + " quality level");
           });
+        })
       }
 
+     
 // hls.js is not supported on platforms that do not have Media Source Extensions (MSE) enabled.
  // When the browser has built-in HLS support (check using `canPlayType`), we can provide an HLS manifest (i.e. .m3u8 URL) directly to the video element through the `src` property.
  // This is using the built-in support of the plain video element, without using hls.js.
@@ -92,6 +89,8 @@ export class VideoPlayerComponent implements OnInit {
 
         this.iosReady = true
       }
+
+
       
         })
     }

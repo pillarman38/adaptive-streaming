@@ -18,7 +18,7 @@ router.get('/movies', (req, res)=>{
 router.get('/transcodedmovie', (req, res)=>{
     models.getTranscodedMovie((err, results)=>{
         if(err){
-            return res.send({err: err})
+            return ress.send({err: err})
             
         } else {
             res.send(results)
@@ -42,8 +42,10 @@ router.post('/pullVideo', (req, res)=>{
             poster_path: req.body['poster_path'],
             release_date: req.body['release_date'],
             vote_average: req.body['vote_average'],
-            vote_count: req.body['vote_count']
-
+            vote_count: req.body['vote_count'],
+            filePath: req.body['filePath'],
+            fileName: req.body['fileName'],
+            photoUrl: req.body['photoUrl']
         }
     , (err, results)=>{
         if(err){

@@ -26,8 +26,8 @@ function runThis(movieObj, url) {
         moreData['results'].length = 1
         moreData['results'][0]['fileName'] = url
         moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
-        moreData['results'][0]['location'] = `F:/Videos/${url}.mkv`
-        moreData['results'][0]['filePath'] = `http://192.168.1.19:4012/transcoding/${url.replace(new RegExp(' ', 'g'), '%20')}.m3u8`
+        moreData['results'][0]['location'] = `http://192.168.1.19:4012/${url.replace(new RegExp(' ', 'g'), '%20')}.mkv`
+        moreData['results'][0]['filePath'] = `F:/Videos/${url}.mkv`
         return arrOfObj.push(moreData['results'])
       }
   })
@@ -35,6 +35,7 @@ function runThis(movieObj, url) {
 
 let routeFunctions = {
     getAllMovies: (callback) => {
+      
       fs.readdir("F:/Videos/", (err, files) => {
         var prom = new Promise((resolve, reject) => {
           for(var k = 0; k < files.length; k++) {
@@ -51,7 +52,6 @@ let routeFunctions = {
       })
     
           prom.then(resolve => {
-            console.log(arrOfObj);
             var array = [].concat.apply([], arrOfObj)
           callback(array)
         }) 
@@ -70,8 +70,7 @@ let routeFunctions = {
         pool.query('SELECT * FROM `moviesplaying` WHERE `title` = ?', movieTitle, (err, res)=>{
             
             console.log("hiiiiiiiiiiiiiiiiiiiiiiiiiiiii", movieTitle)
-            
-           
+            movieTitle['location'] = `http://192.168.1.19:4012/${movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20')}.m3u8`
             if(err) {
               pool.query('INSERT INTO `moviesplaying` SET ?',movieTitle, (err, resultstwo) =>{
                 
@@ -79,24 +78,25 @@ let routeFunctions = {
                
                 if (movieTitle['browser'] == "Safari") {
                   console.log("Hello there", movieTitle['location'])
-                  var ffstream = ffmpeg(movieTitle['location'])
+                  var ffstream = ffmpeg(movieTitle['filePath'])
+                  // set target codec
                   .videoCodec('libx264')
+                  // set audio bitrate
+             
+                  // set audio codec
                   .audioCodec('aac')
-
-                  .on('error', function(err) {
-                    console.log('An error occurred: ' + err.message);
-                  })
-                  .on('end', function() {
-                    console.log('Processing finished !');
-                  })
-                  .on('stderr', function(stderrLine) {
-                    // console.log('Stderr output: ' + stderrLine);
-                  })
+                  // set number of audio channels
+           
+                  // set hls segments time
+                  .addOption('-hls_time', 10)
+                  // include all the segments in the list
+                  .addOption('-hls_list_size',0)
+                  // setup event handlers
                   .save(`F:/transcoding/${movieTitle['title'] + movieTitle['fileformat']}`)
                   
-                  var watcher = fs.watch("F:/Videos/", (event, filename) => {
+                  var watcher = fs.watch("F:/transcoding/", (event, filename) => {
                     console.log(filename)
-                    if(filename == `${movieTitle['title']}.m3u8`){
+                    if(filename == `${movieTitle['fileName']}.m3u8`){
                       watcher.close()
                       console.log("its here")
                       var movieReturner = {
@@ -114,24 +114,31 @@ let routeFunctions = {
             }
                   if(movieTitle['browser'] == "Chrome") {
                     console.log("Hello there", movieTitle['location'])
-                  var ffstream = ffmpeg(movieTitle['location'])
+                  var ffstream = ffmpeg(movieTitle['filePath'])
+
+                  // set target codec
                   .videoCodec('libx264')
+                  // set audio bitrate
+             
+                  // set audio codec
                   .audioCodec('aac')
-                  
-                  .on('error', function(err) {
-                    console.log('An error occurred: ' + err.message);
-                  })
+                  // set number of audio channels
+           
+                  // set hls segments time
+                  .addOption('-hls_time', 10)
+                  // include all the segments in the list
+                  .addOption('-hls_list_size',0)
+                  // setup event handlers
                   .on('end', function() {
-                    console.log('Processing finished !');
+                    console.log('file has been converted succesfully');
                   })
-                  .on('stderr', function(stderrLine) {
-                    // console.log('Stderr output: ' + stderrLine);
+                  .on('error', function(err) {
+                    console.log('an error happened: ' + err.message);
                   })
-                  .save(`F:/transcoding/${movieTitle['title'] + movieTitle['fileformat']}`)
-                  
-                  var watcher = fs.watch("F:/Videos/", (event, filename) => {
+                  .save(`F:/transcoding/${movieTitle['fileName']}.m3u8`)
+                  var watcher = fs.watch("F:/transcoding/", (event, filename) => {
                     console.log(filename)
-                    if(filename == `${movieTitle['title']}.m3u8`){
+                    if(filename == `${movieTitle['fileName']}.m3u8`){
                       watcher.close()
                       console.log("its here")
                       var movieReturner = {

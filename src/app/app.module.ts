@@ -9,7 +9,7 @@ import { VideoSelectionComponent } from './video-selection/video-selection.compo
 
 const appRoutes: Routes = [
   {path: 'videoPlayer', component: VideoPlayerComponent},
-  {path: 'videoSeletion', component: VideoSelectionComponent}
+  {path: 'videoSelection', component: VideoSelectionComponent}
   
 ];
 

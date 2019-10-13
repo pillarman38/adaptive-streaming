@@ -9,8 +9,8 @@ var bparser = require('body-parser').json()
 
 app.use(bparser)
 app.use(express.static(__dirname + '/dist'))
-app.use(express.static("F:/Videos"))
-app.use(express.static("F:/Videos/transcoding"))
+app.use(express.static("F:/"))
+
 app.use(cors())
 
 let userRoutes = require('./server/routes/movies.routes')
