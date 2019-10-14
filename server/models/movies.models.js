@@ -92,7 +92,7 @@ let routeFunctions = {
                   // include all the segments in the list
                   .addOption('-hls_list_size',0)
                   // setup event handlers
-                  .save(`F:/transcoding/${movieTitle['title'] + movieTitle['fileformat']}`)
+                  .save(`F:/transcoding/${movieTitle['fileName']}.m3u8`)
                   
                   var watcher = fs.watch("F:/transcoding/", (event, filename) => {
                     console.log(filename)
@@ -103,7 +103,7 @@ let routeFunctions = {
                         browser: movieTitle['browser'],
                         duration: movieTitle['duration'],
                         fileformat: movieTitle['fileformat'],
-                        location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['title'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
+                        location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
                         title: movieTitle['title']
                       }
                       callback(movieReturner)
@@ -117,14 +117,11 @@ let routeFunctions = {
                   var ffstream = ffmpeg(movieTitle['filePath'])
 
                   // set target codec
-                  .videoCodec('libx264')
-                  // set audio bitrate
-             
-                  // set audio codec
-                  .audioCodec('aac')
+
+                  .audioBitrate('128k')
+
+                  .audioCodec('libmp3lame')
                   // set number of audio channels
-           
-                  // set hls segments time
                   .addOption('-hls_time', 10)
                   // include all the segments in the list
                   .addOption('-hls_list_size',0)
@@ -145,12 +142,12 @@ let routeFunctions = {
                         browser: movieTitle['browser'],
                         duration: movieTitle['duration'],
                         fileformat: movieTitle['fileformat'],
-                        location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['title'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
+                        location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
                         title: movieTitle['title']
                       }
                       setTimeout(() => {
                         callback(movieReturner)
-                      },5000)
+                      },10000)
                       
                       return
                     }

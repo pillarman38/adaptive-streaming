@@ -73,9 +73,10 @@ export class VideoPlayerComponent implements OnInit {
             videoTwo.play()
             console.log("manifest loaded, found " + data.levels.length + " quality level");
           });
+          
         })
       }
-
+      
      
 // hls.js is not supported on platforms that do not have Media Source Extensions (MSE) enabled.
  // When the browser has built-in HLS support (check using `canPlayType`), we can provide an HLS manifest (i.e. .m3u8 URL) directly to the video element through the `src` property.
@@ -86,11 +87,17 @@ export class VideoPlayerComponent implements OnInit {
       else {
         this.video = event['err']
         console.log(this.video, this.stream)
-
         this.iosReady = true
       }
 
-
+      hls.on(Hls.Events.ERROR, function (event, data) {
+        var errorType = data.type;
+        var errorDetails = data.details;
+        var errorFatal = data.fatal;
+    console.log(errorFatal, errorDetails, errorType, event, data);
+    
+      });
+      
       
         })
     }
