@@ -1,12 +1,16 @@
 let pool = require('../../config/connections')
 let fs = require('fs')
-const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
+
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+const ffprobePath = require('@ffprobe-installer/ffprobe').path;
+const rimraf = require('rimraf');
+
 ffmpeg.setFfmpegPath(ffmpegPath);
+ffmpeg.setFfprobePath(ffprobePath);
 let chokidar = require('chokidar')
 var showPlayer = false
 var fetch = require('node-fetch')
-
 
 var arrOfObj = []
 
@@ -35,10 +39,16 @@ function runThis(movieObj, url) {
 
 let routeFunctions = {
     getAllMovies: (callback) => {
+      console.log(ffmpegPath);
       
       fs.readdir("F:/Videos/", (err, files) => {
         var prom = new Promise((resolve, reject) => {
           for(var k = 0; k < files.length; k++) {
+
+            ffmpeg.ffprobe(`F:/Videos/${files[k]}`, function(err, metaData) {
+              console.log(metaData['format'], metaData['streams'][1]);
+            })
+            
             url = files[k].replace('.mkv', '')
             movieObj = {
               title: url,
@@ -79,19 +89,29 @@ let routeFunctions = {
                 if (movieTitle['browser'] == "Safari") {
                   console.log("Hello there", movieTitle['location'])
                   var ffstream = ffmpeg(movieTitle['filePath'])
-                  // set target codec
-                  .videoCodec('libx264')
-                  // set audio bitrate
-             
-                  // set audio codec
+                  .addOption('-level', 3.0)
+                  // size
                   .audioCodec('aac')
-                  // set number of audio channels
-           
+
+                  .audioChannels(6)
+                  // start_number
+                  .addOption('-start_number', 0)
                   // set hls segments time
                   .addOption('-hls_time', 10)
                   // include all the segments in the list
-                  .addOption('-hls_list_size',0)
+                  .addOption('-hls_list_size', 0)
+                  // format -f
+                  .format('hls')
                   // setup event handlers
+                  .on('start', function(cmd) {
+                     console.log('Started ' + cmd);
+                  })
+                  .on('error', function(err) {
+                    logger.error('an error happened: ' + err.message);
+                  })
+                  .on('end', function() {
+                     logger.debug('File has been converted succesfully');
+                  })
                   .save(`F:/transcoding/${movieTitle['fileName']}.m3u8`)
                   
                   var watcher = fs.watch("F:/transcoding/", (event, filename) => {
@@ -115,22 +135,28 @@ let routeFunctions = {
                   if(movieTitle['browser'] == "Chrome") {
                     console.log("Hello there", movieTitle['location'])
                   var ffstream = ffmpeg(movieTitle['filePath'])
+                  .addOption('-level', 3.0)
+                  // size
+                  .audioCodec('aac')
 
-                  // set target codec
-
-                  .audioBitrate('128k')
-
-                  .audioCodec('libmp3lame')
-                  // set number of audio channels
+                  .audioChannels(6)
+                  // start_number
+                  .addOption('-start_number', 0)
+                  // set hls segments time
                   .addOption('-hls_time', 10)
                   // include all the segments in the list
-                  .addOption('-hls_list_size',0)
+                  .addOption('-hls_list_size', 0)
+                  // format -f
+                  .format('hls')
                   // setup event handlers
-                  .on('end', function() {
-                    console.log('file has been converted succesfully');
+                  .on('start', function(cmd) {
+                     console.log('Started ' + cmd);
                   })
                   .on('error', function(err) {
-                    console.log('an error happened: ' + err.message);
+                    logger.error('an error happened: ' + err.message);
+                  })
+                  .on('end', function() {
+                     logger.debug('File has been converted succesfully');
                   })
                   .save(`F:/transcoding/${movieTitle['fileName']}.m3u8`)
                   var watcher = fs.watch("F:/transcoding/", (event, filename) => {
