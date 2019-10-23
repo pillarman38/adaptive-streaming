@@ -23,6 +23,13 @@ var movieObj = {}
 var arr = []
 
 function runThis(movieObj, url) {
+  var met;
+  ffmpeg.ffprobe(`F:/Videos/${movieObj['title']}`, function(err, metaData) {
+    met = metaData
+    console.log(met);
+  })
+  
+  
   fetch(`${movieObj['movieListUrl']}`).then((data) => {
         return data.json()
         }).then((moreData) => {
@@ -32,6 +39,7 @@ function runThis(movieObj, url) {
         moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
         moreData['results'][0]['location'] = `http://192.168.1.19:4012/${url.replace(new RegExp(' ', 'g'), '%20')}.mkv`
         moreData['results'][0]['filePath'] = `F:/Videos/${url}.mkv`
+        moreData['results'][0]['ffprobeStuff'] = met
         return arrOfObj.push(moreData['results'])
       }
   })
@@ -39,19 +47,16 @@ function runThis(movieObj, url) {
 
 let routeFunctions = {
     getAllMovies: (callback) => {
-      console.log(ffmpegPath);
       
       fs.readdir("F:/Videos/", (err, files) => {
         var prom = new Promise((resolve, reject) => {
           for(var k = 0; k < files.length; k++) {
 
-            ffmpeg.ffprobe(`F:/Videos/${files[k]}`, function(err, metaData) {
-              console.log(metaData['format'], metaData['streams'][1]);
-            })
+            
             
             url = files[k].replace('.mkv', '')
             movieObj = {
-              title: url,
+              title: files[k],
               movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${url.replace(new RegExp(' ', 'g'), '%20')}`,
             }
             runThis(movieObj, url)
@@ -66,7 +71,6 @@ let routeFunctions = {
           callback(array)
         }) 
         })
-       
     },
 
     getTranscodedMovie: (callback) => {
