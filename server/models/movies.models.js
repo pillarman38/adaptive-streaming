@@ -24,13 +24,16 @@ var arr = []
 
 function runThis(movieObj, url) {
   var met;
-  ffmpeg.ffprobe(`F:/Videos/${movieObj['title']}`, function(err, metaData) {
+  var promTwo = new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(`F:/Videos/${movieObj['title']}`, function(err, metaData) {
     met = metaData
-    console.log(met);
+    if(metaData) {
+      resolve(metaData)
+    }
   })
-  
-  
-  fetch(`${movieObj['movieListUrl']}`).then((data) => {
+  }) 
+  promTwo.then(resolve => {
+    fetch(`${movieObj['movieListUrl']}`).then((data) => {
         return data.json()
         }).then((moreData) => {
       if(moreData['results']) {
@@ -40,8 +43,11 @@ function runThis(movieObj, url) {
         moreData['results'][0]['location'] = `http://192.168.1.19:4012/${url.replace(new RegExp(' ', 'g'), '%20')}.mkv`
         moreData['results'][0]['filePath'] = `F:/Videos/${url}.mkv`
         moreData['results'][0]['ffprobeStuff'] = met
+        moreData['results'][0]['channels'] = met['streams'][1]['channels']
+        moreData['results'][0]['resolution'] = `${met['streams'][0]['coded_width']}x${met['streams'][0]['coded_height']}`
         return arrOfObj.push(moreData['results'])
       }
+    })
   })
 }
 
@@ -84,6 +90,7 @@ let routeFunctions = {
         pool.query('SELECT * FROM `moviesplaying` WHERE `title` = ?', movieTitle, (err, res)=>{
             
             console.log("hiiiiiiiiiiiiiiiiiiiiiiiiiiiii", movieTitle)
+
             movieTitle['location'] = `http://192.168.1.19:4012/${movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20')}.m3u8`
             if(err) {
               pool.query('INSERT INTO `moviesplaying` SET ?',movieTitle, (err, resultstwo) =>{
@@ -96,8 +103,8 @@ let routeFunctions = {
                   .addOption('-level', 3.0)
                   // size
                   .audioCodec('aac')
-
-                  .audioChannels(6)
+                  
+                  .audioChannels(movieTitle['channels'])
                   // start_number
                   .addOption('-start_number', 0)
                   // set hls segments time

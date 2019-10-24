@@ -1,5 +1,12 @@
 <div *ngFor="let pic of selection" id="in">
-  <img src="{{pic.photoUrl}}" id="coverImg" (click)="saveSelected(pic)">
-  <p>{{pic.fileName}}</p>
+<div id="container">
+  <div id="card">
+      <div id="txt">
+          <p>{{pic.fileName}}</p>
+          <!-- <img id="playBtn" src="{{pic.photoUrl}}"> -->
+      </div>
+  </div>
+  <img id="image" src="{{pic.photoUrl}}" (click)="saveSelected(pic)">
+</div>
 </div>
 

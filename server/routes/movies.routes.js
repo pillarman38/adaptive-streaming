@@ -45,7 +45,9 @@ router.post('/pullVideo', (req, res)=>{
             vote_count: req.body['vote_count'],
             filePath: req.body['filePath'],
             fileName: req.body['fileName'],
-            photoUrl: req.body['photoUrl']
+            photoUrl: req.body['photoUrl'],
+            channels: req.body['channels'],
+            resolution: req.body['resolution']
         }
     , (err, results)=>{
         if(err){
