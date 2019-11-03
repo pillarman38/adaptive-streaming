@@ -1,12 +1,10 @@
-<div *ngFor="let pic of selection" id="in">
-<div id="container">
-  <div id="card">
-      <div id="txt">
-          <p>{{pic.fileName}}</p>
-          <!-- <img id="playBtn" src="{{pic.photoUrl}}"> -->
+<table id="container">
+<td *ngFor="let pic of selection" id="in">
+    <div id="card">
+        <div id="txt">
+            <p>{{pic.fileName}}</p>
+            <!-- <img id="playBtn" src="{{pic.photoUrl}}"> -->
+        </div><img id="image" src="{{pic.photoUrl}}" (click)="saveSelected(pic)">
       </div>
-  </div>
-  <img id="image" src="{{pic.photoUrl}}" (click)="saveSelected(pic)">
-</div>
-</div>
-
+  </td>
+</table>

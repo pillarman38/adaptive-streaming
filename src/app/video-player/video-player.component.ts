@@ -57,7 +57,7 @@ export class VideoPlayerComponent implements OnInit {
   ngOnInit() {
     this.http.post('http://192.168.1.19:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
-      console.log(event['err']['location']);
+      console.log(this.savedVid.savedvideo);
       
       this.stream = this.video['location'];
           

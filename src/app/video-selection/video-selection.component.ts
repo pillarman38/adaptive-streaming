@@ -13,7 +13,7 @@ import { SavedVideoInfoService } from '../saved-video-info.service';
 @Component({
   selector: 'app-video-selection',
   templateUrl: './video-selection.component.html',
-  styleUrls: ['./video-selection.component.css']
+  styleUrls: ['./video-selection.component.scss']
 })
 export class VideoSelectionComponent implements OnInit {
 
@@ -42,6 +42,26 @@ export class VideoSelectionComponent implements OnInit {
   }
     this.router.navigateByUrl('/videoPlayer')
   }
+  mouseover(e) {
+    console.log(e);
+    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transform = "translate(-100px)"
+    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transition = "transform 0.5s"
+    // e['srcElement']['parentElement']['parentElement']['nextSibling'].style.transform = "translate(100px)"
+    // e['srcElement']['parentElement']['parentElement']['nextSibling'].style.transition = "transform 0.5s"
+    // var container = document.getElementById ("tempDiv");
+    // var message = "The width of the contents with padding: " + container.scrollWidth + "px.\n";
+    // message += "The height of the contents with padding: " + container.scrollHeight + "px.\n";
+    // console.log(message);
+    
+  }
+  mouseout(e) {
+    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transform = "translate(0px)"
+    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transition = "transform 0.5s"
+    // e['srcElement']['parentElement']['parentElement']['nextSibling'].style.transform = "translate(0px)"
+    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transition = "transform 0.5s"
+  }
+
+  
   ngOnInit() {
     var N = navigator.appName, ua= navigator.userAgent, tem;
     var M = ua.match(/(opera|chrome|safari|firefox|msie|trident)\/?\s*(\.?\d+(\.\d+)*)/i);
