@@ -104,7 +104,7 @@ let routeFunctions = {
                 if (movieTitle['browser'] == "Safari") {
                   console.log("Hello there", movieTitle['location'])
                   var ffstream = ffmpeg(movieTitle['filePath'])
-                  .videoCodec('libx264')
+                  .videoCodec('copy')
                  
                   // size
                   
@@ -153,7 +153,7 @@ let routeFunctions = {
                   if(movieTitle['browser'] == "Chrome") {
                     console.log("Hello there", movieTitle['location'])
                   var ffstream = ffmpeg(movieTitle['filePath'])
-               
+                  .videoCodec('libx264')
                   // size
                   .audioCodec('aac')
 
@@ -170,12 +170,12 @@ let routeFunctions = {
                   .on('start', function(cmd) {
                      console.log('Started ' + cmd);
                   })
-                  .on('error', function(err) {
-                    logger.error('an error happened: ' + err.message);
-                  })
-                  .on('end', function() {
-                     logger.debug('File has been converted succesfully');
-                  })
+                  // .on('error', function(err) {
+                  //   logger.error('an error happened: ' + err.message);
+                  // })
+                  // .on('end', function() {
+                  //    logger.debug('File has been converted succesfully');
+                  // })
                   .save(`F:/transcoding/${movieTitle['fileName']}.m3u8`)
                   var watcher = fs.watch("F:/transcoding/", (event, filename) => {
                     console.log(filename)

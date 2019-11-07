@@ -1,10 +1,10 @@
-<table id="container">
-<td *ngFor="let pic of selection" id="in">
-    <div id="card">
+<table class="container">
+<td *ngFor="let pic of selection" #in>
+    <div class="card" #card>
         <div id="txt">
             <p>{{pic.fileName}}</p>
             <!-- <img id="playBtn" src="{{pic.photoUrl}}"> -->
-        </div><img id="image" src="{{pic.photoUrl}}" (click)="saveSelected(pic)">
+        </div><img id="image" src="{{pic.photoUrl}}" (click)="saveSelected(pic)"(mouseover)="mouseout($event)">
       </div>
   </td>
 </table>
