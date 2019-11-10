@@ -1,63 +1,143 @@
 #txt {
     color: orange;
     position: absolute;
-    opacity: 0;
-    z-index: 0;
-}
-#image {
-    width: 100%;
-    height: 100%;
-}
-
-.container {
-  width: 100%;
-  display: flex;
-  
-  display: grid;
-    grid-gap: 10px;
-		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr) ) ;
-		background-color: #fff;
-		color: #444;
-  /* This aligns items to the end line on main-axis */
-
-}
-#card:hover #txt {
-    position: absolute;
-    color: orange;
-    opacity: 1;
-    transition: opacity 0.5s;
+    width: 500px;
+    height: 300px;
     z-index: 1;
 }
 
-#card:hover {
-    grid-column: auto / span 2;
-    width: 300px;
-    height: 400px;
-    flex-grow: 1;
-    transition: width 0.5, height 0.5s;
+#swap-on-hover__front-image {
+    border-radius: 5px;
+    position: absolute;
+    width: 200px;
+
+    height: 300px;
+    opacity: 1;
+    z-index: 1;   
 }
-#card:hover #image{
-    
-    z-index: 10;
+
+#swap-on-hover__back-image {
+    border-radius: 5px;
+    box-shadow: 0px 0px 0px grey;
+    width: 200px;
+    height: 300px;
+}
+
+
+#card:not(hover) #swap-on-hover__front-image{
+    filter: brightness(100%);
+    width: 200px;
+    opacity: 1;
+    transition: filter 0.5s, width 0.5s, opacity 0.5s;
+}
+#card:not(hover) #swap-on-hover__back-image{
+    filter: brightness(100%);
+    width: 200px;
+    transition: filter 0.5s, width 0.5s;
+}
+
+#card:hover #swap-on-hover__front-image{ 
+    width: 500px;
+    opacity: 0;
     filter: brightness(50%);
-    transition: filter 0.5s;
+    transition: filter 0.5s width 0.5s opacity 0.5s;
 }
+#card:hover #swap-on-hover__back-image { 
+    width: 500px;
+    filter: brightness(50%);
+    box-shadow: 10px 10px 5px grey;
+    transition: filter 0.5s width 0.5s box-shadow 0.5s;
+}
+#card:hover #txt { 
+    background-color: transparent;
+    transition: background-color 0.5s;
+}
+#card:hover .overview {
+    z-index: 1;
+}
+
+
+#card:hover #title {
+    color: orange;
+    opacity: 1;
+    transition: opacity 0.5s;
+    z-index: 9999;
+}
+
+#container {
+  width: 100%;
+  display: flex;  
+  flex-direction: row; /* let the content flow to the next row */
+  flex-wrap: wrap;
+  justify-content: space-around;
+  z-index: -2;
+  /* This aligns items to the end line on main-axis */
+}
+
+
 #card:not(hover) #txt {
     position: absolute;
     color: orange;
     transition: opacity 0.5s;
     z-index: 1;
 }
-#card:not(hover) #image{
-    filter: brightness(100%);
-    transition: filter 0.5s;
-}
-.card:not(hover) {
+
+#card:not(hover) {
     width: 200px;
     height: 300px;
-    grid-column: auto / span 1;
-  grid-row: auto / span 2;
-
-
+    margin-bottom: 20px;
+    border-radius: 5px;
+    margin-right: 300px;
     transition: width 0.5s, height 0.5s;
+}
+.header {
+    padding-top: 500px;
+}
+
+.overview {
+    width: 250px;
+    background-color: gray;
+    color: white;
+    height: 100%;
+    padding: 5px;
+    
+    margin-left: 250px; 
+    border-radius: 5px;
+}
+.plot {
+    background-color: black;
+    height: 70%;
+    text-overflow: ellipsis;
+    border-radius: 5px;
+}
+.resolution {
+    background-color: black;
+    padding: 5px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+    text-align: center;
+}
+#card:hover .resolution {
+    background-color: transparent;
+    transition: background-color 0.5s;
+}
+#card:hover .plot {
+    background-color: transparent;
+    transition: background-color 0.5s;
+}
+#card:hover .overview {
+    background-color: transparent;
+    transition: background-color 0.5s;
+}
+.ellipsis {
+    width: 100%;
+    height: 100%;
+    white-space: wrap;
+    margin: auto;
+  	overflow: hidden;
+    text-overflow: ellipsis;
+}
+#title {
+    float: left;
+    opacity: 0;
 }

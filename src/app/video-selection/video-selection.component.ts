@@ -20,10 +20,7 @@ export class VideoSelectionComponent implements OnInit {
   selection;
   browserName = ""
   nAgt = navigator.appCodeName;
-  
   constructor(private http: HttpClient, private router: Router, private saveVid: SavedVideoInfoService) { }
-
-
 
   saveSelected(e) {
     console.log(e);
@@ -58,18 +55,14 @@ export class VideoSelectionComponent implements OnInit {
     
   }
   mouseout(e) {
-    
-    // for(var i = 0; i < this.slides.length; i++)
-    // {
-    //    console.log(this.slides[i], "LOOOOGGGGGG");
-    // }
+    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transform = "translate(0px)"
+    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transition = "transform 0.5s"
+    // e['srcElement']['parentElement']['parentElement']['nextSibling'].style.transform = "translate(0px)"
+    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transition = "transform 0.5s"
   }
 
   
- 
   ngOnInit() {
-
-    let slides = document.querySelectorAll("td");
     var N = navigator.appName, ua= navigator.userAgent, tem;
     var M = ua.match(/(opera|chrome|safari|firefox|msie|trident)\/?\s*(\.?\d+(\.\d+)*)/i);
     if(M && (tem= ua.match(/version\/([\.\d]+)/i))!= null) {M[2]=tem[1];}
@@ -80,24 +73,7 @@ export class VideoSelectionComponent implements OnInit {
     console.log(this.browserName)
     this.http.get('http://192.168.1.19:4012/api/mov/movies').subscribe((res: any[]) => {
     this.selection = res
-    console.log(this.selection)
-
-    const slides = document.getElementsByClassName('card');
-    var checkExist = setInterval(function() {
-      if (slides.length) {
-         console.log("Exists!");
-         
-         console.log(slides);
-         for(var i = 0; i < slides.length; i++) {
-           console.log(slides[i].getBoundingClientRect());
-           
-         }
-         clearInterval(checkExist);
-      }
-   }, 100); 
-    
-      
-
+      console.log(this.selection)
     });
   }
   
