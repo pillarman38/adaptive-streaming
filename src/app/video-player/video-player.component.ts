@@ -68,29 +68,27 @@ export class VideoPlayerComponent implements OnInit {
         hls.loadSource(this.stream);
         hls.attachMedia(videoTwo);
         hls.on(Hls.Events.MEDIA_ATTACHED, function (event, data) {
-          console.log("video and hls.js are now bound together !", event, data);
+          console.log("video and hls.js are now bound together !", event['media'], data);
           hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
             videoTwo.play()
             console.log("manifest loaded, found " + data.levels.length + " quality level");
           });
+        
           
         })
-      }
-      
-     
-// hls.js is not supported on platforms that do not have Media Source Extensions (MSE) enabled.
- // When the browser has built-in HLS support (check using `canPlayType`), we can provide an HLS manifest (i.e. .m3u8 URL) directly to the video element through the `src` property.
- // This is using the built-in support of the plain video element, without using hls.js.
- // Note: it would be more normal to wait on the 'canplay' event below however on Safari (where you are most likely to find built-in HLS support) the video.src URL must be on the user-driven
- // white-list before a 'canplay' event will be emitted; the last video event that can be reliably listened-for when the URL is not on the white-list is 'loadedmetadata'.
-  
-      else {
-        this.video = event['err']
-        console.log(this.video, this.stream)
-        this.iosReady = true
-      }
+        
+      } else {
+        addSourceToVideo(videoTwo, this.stream, 'application/x-mpegURL"');
+      videoTwo.play();
+    }
 
-      hls.on(Hls.Events.ERROR, function (event, data) {
+    function addSourceToVideo(element, src, type) {
+      var source = document.createElement('source');
+      source.src = src;
+      source.type = type;
+      element.appendChild(source);
+    }
+    hls.on(Hls.Events.ERROR, function (event, data) {
         var errorType = data.type;
         var errorDetails = data.details;
         var errorFatal = data.fatal;
@@ -99,6 +97,17 @@ export class VideoPlayerComponent implements OnInit {
       });
       
       
+     
+// hls.js is not supported on platforms that do not have Media Source Extensions (MSE) enabled.
+ // When the browser has built-in HLS support (check using `canPlayType`), we can provide an HLS manifest (i.e. .m3u8 URL) directly to the video element through the `src` property.
+ // This is using the built-in support of the plain video element, without using hls.js.
+ // Note: it would be more normal to wait on the 'canplay' event below however on Safari (where you are most likely to find built-in HLS support) the video.src URL must be on the user-driven
+ // white-list before a 'canplay' event will be emitted; the last video event that can be reliably listened-for when the URL is not on the white-list is 'loadedmetadata'.
+  
+     
+      
+      
         })
     }
+  
 }

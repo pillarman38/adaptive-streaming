@@ -21,6 +21,8 @@ var fileLocation = ''
 var newSrc;
 var movieObj = {}
 var arr = []
+var killProcess = false
+var ffstream = ffmpeg()
 
 function runThis(movieObj, url) {
   var met;
@@ -29,8 +31,8 @@ function runThis(movieObj, url) {
     met = metaData
     if(metaData) {
       resolve(metaData)
-    }
-  })
+      }
+    })
   }) 
   promTwo.then(resolve => {
     fetch(`${movieObj['movieListUrl']}`).then((data) => {
@@ -42,6 +44,7 @@ function runThis(movieObj, url) {
         delete moreData['results'][0]['video']; 
         moreData['results'].length = 1
         moreData['results'][0]['fileName'] = url
+        moreData['results'][0]['duration'] = met['format']['duration']
         moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
         moreData['results'][0]['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['backdrop_path']}`
         moreData['results'][0]['location'] = `http://192.168.1.19:4012/${url.replace(new RegExp(' ', 'g'), '%20')}.mkv`
@@ -57,12 +60,16 @@ function runThis(movieObj, url) {
 
 let routeFunctions = {
     getAllMovies: (callback) => {
-      
+      setTimeout(function() {
+      ffstream.on('error', function() {
+        console.log('Ffmpeg has been killed');
+      });
+
+      ffstream.kill();
+    }, 1000);
       fs.readdir("F:/Videos/", (err, files) => {
         var prom = new Promise((resolve, reject) => {
           for(var k = 0; k < files.length; k++) {
-
-            
             
             url = files[k].replace('.mkv', '')
             movieObj = {
@@ -83,6 +90,8 @@ let routeFunctions = {
         })
     },
 
+  
+
     getTranscodedMovie: (callback) => {
       pool.query('SELECT * FROM moviesplaying', (err, results)=>{
           callback(err,results)
@@ -94,111 +103,13 @@ let routeFunctions = {
         pool.query('SELECT * FROM `moviesplaying` WHERE `title` = ?', movieTitle, (err, res)=>{
             
             console.log("hiiiiiiiiiiiiiiiiiiiiiiiiiiiii", movieTitle)
-
-            // movieTitle['location'] = `http://192.168.1.19:4012/${movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20')}.m3u8`
             if(err) {
               pool.query('INSERT INTO `moviesplaying` SET ?',movieTitle, (err, resultstwo) =>{
                 
                 console.log(err, resultstwo)
+                killProcess = false
+                startConverting(movieTitle, killProcess, callback)
                
-                if (movieTitle['browser'] == "Safari") {
-                  console.log("Hello there", movieTitle['location'])
-                  var ffstream = ffmpeg(movieTitle['filePath'])
-                  .videoCodec('copy')
-                 
-                  // size
-                  
-                  // size
-                  .audioCodec('aac')
-
-                  .audioChannels(6)
-                  // start_number
-                  .addOption('-start_number', 0)
-                  // set hls segments time
-                  .addOption('-hls_time', 10)
-                  // include all the segments in the list
-                  .addOption('-hls_list_size', 0)
-                  // format -f
-                  .format('hls')
-                  // setup event handlers
-                  .on('start', function(cmd) {
-                     console.log('Started ' + cmd);
-                  })
-                  // .on('error', function(err) {
-                  //   logger.error('an error happened: ' + err.message);
-                  // })
-                  // .on('end', function() {
-                  //    logger.debug('File has been converted succesfully');
-                  // })
-                  .save(`F:/transcoding/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
-                  
-                  var watcher = fs.watch("F:/transcoding/", (event, filename) => {
-                    console.log(filename)
-                    if(filename == `${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), '')){
-                      watcher.close()
-                      console.log("its here")
-                      var movieReturner = {
-                        browser: movieTitle['browser'],
-                        duration: movieTitle['duration'],
-                        fileformat: movieTitle['fileformat'],
-                        location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '') + '.m3u8',
-                        title: movieTitle['title']
-                      }
-                      callback(movieReturner)
-                      return
-                    }
-                });
-              return console.log("This video already exisits in the database")
-            }
-                  if(movieTitle['browser'] == "Chrome") {
-                    console.log("Hello there", movieTitle['location'])
-                  var ffstream = ffmpeg(movieTitle['filePath'])
-                  .videoCodec('libx264')
-                  // size
-                  .audioCodec('aac')
-
-                  .audioChannels(6)
-                  // start_number
-                  .addOption('-start_number', 0)
-                  // set hls segments time
-                  .addOption('-hls_time', 10)
-                  // include all the segments in the list
-                  .addOption('-hls_list_size', 0)
-                  // format -f
-                  .format('hls')
-                  // setup event handlers
-                  .on('start', function(cmd) {
-                     console.log('Started ' + cmd);
-                  })
-                  // .on('error', function(err) {
-                  //   logger.error('an error happened: ' + err.message);
-                  // })
-                  // .on('end', function() {
-                  //    logger.debug('File has been converted succesfully');
-                  // })
-                  .save(`F:/transcoding/${movieTitle['fileName']}.m3u8`)
-                  var watcher = fs.watch("F:/transcoding/", (event, filename) => {
-                    console.log(filename)
-                    if(filename == `${movieTitle['fileName']}.m3u8`){
-                      watcher.close()
-                      console.log("its here")
-                      var movieReturner = {
-                        browser: movieTitle['browser'],
-                        duration: movieTitle['duration'],
-                        fileformat: movieTitle['fileformat'],
-                        location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
-                        title: movieTitle['title']
-                      }
-                      setTimeout(() => {
-                        callback(movieReturner)
-                      },10000)
-                      
-                      return
-                    }
-                });
-                
-                  return console.log("This video already exisits in the database")
-                  }
               })  
             }
           //ffmpeg -i "Alita- Battle Angel-FPL_MainFeature_t99.mkv" -b:v 1M -g 60 -hls_list_size 0 output.m3u8  
@@ -206,4 +117,100 @@ let routeFunctions = {
     }
 }
 
+
+
+function startConverting(movieTitle, killProcess, callback) {
+  
+  if (movieTitle['browser'] == "Safari") {
+    console.log("Hello there", movieTitle['location'])
+    ffstream = ffmpeg(movieTitle['filePath'])
+    .videoCodec('copy')
+    // size
+    .audioCodec('aac')
+
+    .audioChannels(6)
+    // start_number
+    .addOption('-start_number', 0)
+    // set hls segments time
+    .addOption('-hls_time', 10)
+    // include all the segments in the list
+    .addOption('-hls_list_size', 0)
+    // format -f
+    .format('hls')
+    // setup event handlers
+    .on('start', function(cmd) {
+       console.log('Started ' + cmd);
+    })
+
+    .save(`F:/transcoding/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
+    if(process == true) {
+      ffstream.kill()
+    }
+    var watcher = fs.watch("F:/transcoding/", (event, filename) => {
+      console.log(filename)
+      if(filename == `${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), '')){
+        watcher.close()
+        console.log("its here")
+        var movieReturner = {
+          browser: movieTitle['browser'],
+          duration: movieTitle['duration'],
+          fileformat: movieTitle['fileformat'],
+          location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '') + '.m3u8',
+          title: movieTitle['title']
+        }
+        callback(movieReturner)
+        return
+      }
+  });
+return console.log("This video already exisits in the database")
+}
+
+if(movieTitle['browser'] == "Chrome") {
+    console.log("Hello there", movieTitle['location'])
+    ffstream = ffmpeg(movieTitle['filePath'])
+    .videoCodec('copy')
+    // size
+    .audioCodec('aac')
+
+    .audioChannels(6)
+    // start_number
+    .addOption('-start_number', 0)
+    // set hls segments time
+    .addOption('-hls_time', 10)
+    // include all the segments in the list
+    .addOption('-hls_list_size', 0)
+    // format -f
+    .format('hls')
+    // setup event handlers
+    .on('start', function(cmd) {
+    console.log('Started ' + cmd);
+  })
+
+  .save(`F:/transcoding/${movieTitle['fileName']}.m3u8`)
+  if(process == true) {
+    ffstream.kill()
+  }
+  var watcher = fs.watch("F:/transcoding/", (event, filename) => {
+  console.log(filename)
+  if(filename == `${movieTitle['fileName']}.m3u8`){
+    watcher.close()
+    console.log("its here")
+    var movieReturner = {
+      browser: movieTitle['browser'],
+      duration: movieTitle['duration'],
+      fileformat: movieTitle['fileformat'],
+      location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
+      title: movieTitle['title']
+    }
+
+      callback(movieReturner)
+  
+    
+    return
+  }
+  });
+
+  return console.log("This video already exisits in the database")
+  }
+}
 module.exports = routeFunctions

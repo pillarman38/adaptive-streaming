@@ -33,6 +33,7 @@ router.post('/pullVideo', (req, res)=>{
             browser: req.body['browser'],
             location: req.body['location'],
             fileformat: req.body['fileformat'],
+            duration: req.body['duration'],
             adult: req.body['adult'],
             backdrop_path: req.body['backdrop_path'],
             original_language: req.body['original_language'],
