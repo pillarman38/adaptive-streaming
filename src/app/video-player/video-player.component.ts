@@ -31,7 +31,10 @@ export class VideoPlayerComponent implements OnInit {
   @ViewChild('muteBtn') muteBtn
   @ViewChild('pauseBtn') pauseBtn
   @ViewChild('muteBtnLines') muteBtnLines
+  @ViewChild('fill') fill
+
   currentTimeDisp;
+
   constructor(private http: HttpClient, private savedVid: SavedVideoInfoService) { }
   
   users: any = [];
@@ -40,6 +43,7 @@ export class VideoPlayerComponent implements OnInit {
 
 
   duration: string;
+  videoLngth: number;
   position: number;
   playPause(e) {  
     if(this.firstPlayPress == true) {
@@ -96,7 +100,7 @@ export class VideoPlayerComponent implements OnInit {
     var hDisplay = h > 0 ? h + (h == 1 ? " : " : " :") : "";
     var mDisplay = m > 0 ? m + (m == 1 ? " : " : " : ") : "";
     var sDisplay = s > 0 ? s + (s == 1 ? " :" : " :") : "";
-    console.log(hDisplay + mDisplay + sDisplay);
+
     this.duration = hDisplay + mDisplay + sDisplay
   }
 
@@ -109,8 +113,15 @@ export class VideoPlayerComponent implements OnInit {
     var hDisplay = h > 0 ? h + (h == 1 ? " : " : " : ") : "";
     var mDisplay = m > 0 ? m + (m == 1 ? " : " : " : ") : "";
     var sDisplay = s > 0 ? s + (s == 1 ? " :" : " :") : "";
-    console.log(hDisplay + mDisplay + sDisplay);
+   
     this.currentTimeDisp = hDisplay + mDisplay + sDisplay
+
+    var p = e.target.currentTime
+    var d = this.videoLngth
+    var c = p/d*100
+    
+    this.fill.nativeElement.style.width = c.toString() + "%"
+    console.log(this.fill.nativeElement.style.width);
   }
   changeVolume() {
     
@@ -126,7 +137,10 @@ export class VideoPlayerComponent implements OnInit {
       if (Hls.isSupported()) {
         
         var hls = new Hls();
-        // bind them together
+       
+        this.videoLngth = parseFloat(this.video['duration'])
+        console.log("video lengthin seconds: " + this.videoLngth);
+        
         this.convertTime(this.video['duration'])
 
         hls.loadSource(this.stream);
@@ -150,26 +164,13 @@ export class VideoPlayerComponent implements OnInit {
       source.type = type;
       element.appendChild(source);
     }
+
     hls.on(Hls.Events.ERROR, function (event, data) {
         var errorType = data.type;
         var errorDetails = data.details;
         var errorFatal = data.fatal;
-    console.log(errorFatal, errorDetails, errorType, event, data);
-    
+        console.log(errorFatal, errorDetails, errorType, event, data);
       });
-      
-      
-     
-// hls.js is not supported on platforms that do not have Media Source Extensions (MSE) enabled.
- // When the browser has built-in HLS support (check using `canPlayType`), we can provide an HLS manifest (i.e. .m3u8 URL) directly to the video element through the `src` property.
- // This is using the built-in support of the plain video element, without using hls.js.
- // Note: it would be more normal to wait on the 'canplay' event below however on Safari (where you are most likely to find built-in HLS support) the video.src URL must be on the user-driven
- // white-list before a 'canplay' event will be emitted; the last video event that can be reliably listened-for when the URL is not on the white-list is 'loadedmetadata'.
-  
-     
-      
-      
-        })
-    }
-  
+    })
+  }
 }
