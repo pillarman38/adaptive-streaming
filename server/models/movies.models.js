@@ -27,7 +27,7 @@ var ffstream = ffmpeg()
 function runThis(movieObj, url) {
   var met;
   var promTwo = new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(`F:/Videos/${movieObj['title']}`, function(err, metaData) {
+    ffmpeg.ffprobe(`D:/Videos/${movieObj['title']}`, function(err, metaData) {
     met = metaData
     if(metaData) {
       resolve(metaData)
@@ -48,7 +48,7 @@ function runThis(movieObj, url) {
         moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
         moreData['results'][0]['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['backdrop_path']}`
         moreData['results'][0]['location'] = `http://192.168.1.19:4012/${url.replace(new RegExp(' ', 'g'), '%20')}.mkv`
-        moreData['results'][0]['filePath'] = `F:/Videos/${url}.mkv`
+        moreData['results'][0]['filePath'] = `D:/Videos/${url}.mkv`
         // moreData['results'][0]['ffprobeStuff'] = met
         moreData['results'][0]['channels'] = met['streams'][1]['channels']
         moreData['results'][0]['resolution'] = `${met['streams'][0]['coded_width']}x${met['streams'][0]['coded_height']}`
@@ -67,7 +67,7 @@ let routeFunctions = {
 
       ffstream.kill();
     }, 1000);
-      fs.readdir("F:/Videos/", (err, files) => {
+      fs.readdir("D:/Videos/", (err, files) => {
         var prom = new Promise((resolve, reject) => {
           for(var k = 0; k < files.length; k++) {
             
@@ -142,11 +142,11 @@ function startConverting(movieTitle, killProcess, callback) {
        console.log('Started ' + cmd);
     })
 
-    .save(`F:/transcoding/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
+    .save(`D:/transcoding/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
     if(process == true) {
       ffstream.kill()
     }
-    var watcher = fs.watch("F:/transcoding/", (event, filename) => {
+    var watcher = fs.watch("D:/transcoding/", (event, filename) => {
       console.log(filename)
       if(filename == `${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), '')){
         watcher.close()
@@ -186,11 +186,11 @@ if(movieTitle['browser'] == "Chrome") {
     console.log('Started ' + cmd);
   })
 
-  .save(`F:/transcoding/${movieTitle['fileName']}.m3u8`)
+  .save(`D:/transcoding/${movieTitle['fileName']}.m3u8`)
   if(process == true) {
     ffstream.kill()
   }
-  var watcher = fs.watch("F:/transcoding/", (event, filename) => {
+  var watcher = fs.watch("D:/transcoding/", (event, filename) => {
   console.log(filename)
   if(filename == `${movieTitle['fileName']}.m3u8`){
     watcher.close()

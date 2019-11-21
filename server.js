@@ -9,7 +9,7 @@ var bparser = require('body-parser').json()
 
 app.use(bparser)
 app.use(express.static(__dirname + '/dist'))
-app.use(express.static("F:/"))
+app.use(express.static("D:/"))
 
 app.use(cors())
 

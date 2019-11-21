@@ -1,9 +1,17 @@
-<div id="frame" *ngIf="iosReady">
-    <video id="videoplayer" controls width="720" height="480"></video>
+<div id="main">
+        <video id="videoplayer" #videoTwo (timeupdate)="setCurrentTime($event)"></video>  
+            <button type="button" (click)="playPause($event)" class="play-btn" #playPauseBtn>
+                <div class="play-btn-triangle" #playbtntriangle></div>
+                <div class="paused" #pauseBtn></div>
+            </button>
+            <button type="button" (click)="mute($event)" class="mute-btn" #muteBtn>
+                <div class="speaker">
+                    <div class="muteBlock"></div>
+                    <div class="speakers" #muteBtnLines></div>
+                </div>
+            </button>
+            <div id="seek-bar">
+                <div id="fill"></div>
+            </div>
+        <div id="currentTime" #currentTime>{{currentTimeDisp}} / {{duration}}</div>
 </div>
-<div id="frame" *ngIf="!iosReady">
-    <video id="videoplayer" width="720" height="480" controls></video>  
-</div>
-     
-
-    
