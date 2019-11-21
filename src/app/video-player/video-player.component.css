@@ -130,6 +130,7 @@
     position: absolute;
 }
 #currentTime {
+  margin-top: 60%;
     position: absolute;
 }
 

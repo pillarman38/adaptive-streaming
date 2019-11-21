@@ -1,5 +1,6 @@
 <div id="main">
         <video id="videoplayer" #videoTwo (timeupdate)="setCurrentTime($event)"></video>  
+        <div id="currentTime" #currentTime>{{currentTimeDisp}} / {{duration}}</div>
             <button type="button" (click)="playPause($event)" class="play-btn" #playPauseBtn>
                 <div class="play-btn-triangle" #playbtntriangle></div>
                 <div class="paused" #pauseBtn></div>
@@ -13,5 +14,5 @@
             <div id="seek-bar">
                 <div id="fill"></div>
             </div>
-        <div id="currentTime" #currentTime>{{currentTimeDisp}} / {{duration}}</div>
+        
 </div>
