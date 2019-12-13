@@ -9,18 +9,60 @@ import { routerNgProbeToken } from '@angular/router/src/router_module';
 import { registerContentQuery } from '@angular/core/src/render3';
 import { Router } from '@angular/router'
 import { SavedVideoInfoService } from '../saved-video-info.service';
+import { NavigationEnd, ActivatedRoute } from '@angular/router';
+import { filter } from 'rxjs/operators';
 
 @Component({
   selector: 'app-video-selection',
   templateUrl: './video-selection.component.html',
   styleUrls: ['./video-selection.component.scss']
 })
-export class VideoSelectionComponent implements OnInit {
+export class VideoSelectionComponent {
 
   selection;
   browserName = ""
+  retain = "value"
   nAgt = navigator.appCodeName;
-  constructor(private http: HttpClient, private router: Router, private saveVid: SavedVideoInfoService) { }
+  getRetainedData = localStorage.getItem("movielist")
+  
+  constructor(private http: HttpClient, private router: Router, private saveVid: SavedVideoInfoService, private activatedRoute: ActivatedRoute) { 
+    // To check for page refresh
+    //   this.router.events.pipe(
+    //     filter(event => event instanceof NavigationEnd)
+    //     ).subscribe(() => {
+    //         this.selection = ""
+    //         console.log(this.activatedRoute.root);
+    // });
+
+
+    this.router.events.pipe(filter((rs): rs is NavigationEnd => rs instanceof NavigationEnd)).subscribe(event => {
+      
+    })
+    var N = navigator.appName, ua= navigator.userAgent, tem;
+    var M = ua.match(/(opera|chrome|safari|firefox|msie|trident)\/?\s*(\.?\d+(\.\d+)*)/i);
+    if(M && (tem= ua.match(/version\/([\.\d]+)/i))!= null) {M[2]=tem[1];}
+    M= M? [M[1], M[2]]: [N, navigator.appVersion,'-?'];
+    
+    this.browserName = M[0]
+
+    console.log(this.browserName)
+   
+    console.log(JSON.parse(this.getRetainedData));
+
+    if(this.getRetainedData == null) {
+      this.http.get('http://192.168.1.19:4012/api/mov/movies').subscribe((res: any[]) => {
+      this.selection = res
+      var retain = localStorage.setItem("movielist", JSON.stringify(res))
+      console.log(this.selection)
+    })
+    } else {
+      console.log(JSON.parse(this.getRetainedData));
+      this.selection = JSON.parse(this.getRetainedData)
+
+    }
+    
+  }
+  
 
   saveSelected(e) {
     console.log(e);
@@ -61,20 +103,5 @@ export class VideoSelectionComponent implements OnInit {
     // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transition = "transform 0.5s"
   }
 
-  
-  ngOnInit() {
-    var N = navigator.appName, ua= navigator.userAgent, tem;
-    var M = ua.match(/(opera|chrome|safari|firefox|msie|trident)\/?\s*(\.?\d+(\.\d+)*)/i);
-    if(M && (tem= ua.match(/version\/([\.\d]+)/i))!= null) {M[2]=tem[1];}
-    M= M? [M[1], M[2]]: [N, navigator.appVersion,'-?'];
-    
-    this.browserName = M[0]
 
-    console.log(this.browserName)
-    this.http.get('http://192.168.1.19:4012/api/mov/movies').subscribe((res: any[]) => {
-    this.selection = res
-      console.log(this.selection)
-    });
-  }
-  
 }
