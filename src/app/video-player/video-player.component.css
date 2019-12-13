@@ -217,3 +217,10 @@
   border-right: 4px solid white;
   border-left: 4px solid white;
 }
+.fullScreen {
+  height: 30px;
+	width: 30px;
+	position: relative;
+	overflow: hidden;
+	display: inline-block;
+}

@@ -32,6 +32,7 @@ export class VideoPlayerComponent implements OnInit {
   @ViewChild('pauseBtn') pauseBtn
   @ViewChild('muteBtnLines') muteBtnLines
   @ViewChild('fill') fill
+  @ViewChild('fullScreen') fullScreenBtn
 
   currentTimeDisp;
 
@@ -126,17 +127,28 @@ export class VideoPlayerComponent implements OnInit {
   changeVolume() {
     
   }
+  screentoggle(e) {
+    if(this.videoTwo.nativeElement.requestFullScreen){
+      this.videoTwo.nativeElement.requestFullScreen();
+    } else if(this.videoTwo.nativeElement.webkitRequestFullScreen){
+      this.videoTwo.nativeElement.webkitRequestFullScreen();
+    } else if(this.videoTwo.nativeElement.mozRequestFullScreen){
+      this.videoTwo.nativeElement.mozRequestFullScreen();
+    }
+  }
   
   ngOnInit() {
     this.http.post('http://192.168.1.19:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
-      console.log(this.savedVid.savedvideo);
+      console.log(event, this.savedVid.savedvideo);
       
       this.stream = this.video['location'];
           
       if (Hls.isSupported()) {
-        
-        var hls = new Hls();
+        var config = {
+          maxBufferLength: 5
+        }
+        var hls = new Hls(config);
        
         this.videoLngth = parseFloat(this.video['duration'])
         console.log("video lengthin seconds: " + this.videoLngth);

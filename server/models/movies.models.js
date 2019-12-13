@@ -25,77 +25,108 @@ var killProcess = false
 var ffstream = ffmpeg()
 
 function runThis(movieObj, url) {
-  var met;
-  var promTwo = new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(`D:/Videos/${movieObj['title']}`, function(err, metaData) {
-    met = metaData
-    if(metaData) {
-      resolve(metaData)
-      }
-    })
-  }) 
-  promTwo.then(resolve => {
-    fetch(`${movieObj['movieListUrl']}`).then((data) => {
-        return data.json()
-        }).then((moreData) => {
-      if(moreData['results']) {
-        
-        delete moreData['results'][0]['genre_ids']; 
-        delete moreData['results'][0]['video']; 
-        moreData['results'].length = 1
-        moreData['results'][0]['fileName'] = url
-        moreData['results'][0]['duration'] = met['format']['duration']
-        moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
-        moreData['results'][0]['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['backdrop_path']}`
-        moreData['results'][0]['location'] = `http://192.168.1.19:4012/${url.replace(new RegExp(' ', 'g'), '%20')}.mkv`
-        moreData['results'][0]['filePath'] = `D:/Videos/${url}.mkv`
-        // moreData['results'][0]['ffprobeStuff'] = met
-        moreData['results'][0]['channels'] = met['streams'][1]['channels']
-        moreData['results'][0]['resolution'] = `${met['streams'][0]['coded_width']}x${met['streams'][0]['coded_height']}`
-        return arrOfObj.push(moreData['results'])
-      }
-    })
-  })
+  
 }
 
 let routeFunctions = {
     getAllMovies: (callback) => {
       setTimeout(function() {
-      ffstream.on('error', function() {
-        console.log('Ffmpeg has been killed');
-      });
-
-      ffstream.kill();
-    }, 1000);
+        ffstream.on('error', function() {
+          console.log('Ffmpeg has been killed');
+        });
+  
+        ffstream.kill();
+      }, 1000);
+     arrOfObj = []
       fs.readdir("D:/Videos/", (err, files) => {
-        var prom = new Promise((resolve, reject) => {
+        async function foo() {
           for(var k = 0; k < files.length; k++) {
-            
-            url = files[k].replace('.mkv', '')
-            movieObj = {
-              title: files[k],
-              movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${url.replace(new RegExp(' ', 'g'), '%20')}`,
-            }
-            runThis(movieObj, url)
-            if(arr.length == k) {
-            resolve(arrOfObj)
-          }
-        }
-      })
-    
-          prom.then(resolve => {
-            var array = [].concat.apply([], arrOfObj)
-          callback(array)
-        }) 
-        })
-    },
+  
+              var firstObj = new Promise((resolve, reject) => {
+                url = files[k].replace('.mkv', ''),
+                movieObj = {
+                url: files[k],
+                title: files[k].replace('.mkv', ''),
+                movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${url.replace(new RegExp(' ', 'g'), '%20')}`,
+              }
+                
+                ffmpeg.ffprobe(`D:/Videos/${movieObj['url']}`, function(err, metaData) {
+                
+                
+              if(metaData) {
+                var metaDataoObj = {
+                  title: movieObj['title'],
+                  location: movieObj['url'],
+                  format: metaData['format'],
+                  streams: metaData['streams']
+                }
+                
+                resolve(metaDataoObj)
+                return metaDataoObj
+                } 
+                if(!metaData) {
+                  console.log(err);
+                }
+              })
+            }).then((returnedMetaData) => {
+              // console.log(returnedMetaData);
+              
+              
+              fetch(`${movieObj['movieListUrl']}`).then((data) => {
+                
+                return data.json()
+                }).then((moreData) => {
 
+              if(moreData['results']) {
+              
+                  delete moreData['results'][0]['genre_ids']; 
+                  delete moreData['results'][0]['video']; 
+              
+                  moreData['results'][0]['fileName'] = returnedMetaData['title']
+                  moreData['results'][0]['duration'] = returnedMetaData['format']['duration']
+                  moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
+                  moreData['results'][0]['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['backdrop_path']}`
+                  moreData['results'][0]['location'] = `http://192.168.1.19:4012/${returnedMetaData['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`
+                  moreData['results'][0]['filePath'] = `D:/Videos/${returnedMetaData['title']}.mkv`
+                  moreData['results'][0]['resolution'] = `${returnedMetaData['streams'][0]['coded_width']}x${returnedMetaData['streams'][0]['coded_height']}`
+                  moreData['results'][0]['channels'] = returnedMetaData['streams'][1]['channels']
+
+                  arrOfObj.push(moreData['results'][0])
+
+                  return arrOfObj
+                }
+
+              }).then((res) => {
+                
+                console.log(arrOfObj.length, k);
+                
+              if(files.length == k) {
+
+                callback(res)
+             
+                return arrOfObj
+            }
+          })
+            })
+
+                var results = await firstObj;
+
+               
+          }
+              
+             
+              
+          }
+          foo()
+      })
+    },
   
 
     getTranscodedMovie: (callback) => {
       pool.query('SELECT * FROM moviesplaying', (err, results)=>{
           callback(err,results)
       })
+    
   },
     
     startconvertingMovie: (movieTitle, callback)=>{
@@ -132,7 +163,7 @@ function startConverting(movieTitle, killProcess, callback) {
     // start_number
     .addOption('-start_number', 0)
     // set hls segments time
-    .addOption('-hls_time', 10)
+    .addOption('-hls_time', 5)
     // include all the segments in the list
     .addOption('-hls_list_size', 0)
     // format -f
@@ -142,11 +173,11 @@ function startConverting(movieTitle, killProcess, callback) {
        console.log('Started ' + cmd);
     })
 
-    .save(`D:/transcoding/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
+    .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
     if(process == true) {
       ffstream.kill()
     }
-    var watcher = fs.watch("D:/transcoding/", (event, filename) => {
+    var watcher = fs.watch("D:/plexTemp/", (event, filename) => {
       console.log(filename)
       if(filename == `${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), '')){
         watcher.close()
@@ -155,7 +186,7 @@ function startConverting(movieTitle, killProcess, callback) {
           browser: movieTitle['browser'],
           duration: movieTitle['duration'],
           fileformat: movieTitle['fileformat'],
-          location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '') + '.m3u8',
+          location: 'http://192.168.1.19:4012/plexTemp/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '') + '.m3u8',
           title: movieTitle['title']
         }
         callback(movieReturner)
@@ -176,7 +207,7 @@ if(movieTitle['browser'] == "Chrome") {
     // start_number
     .addOption('-start_number', 0)
     // set hls segments time
-    .addOption('-hls_time', 10)
+    .addOption('-hls_time', 5)
     // include all the segments in the list
     .addOption('-hls_list_size', 0)
     // format -f
@@ -185,12 +216,26 @@ if(movieTitle['browser'] == "Chrome") {
     .on('start', function(cmd) {
     console.log('Started ' + cmd);
   })
+  .on('start', function(commandLine) {
+    console.log('Spawned Ffmpeg with command: ' + commandLine);
+  })
+  .on('progress', function(progress) {
+    console.log('Processing: ' + progress.percent + '% done');
+  })
+  .on('error', function(err) {
+    console.log('An error occurred: ' + err.message);
+  })
+  .on('stderr', function(stderrLine) {
+    console.log('Stderr output: ' + stderrLine);
+  })
+  .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`)
 
-  .save(`D:/transcoding/${movieTitle['fileName']}.m3u8`)
+ 
+
   if(process == true) {
     ffstream.kill()
   }
-  var watcher = fs.watch("D:/transcoding/", (event, filename) => {
+  var watcher = fs.watch("D:/plexTemp/", (event, filename) => {
   console.log(filename)
   if(filename == `${movieTitle['fileName']}.m3u8`){
     watcher.close()
@@ -199,7 +244,7 @@ if(movieTitle['browser'] == "Chrome") {
       browser: movieTitle['browser'],
       duration: movieTitle['duration'],
       fileformat: movieTitle['fileformat'],
-      location: 'http://192.168.1.19:4012/transcoding/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
+      location: 'http://192.168.1.19:4012/plexTemp/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
       title: movieTitle['title']
     }
 
