@@ -1,7 +1,7 @@
 let pool = require('../../config/connections')
 let fs = require('fs')
 const ffmpeg = require('fluent-ffmpeg');
-
+let codecGetter = require('./codec-determine')
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffprobePath = require('@ffprobe-installer/ffprobe').path;
 const rimraf = require('rimraf');
@@ -24,9 +24,7 @@ var arr = []
 var killProcess = false
 var ffstream = ffmpeg()
 
-function runThis(movieObj, url) {
-  
-}
+
 
 let routeFunctions = {
     getAllMovies: (callback) => {
@@ -41,7 +39,8 @@ let routeFunctions = {
       fs.readdir("D:/Videos/", (err, files) => {
         async function foo() {
           for(var k = 0; k < files.length; k++) {
-  
+    
+            
               var firstObj = new Promise((resolve, reject) => {
                 url = files[k].replace('.mkv', ''),
                 movieObj = {
@@ -51,8 +50,7 @@ let routeFunctions = {
               }
                 
                 ffmpeg.ffprobe(`D:/Videos/${movieObj['url']}`, function(err, metaData) {
-                
-                
+
               if(metaData) {
                 var metaDataoObj = {
                   title: movieObj['title'],
@@ -60,8 +58,11 @@ let routeFunctions = {
                   format: metaData['format'],
                   streams: metaData['streams']
                 }
+                // console.log(metaDataoObj);
                 
                 resolve(metaDataoObj)
+                console.log(metaDataoObj['streams'][0]['codec_name']);
+                
                 return metaDataoObj
                 } 
                 if(!metaData) {
@@ -78,11 +79,8 @@ let routeFunctions = {
                 }).then((moreData) => {
 
               if(moreData['results']) {
-              
-                  delete moreData['results'][0]['genre_ids']; 
-                  delete moreData['results'][0]['video']; 
-              
-                  moreData['results'][0]['fileName'] = returnedMetaData['title']
+
+                  moreData['results'][0]['fileName'] = returnedMetaData['format']['tags']['title'].replace(/[~"#%&*:<>?]/g, '')
                   moreData['results'][0]['duration'] = returnedMetaData['format']['duration']
                   moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
                   moreData['results'][0]['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['backdrop_path']}`
@@ -90,32 +88,29 @@ let routeFunctions = {
                   moreData['results'][0]['filePath'] = `D:/Videos/${returnedMetaData['title']}.mkv`
                   moreData['results'][0]['resolution'] = `${returnedMetaData['streams'][0]['coded_width']}x${returnedMetaData['streams'][0]['coded_height']}`
                   moreData['results'][0]['channels'] = returnedMetaData['streams'][1]['channels']
+                  moreData['results'][0]['videoFormat'] = returnedMetaData['streams'][0]['codec_name']
 
                   arrOfObj.push(moreData['results'][0])
-
                   return arrOfObj
                 }
 
               }).then((res) => {
+               
+                
                 
                 console.log(arrOfObj.length, k);
                 
-              if(files.length == k) {
+              if(k == arrOfObj.length) {
 
                 callback(res)
-             
+                
+                
                 return arrOfObj
             }
           })
             })
-
-                var results = await firstObj;
-
-               
-          }
-              
-             
-              
+              var results = await firstObj;
+            }   
           }
           foo()
       })
@@ -148,14 +143,17 @@ let routeFunctions = {
     }
 }
 
-
-
 function startConverting(movieTitle, killProcess, callback) {
+  console.log("yooooooooooooooooooooooooooooo", movieTitle);
+  
+  var getRes = codecGetter.getVideoResoluion(movieTitle)
+  var getFormat = codecGetter.getVideoFormat(movieTitle)
+  console.log("gotFormat", codecGetter.getVideoFormat(movieTitle), codecGetter.getVideoResoluion(movieTitle));
   
   if (movieTitle['browser'] == "Safari") {
     console.log("Hello there", movieTitle['location'])
     ffstream = ffmpeg(movieTitle['filePath'])
-    .videoCodec('copy')
+    .videoCodec(getFormat)
     // size
     .audioCodec('aac')
 
@@ -197,9 +195,10 @@ return console.log("This video already exisits in the database")
 }
 
 if(movieTitle['browser'] == "Chrome") {
+  
     console.log("Hello there", movieTitle['location'])
     ffstream = ffmpeg(movieTitle['filePath'])
-    .videoCodec('copy')
+    .videoCodec(getFormat)
     // size
     .audioCodec('aac')
 
@@ -207,7 +206,7 @@ if(movieTitle['browser'] == "Chrome") {
     // start_number
     .addOption('-start_number', 0)
     // set hls segments time
-    .addOption('-hls_time', 5)
+    .addOption('-hls_time', 2)
     // include all the segments in the list
     .addOption('-hls_list_size', 0)
     // format -f
@@ -249,8 +248,7 @@ if(movieTitle['browser'] == "Chrome") {
     }
 
       callback(movieReturner)
-  
-    
+
     return
   }
   });

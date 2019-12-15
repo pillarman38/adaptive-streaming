@@ -146,7 +146,7 @@ export class VideoPlayerComponent implements OnInit {
           
       if (Hls.isSupported()) {
         var config = {
-          maxBufferLength: 5
+          maxBufferLength: 2
         }
         var hls = new Hls(config);
        

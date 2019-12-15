@@ -48,7 +48,8 @@ router.post('/pullVideo', (req, res)=>{
             fileName: req.body['fileName'],
             photoUrl: req.body['photoUrl'],
             channels: req.body['channels'],
-            resolution: req.body['resolution']
+            resolution: req.body['resolution'],
+            videoFormat: req.body['videoFormat']
         }
     , (err, results)=>{
         if(err){

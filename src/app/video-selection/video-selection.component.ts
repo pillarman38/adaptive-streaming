@@ -55,13 +55,25 @@ export class VideoSelectionComponent {
       var retain = localStorage.setItem("movielist", JSON.stringify(res))
       console.log(this.selection)
     })
-    } else {
-      console.log(JSON.parse(this.getRetainedData));
-      this.selection = JSON.parse(this.getRetainedData)
+    } 
+    if(this.getRetainedData != null) {
+      if(this.getRetainedData != this.selection){
+      this.http.get('http://192.168.1.19:4012/api/mov/movies').subscribe((res: any[]) => {
+      this.selection = res
+      var retain = localStorage.setItem("movielist", JSON.stringify(res))
+      console.log(this.selection)
+    })
+    
+    } 
+    }
+     
+console.log(JSON.parse(this.getRetainedData));
+    this.selection = JSON.parse(this.getRetainedData)
+    
 
     }
     
-  }
+  
   
 
   saveSelected(e) {
