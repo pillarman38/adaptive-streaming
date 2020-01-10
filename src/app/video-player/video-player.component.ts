@@ -33,7 +33,10 @@ export class VideoPlayerComponent implements OnInit {
   @ViewChild('muteBtnLines') muteBtnLines
   @ViewChild('fill') fill
   @ViewChild('fullScreen') fullScreenBtn
+  @ViewChild('customSeekBar') customSeekBar
+  @ViewChild('spans') spans
 
+  percentage = 0;
   currentTimeDisp;
 
   constructor(private http: HttpClient, private savedVid: SavedVideoInfoService) { }
@@ -120,9 +123,17 @@ export class VideoPlayerComponent implements OnInit {
     var p = e.target.currentTime
     var d = this.videoLngth
     var c = p/d*100
+    this.percentage = ( this.videoTwo.nativeElement.currentTime / this.videoTwo.nativeElement.duration ) * 100;
+    this.spans.nativeElement.style.width = this.percentage + '%'
+    this.customSeekBar.nativeElement.style.width = 100
+    // $( '#custom-seekbar span' ).css( 'width', percentage + '%' );
+  
+    if ( this.percentage >= 100 ) {
+      
+    } /* Repeat */
     
-    this.fill.nativeElement.style.width = c.toString() + "%"
-    console.log(this.fill.nativeElement.style.width);
+
+
   }
   changeVolume() {
     
@@ -137,6 +148,21 @@ export class VideoPlayerComponent implements OnInit {
     }
   }
   
+  seekBarClick(e) {
+    var rec = this.customSeekBar.nativeElement.getBoundingClientRect();
+
+    
+    var offset = this.customSeekBar.nativeElement.getBoundingClientRect(),
+    left = e.pageX - offset.left,
+    totalWidth = this.customSeekBar.nativeElement.getBoundingClientRect()['width'],
+    percentage = left / totalWidth;
+
+    this.videoTwo.nativeElement.currentTime = this.videoTwo.nativeElement.duration * percentage;
+  }
+
+ontimeupdate() {
+  
+}
   ngOnInit() {
     this.http.post('http://192.168.1.19:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
@@ -146,6 +172,7 @@ export class VideoPlayerComponent implements OnInit {
           
       if (Hls.isSupported()) {
         var config = {
+          capLevelToPlayerSize: true,
           maxBufferLength: 2
         }
         var hls = new Hls(config);

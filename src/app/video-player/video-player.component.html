@@ -14,8 +14,8 @@
             <button type="button" (click)="screentoggle($event)" class="fullScreen" #fullScreen>
                 
             </button>
-            <div id="seek-bar">
-                <div id="fill" #fill></div>
-            </div>
+            <div id="custom-seekbar" #customSeekBar (click)="seekBarClick($event)">
+                <span id="spans" #spans></span>
+                </div>
         
 </div>

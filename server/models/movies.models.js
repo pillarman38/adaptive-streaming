@@ -61,7 +61,7 @@ let routeFunctions = {
                 // console.log(metaDataoObj);
                 
                 resolve(metaDataoObj)
-                console.log(metaDataoObj['streams'][0]['codec_name']);
+                // console.log(metaDataoObj['streams'][0]['codec_name']);
                 
                 return metaDataoObj
                 } 
@@ -79,7 +79,7 @@ let routeFunctions = {
                 }).then((moreData) => {
 
               if(moreData['results']) {
-
+                  
                   moreData['results'][0]['fileName'] = returnedMetaData['format']['tags']['title'].replace(/[~"#%&*:<>?]/g, '')
                   moreData['results'][0]['duration'] = returnedMetaData['format']['duration']
                   moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
@@ -96,8 +96,6 @@ let routeFunctions = {
 
               }).then((res) => {
                
-                
-                
                 console.log(arrOfObj.length, k);
                 
               if(k == arrOfObj.length) {
