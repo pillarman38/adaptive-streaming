@@ -123,7 +123,7 @@ export class VideoPlayerComponent implements OnInit {
     var p = e.target.currentTime
     var d = this.videoLngth
     var c = p/d*100
-    this.percentage = ( this.videoTwo.nativeElement.currentTime / this.videoTwo.nativeElement.duration ) * 100;
+    this.percentage = ( this.videoTwo.nativeElement.currentTime / this.videoLngth ) * 100;
     this.spans.nativeElement.style.width = this.percentage + '%'
     this.customSeekBar.nativeElement.style.width = 100
     // $( '#custom-seekbar span' ).css( 'width', percentage + '%' );
@@ -157,19 +157,16 @@ export class VideoPlayerComponent implements OnInit {
     totalWidth = this.customSeekBar.nativeElement.getBoundingClientRect()['width'],
     percentage = left / totalWidth;
 
-    this.videoTwo.nativeElement.currentTime = this.videoTwo.nativeElement.duration * percentage;
+    this.videoTwo.nativeElement.currentTime = this.videoLngth * percentage
   }
 
-ontimeupdate() {
-  
-}
   ngOnInit() {
     this.http.post('http://192.168.1.19:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
       console.log(event, this.savedVid.savedvideo);
       
       this.stream = this.video['location'];
-          
+        
       if (Hls.isSupported()) {
         var config = {
           capLevelToPlayerSize: true,
@@ -192,6 +189,16 @@ ontimeupdate() {
             console.log("manifest loaded, found " + data.levels.length + " quality level");
           });
         })
+
+        hls.on(Hls.Events.LEVEL_LOADED, function(eve, data) {
+          console.log(eve, data['details'], this.videoLngth, this.stream)
+      
+          data['details']['totalduration'] = event['err']['duration']
+        })
+        hls.on(Hls.Events.MANIFEST_LOADED, function(event, data) {
+          // console.log(event['details'], data)
+          // event['details']['totalduration'] = this.videoLngth
+        })
         
       } else {
         addSourceToVideo(this.videoTwo, this.stream, 'application/x-mpegURL"');
@@ -203,7 +210,27 @@ ontimeupdate() {
       source.type = type;
       element.appendChild(source);
     }
-
+    hls.on(Hls.Events.LEVEL_LOAD_ERROR, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.MANIFEST_LOAD_ERROR, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.INTERNAL_EXCEPTION, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.BUFFER_APPEND_ERROR, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.FRAG_DECRYPT_ERROR, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.FRAG_PARSING_ERROR, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.FRAG_LOAD_TIMEOUT, function(event, data) {
+      console.log(event, data);
+    })
     hls.on(Hls.Events.ERROR, function (event, data) {
         var errorType = data.type;
         var errorDetails = data.details;

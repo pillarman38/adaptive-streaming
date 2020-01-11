@@ -173,6 +173,7 @@ function startConverting(movieTitle, killProcess, callback) {
     if(process == true) {
       ffstream.kill()
     }
+    
     var watcher = fs.watch("D:/plexTemp/", (event, filename) => {
       console.log(filename)
       if(filename == `${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), '')){
