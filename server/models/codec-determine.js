@@ -8,17 +8,30 @@ let returnVideoInfo = {
     } 
 },
     getVideoFormat: (movieInfo) => {
-    console.log(movieInfo['videoFormat']);
-
-    switch(movieInfo['videoFormat']) {
+    console.log(movieInfo, movieInfo['videoFormat']);
+    if(movieInfo['browser'] == "Safari") {
+        switch(movieInfo['videoFormat']) {
+            case "vc1":
+                return "libx264";
+            case "h264":
+                return "copy";
+            case "hevc":
+                return "libx264"
+            
+        }
+    }
+    if(movieInfo['browser'] == "Chrome") {
+      switch(movieInfo['videoFormat']) {
         case "vc1":
             return "libx264";
         case "h264":
-            return "libx264";
+            return "copy";
         case "hevc":
             return "libx264"
         
+    }  
     }
+    
  }
 }
 

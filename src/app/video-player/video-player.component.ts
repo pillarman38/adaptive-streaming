@@ -24,7 +24,8 @@ export class VideoPlayerComponent implements OnInit {
   stream = ""
   iosReady = false
   firstPlayPress = true
-  
+  amtBuffered;
+
   @ViewChild('videoTwo') videoTwo;
   @ViewChild('playPauseBtn') playPauseBtn;
   @ViewChild('playbtntriangle') playBtnTriangle
@@ -35,6 +36,7 @@ export class VideoPlayerComponent implements OnInit {
   @ViewChild('fullScreen') fullScreenBtn
   @ViewChild('customSeekBar') customSeekBar
   @ViewChild('spans') spans
+  @ViewChild('spansBuffered') spansBuffered
 
   percentage = 0;
   currentTimeDisp;
@@ -123,11 +125,13 @@ export class VideoPlayerComponent implements OnInit {
     var p = e.target.currentTime
     var d = this.videoLngth
     var c = p/d*100
-    this.percentage = ( this.videoTwo.nativeElement.currentTime / this.videoLngth ) * 100;
+    this.percentage = ( this.videoTwo.nativeElement.currentTime / this.videoLngth) * 100
+    var percentBuffered = this.amtBuffered['levels'][0]['details']['totalduration'] / this.videoLngth * 100;
     this.spans.nativeElement.style.width = this.percentage + '%'
     this.customSeekBar.nativeElement.style.width = 100
     // $( '#custom-seekbar span' ).css( 'width', percentage + '%' );
-  
+    this.spansBuffered.nativeElement.style.width = percentBuffered + "%"
+    console.log(this.spansBuffered.nativeElement.style.width, this.amtBuffered['levels'][0]['details']['totalduration'])
     if ( this.percentage >= 100 ) {
       
     } /* Repeat */
@@ -158,6 +162,9 @@ export class VideoPlayerComponent implements OnInit {
     percentage = left / totalWidth;
 
     this.videoTwo.nativeElement.currentTime = this.videoLngth * percentage
+    // if(){
+
+    // }
   }
 
   ngOnInit() {
@@ -166,12 +173,11 @@ export class VideoPlayerComponent implements OnInit {
       console.log(event, this.savedVid.savedvideo);
       
       this.stream = this.video['location'];
-        
+      
       if (Hls.isSupported()) {
-        var config = {
-          capLevelToPlayerSize: true,
-          maxBufferLength: 2
-        }
+       var config = {
+         maxBufferSize: 1000
+       }
         var hls = new Hls(config);
        
         this.videoLngth = parseFloat(this.video['duration'])
@@ -190,14 +196,19 @@ export class VideoPlayerComponent implements OnInit {
           });
         })
 
-        hls.on(Hls.Events.LEVEL_LOADED, function(eve, data) {
-          console.log(eve, data['details'], this.videoLngth, this.stream)
-      
-          data['details']['totalduration'] = event['err']['duration']
+        this.amtBuffered = hls.on(Hls.Events.LEVEL_LOADED, function(eve, data) {
+          // console.log(eve, data['details'], this.videoLngth, this.stream)
+          // this.amtBuffered = data['details']['totalduration']
+ 
+          
+          // console.log(this.amtBuffered)
+          console.log(eve, data);
+          
+          return data
         })
+
         hls.on(Hls.Events.MANIFEST_LOADED, function(event, data) {
           // console.log(event['details'], data)
-          // event['details']['totalduration'] = this.videoLngth
         })
         
       } else {
@@ -211,6 +222,9 @@ export class VideoPlayerComponent implements OnInit {
       element.appendChild(source);
     }
     hls.on(Hls.Events.LEVEL_LOAD_ERROR, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.BUFFER_APPENDED, function(event, data) {
       console.log(event, data);
     })
     hls.on(Hls.Events.MANIFEST_LOAD_ERROR, function(event, data) {
@@ -229,6 +243,21 @@ export class VideoPlayerComponent implements OnInit {
       console.log(event, data);
     })
     hls.on(Hls.Events.FRAG_LOAD_TIMEOUT, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.FRAG_CHANGED, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.LEVEL_UPDATED, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.BUFFER_FLUSHING, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.BUFFER_FLUSHED, function(event, data) {
+      console.log(event, data);
+    })
+    hls.on(Hls.Events.BUFFER_RESET, function(event, data) {
       console.log(event, data);
     })
     hls.on(Hls.Events.ERROR, function (event, data) {

@@ -1,6 +1,7 @@
 #videoplayer {
     position: absolute;
     width: 100%;
+    z-index: -2;
     height: 100%;
 }
 .play-btn {
@@ -219,7 +220,8 @@
 }
 .fullScreen {
   height: 30px;
-	width: 30px;
+  width: 30px;
+  margin-top: 80%;
 	position: relative;
 	overflow: hidden;
 	display: inline-block;
@@ -240,10 +242,11 @@
   width: 100%;
   background-color: rgba(0, 0, 0, .2);
 }
-#custom-seekbar span {
+#spans {
   position: absolute;
   top: 0;
   left: 0;
+  z-index: 1;
   height: 7px;
   width: 0;
   background-color: rgba(255, 165, 0, .8);
@@ -265,6 +268,14 @@
   transition-duration: 0.3s
 }
 #play_button:hover,
-#custom-seekbar:hover span {
-    background-color: #ff8605
+
+#spansBuffered{
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  height: 7px;
+  width: 0px;
+  background-color: rgb(235, 55, 0);
+  transition-duration: 0.2s
 }

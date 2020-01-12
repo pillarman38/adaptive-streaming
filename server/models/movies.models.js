@@ -158,11 +158,13 @@ function startConverting(movieTitle, killProcess, callback) {
     .audioChannels(6)
     // start_number
     .addOption('-start_number', 0)
+    
     // set hls segments time
     .addOption('-hls_time', 5)
     // include all the segments in the list
     .addOption('-hls_list_size', 0)
     // format -f
+
     .format('hls')
     // setup event handlers
     .on('start', function(cmd) {
@@ -205,10 +207,12 @@ if(movieTitle['browser'] == "Chrome") {
     // start_number
     .addOption('-start_number', 0)
     // set hls segments time
-    .addOption('-hls_time', 2)
+    .addOption('-crf', 0)
+    .addOption('-hls_time', 10)
     // include all the segments in the list
     .addOption('-hls_list_size', 0)
     // format -f
+    .addOption("-force_key_frames", "expr:gte(t,n_forced*10)")
     .format('hls')
     // setup event handlers
     .on('start', function(cmd) {
@@ -218,13 +222,13 @@ if(movieTitle['browser'] == "Chrome") {
     console.log('Spawned Ffmpeg with command: ' + commandLine);
   })
   .on('progress', function(progress) {
-    console.log('Processing: ' + progress.percent + '% done');
+
   })
   .on('error', function(err) {
     console.log('An error occurred: ' + err.message);
   })
   .on('stderr', function(stderrLine) {
-    console.log('Stderr output: ' + stderrLine);
+    
   })
   .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`)
 
