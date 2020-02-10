@@ -49,11 +49,17 @@ router.post('/pullVideo', (req, res)=>{
             photoUrl: req.body['photoUrl'],
             channels: req.body['channels'],
             resolution: req.body['resolution'],
-            videoFormat: req.body['videoFormat']
+            videoFormat: req.body['videoFormat'],
+            screenRes: req.body['screenRes'],
+            hdrEnabled: req.body['hdrEnabled'],
+            color_range: req.body['color_range'],
+            color_space: req.body['color_space'],
+            color_transfer: req.body['color_transfer'],
+            seekTime: req.body['seekTime']
         }
     , (err, results)=>{
         if(err){
-            console.log(err)
+            
             return res.send({err: err})
         } else {
             res.send(results)

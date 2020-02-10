@@ -5,7 +5,7 @@ let codecGetter = require('./codec-determine')
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffprobePath = require('@ffprobe-installer/ffprobe').path;
 const rimraf = require('rimraf');
-
+const path = require('path');
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
 let chokidar = require('chokidar')
@@ -28,12 +28,12 @@ var ffstream = ffmpeg()
 
 let routeFunctions = {
     getAllMovies: (callback) => {
+      
       setTimeout(function() {
         ffstream.on('error', function() {
           console.log('Ffmpeg has been killed');
         });
   
-        ffstream.kill();
       }, 1000);
      arrOfObj = []
       fs.readdir("D:/Videos/", (err, files) => {
@@ -50,7 +50,7 @@ let routeFunctions = {
               }
                 
                 ffmpeg.ffprobe(`D:/Videos/${movieObj['url']}`, function(err, metaData) {
-
+                  
               if(metaData) {
                 var metaDataoObj = {
                   title: movieObj['title'],
@@ -84,11 +84,24 @@ let routeFunctions = {
                   moreData['results'][0]['duration'] = returnedMetaData['format']['duration']
                   moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
                   moreData['results'][0]['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['backdrop_path']}`
-                  moreData['results'][0]['location'] = `http://192.168.1.19:4012/${returnedMetaData['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`
+                  moreData['results'][0]['location'] = `http://192.168.1.86:4012/${returnedMetaData['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`
                   moreData['results'][0]['filePath'] = `D:/Videos/${returnedMetaData['title']}.mkv`
                   moreData['results'][0]['resolution'] = `${returnedMetaData['streams'][0]['coded_width']}x${returnedMetaData['streams'][0]['coded_height']}`
                   moreData['results'][0]['channels'] = returnedMetaData['streams'][1]['channels']
                   moreData['results'][0]['videoFormat'] = returnedMetaData['streams'][0]['codec_name']
+                  moreData['results'][0]['seekTime'] = 0 
+                  if(returnedMetaData['streams'][0]['pix_fmt'] == "yuv420p10le") {
+                    moreData['results'][0]['hdrEnabled'] = true,
+                    moreData['results'][0]['color_range'] = returnedMetaData['streams'][0]['color_range'],
+                    moreData['results'][0]['color_space'] = returnedMetaData['streams'][0]['color_space'],
+                    moreData['results'][0]['color_transfer'] = returnedMetaData['streams'][0]['color_transfer']
+                    } else {
+                      moreData['results'][0]['hdrEnabled'] = false,
+                    moreData['results'][0]['color_range'] = 'undefined'
+                    moreData['results'][0]['color_space'] = 'undefined'
+                    moreData['results'][0]['color_transfer'] = 'undefined'
+                    }
+                  
 
                   arrOfObj.push(moreData['results'][0])
                   return arrOfObj
@@ -102,7 +115,6 @@ let routeFunctions = {
 
                 callback(res)
                 
-                
                 return arrOfObj
             }
           })
@@ -113,7 +125,6 @@ let routeFunctions = {
           foo()
       })
     },
-  
 
     getTranscodedMovie: (callback) => {
       pool.query('SELECT * FROM moviesplaying', (err, results)=>{
@@ -123,44 +134,52 @@ let routeFunctions = {
   },
     
     startconvertingMovie: (movieTitle, callback)=>{
+   
         var thing = false
+ 
+
+
         pool.query('SELECT * FROM `moviesplaying` WHERE `title` = ?', movieTitle, (err, res)=>{
             
-            console.log("hiiiiiiiiiiiiiiiiiiiiiiiiiiiii", movieTitle)
+            
             if(err) {
               pool.query('INSERT INTO `moviesplaying` SET ?',movieTitle, (err, resultstwo) =>{
                 
-                console.log(err, resultstwo)
+    
                 killProcess = false
                 startConverting(movieTitle, killProcess, callback)
                
               })  
             }
-          //ffmpeg -i "Alita- Battle Angel-FPL_MainFeature_t99.mkv" -b:v 1M -g 60 -hls_list_size 0 output.m3u8  
         })
     }
 }
 
 function startConverting(movieTitle, killProcess, callback) {
-  console.log("yooooooooooooooooooooooooooooo", movieTitle);
-  
+
   var getRes = codecGetter.getVideoResoluion(movieTitle)
   var getFormat = codecGetter.getVideoFormat(movieTitle)
-  console.log("gotFormat", codecGetter.getVideoFormat(movieTitle), codecGetter.getVideoResoluion(movieTitle));
-  
-  if (movieTitle['browser'] == "Safari") {
-    console.log("Hello there", movieTitle['location'])
-    ffstream = ffmpeg(movieTitle['filePath'])
-    .videoCodec(getFormat)
-    // size
-    .audioCodec('aac')
+  console.log("Here is movie title", movieTitle)
 
+  var h = Math.floor(movieTitle['seekTime'] / 3600);
+      var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
+      var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
+  if (movieTitle['browser'] == "Safari") {
+
+    ffstream = ffmpeg(movieTitle['filePath'])
+    .videoCodec('libx264')
+    .size(movieTitle['screenRes'])
+    .audioCodec('aac')
+    .addOption('-crf', '18')
+    .seekInput(`${h}:${m}:${s}`)
     .audioChannels(6)
     // start_number
     .addOption('-start_number', 0)
-    
+
     // set hls segments time
     .addOption('-hls_time', 5)
+
+    .addOption("-force_key_frames", "expr:gte(t,n_forced*5)")
     // include all the segments in the list
     .addOption('-hls_list_size', 0)
     // format -f
@@ -177,15 +196,15 @@ function startConverting(movieTitle, killProcess, callback) {
     }
     
     var watcher = fs.watch("D:/plexTemp/", (event, filename) => {
-      console.log(filename)
+     
       if(filename == `${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), '')){
         watcher.close()
-        console.log("its here")
+
         var movieReturner = {
           browser: movieTitle['browser'],
           duration: movieTitle['duration'],
           fileformat: movieTitle['fileformat'],
-          location: 'http://192.168.1.19:4012/plexTemp/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '') + '.m3u8',
+          location: 'http://192.168.1.86:4012/plexTemp/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '') + '.m3u8',
           title: movieTitle['title']
         }
         callback(movieReturner)
@@ -197,22 +216,44 @@ return console.log("This video already exisits in the database")
 
 if(movieTitle['browser'] == "Chrome") {
   
-    console.log("Hello there", movieTitle['location'])
+//   ffstream.kill()
+    
+//     if(movieTitle['seekTime'] != 0){
+//       fs.readdir("D:/plexTemp/", (err, files) => {
+//     if (err) throw err;
+  
+//     for (var i = 0; i < files.length; i++) {
+//       fs.unlink(path.join("D:/plexTemp/", files[i]), err => {
+//         console.log("hiiiii", files)
+//         if (err) throw err;
+//       });
+//     }
+//   });
+// }
+ 
+      var h = Math.floor(movieTitle['seekTime'] / 3600);
+      var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
+      var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
+      ffstream.kill()
     ffstream = ffmpeg(movieTitle['filePath'])
-    .videoCodec(getFormat)
-    // size
-    .audioCodec('aac')
 
+    .videoCodec('libx264')
+    .size(movieTitle['screenRes'])
+    .audioCodec('aac')
+    .addOption('-crf', '18')
+    .seekInput(`${h}:${m}:${s}`)
     .audioChannels(6)
     // start_number
     .addOption('-start_number', 0)
+
     // set hls segments time
-    .addOption('-crf', 0)
-    .addOption('-hls_time', 10)
+    .addOption('-hls_time', 5)
+
+    .addOption("-force_key_frames", "expr:gte(t,n_forced*5)")
     // include all the segments in the list
     .addOption('-hls_list_size', 0)
     // format -f
-    .addOption("-force_key_frames", "expr:gte(t,n_forced*10)")
+
     .format('hls')
     // setup event handlers
     .on('start', function(cmd) {
@@ -225,14 +266,12 @@ if(movieTitle['browser'] == "Chrome") {
 
   })
   .on('error', function(err) {
-    console.log('An error occurred: ' + err.message);
+    // console.log('An error occurred: ' + err.message);
   })
   .on('stderr', function(stderrLine) {
-    
+    console.log('An stderror occurred: ' + stderrLine);
   })
   .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`)
-
- 
 
   if(process == true) {
     ffstream.kill()
@@ -246,7 +285,7 @@ if(movieTitle['browser'] == "Chrome") {
       browser: movieTitle['browser'],
       duration: movieTitle['duration'],
       fileformat: movieTitle['fileformat'],
-      location: 'http://192.168.1.19:4012/plexTemp/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
+      location: 'http://192.168.1.86:4012/plexTemp/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
       title: movieTitle['title']
     }
 

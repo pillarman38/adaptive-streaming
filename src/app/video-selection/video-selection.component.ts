@@ -24,16 +24,10 @@ export class VideoSelectionComponent {
   retain = "value"
   nAgt = navigator.appCodeName;
   getRetainedData = localStorage.getItem("movielist")
+  carouselArr = []
+  @ViewChild('carousel') carousel;
   
   constructor(private http: HttpClient, private router: Router, private saveVid: SavedVideoInfoService, private activatedRoute: ActivatedRoute) { 
-    // To check for page refresh
-    //   this.router.events.pipe(
-    //     filter(event => event instanceof NavigationEnd)
-    //     ).subscribe(() => {
-    //         this.selection = ""
-    //         console.log(this.activatedRoute.root);
-    // });
-
 
     this.router.events.pipe(filter((rs): rs is NavigationEnd => rs instanceof NavigationEnd)).subscribe(event => {
       
@@ -50,18 +44,26 @@ export class VideoSelectionComponent {
     console.log(JSON.parse(this.getRetainedData));
 
     if(this.getRetainedData == null) {
-      this.http.get('http://192.168.1.19:4012/api/mov/movies').subscribe((res: any[]) => {
+      this.http.get('http://192.168.1.86:4012/api/mov/movies').subscribe((res: any[]) => {
       this.selection = res
       var retain = localStorage.setItem("movielist", JSON.stringify(res))
       console.log(this.selection)
-    })
+
+      this.carouselArr = this.selection.slice(-5)
+      console.log(this.carouselArr, this.selection);
+      })
+      
     } 
     if(this.getRetainedData != null) {
       if(this.getRetainedData != this.selection){
-      this.http.get('http://192.168.1.19:4012/api/mov/movies').subscribe((res: any[]) => {
+      this.http.get('http://192.168.1.86:4012/api/mov/movies').subscribe((res: any[]) => {
       this.selection = res
       var retain = localStorage.setItem("movielist", JSON.stringify(res))
       console.log(this.selection)
+      
+      
+      this.carouselArr = this.selection.slice(-5)
+      console.log(this.carouselArr, this.selection);
     })
     
     } 
@@ -82,9 +84,6 @@ console.log(JSON.parse(this.getRetainedData));
       this.saveVid.savedvideo = e
       console.log("heheheheheheh",e)
       console.log('chrome')
-    //   this.http.post('http://192.168.1.19:4012/api/mov/pullVideo', e).subscribe(event => {
-    //   console.log(event);
-    // })
   }
     if (this.browserName == "Safari") {
         e['browser'] = "Safari"

@@ -14,7 +14,7 @@ let returnVideoInfo = {
             case "vc1":
                 return "libx264";
             case "h264":
-                return "copy";
+                return "libx264";
             case "hevc":
                 return "libx264"
             
@@ -25,7 +25,7 @@ let returnVideoInfo = {
         case "vc1":
             return "libx264";
         case "h264":
-            return "copy";
+            return "libx264";
         case "hevc":
             return "libx264"
         

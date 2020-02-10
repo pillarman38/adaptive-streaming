@@ -17,7 +17,6 @@ import * as Hls from 'hls.js';
 
 export class VideoPlayerComponent implements OnInit {
   private element: HTMLVideoElement;
-  hls: any;
   controls;
   video = new Object;
   safari = true;
@@ -25,7 +24,10 @@ export class VideoPlayerComponent implements OnInit {
   iosReady = false
   firstPlayPress = true
   amtBuffered;
-
+  config = {
+    maxBufferSize: 1000
+  }
+  hls = new Hls(config);
   @ViewChild('videoTwo') videoTwo;
   @ViewChild('playPauseBtn') playPauseBtn;
   @ViewChild('playbtntriangle') playBtnTriangle
@@ -126,16 +128,14 @@ export class VideoPlayerComponent implements OnInit {
     var d = this.videoLngth
     var c = p/d*100
     this.percentage = ( this.videoTwo.nativeElement.currentTime / this.videoLngth) * 100
-    var percentBuffered = this.amtBuffered['levels'][0]['details']['totalduration'] / this.videoLngth * 100;
+    var percentBuffered = this.amtBuffered['levels']
+    console.log(percentBuffered)
     this.spans.nativeElement.style.width = this.percentage + '%'
     this.customSeekBar.nativeElement.style.width = 100
     // $( '#custom-seekbar span' ).css( 'width', percentage + '%' );
     this.spansBuffered.nativeElement.style.width = percentBuffered + "%"
-    console.log(this.spansBuffered.nativeElement.style.width, this.amtBuffered['levels'][0]['details']['totalduration'])
-    if ( this.percentage >= 100 ) {
-      
-    } /* Repeat */
-    
+    // console.log(this.amtBuffered['levels'][0]['details']['totalduration'])
+ 
 
 
   }
@@ -160,54 +160,47 @@ export class VideoPlayerComponent implements OnInit {
     left = e.pageX - offset.left,
     totalWidth = this.customSeekBar.nativeElement.getBoundingClientRect()['width'],
     percentage = left / totalWidth;
-
+    var pxtoSec = (totalWidth - left) / totalWidth
+    var tryThis = Math.abs(this.videoLngth * pxtoSec - this.videoLngth)
     this.videoTwo.nativeElement.currentTime = this.videoLngth * percentage
-    // if(){
-
-    // }
-  }
-
-  ngOnInit() {
-    this.http.post('http://192.168.1.19:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
+    
+    console.log(pxtoSec, this.videoLngth, tryThis)
+    
+    this.savedVid.savedvideo['screenRes'] = `${screen['width']}x${screen['height']}` 
+    this.savedVid.savedvideo['seekTime'] = tryThis
+    this.hls.detachMedia(this.videoTwo.nativeElement)
+    this.http.post('http://192.168.1.86:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
-      console.log(event, this.savedVid.savedvideo);
+      console.log(event, this.videoTwo.nativeElement.src);
       
       this.stream = this.video['location'];
-      
+      console.log("Here is the stream", this.stream)
       if (Hls.isSupported()) {
-       var config = {
-         maxBufferSize: 1000
-       }
-        var hls = new Hls(config);
        
         this.videoLngth = parseFloat(this.video['duration'])
         console.log("video lengthin seconds: " + this.videoLngth);
         
         this.convertTime(this.video['duration'])
-
-        hls.loadSource(this.stream);
-        hls.attachMedia(this.videoTwo.nativeElement);
-        hls.on(Hls.Events.MEDIA_ATTACHED, function (event, data) {
+        
+        this.hls.loadSource(this.stream);
+        this.hls.attachMedia(this.videoTwo.nativeElement);
+        this.hls.on(Hls.Events.MEDIA_ATTACHED, function (event, data) {
           console.log("video and hls.js are now bound together !", event['media'], data);
-          hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+          this.hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
             console.log(this.videoTwo);
             
             console.log("manifest loaded, found " + data.levels.length + " quality level");
           });
         })
 
-        this.amtBuffered = hls.on(Hls.Events.LEVEL_LOADED, function(eve, data) {
-          // console.log(eve, data['details'], this.videoLngth, this.stream)
-          // this.amtBuffered = data['details']['totalduration']
- 
-          
-          // console.log(this.amtBuffered)
-          console.log(eve, data);
+        this.amtBuffered = this.hls.on(Hls.Events.LEVEL_LOADED, function(eve, data) {
+          //console.log(eve, data['details'], this.videoLngth, this.stream)
+
           
           return data
         })
 
-        hls.on(Hls.Events.MANIFEST_LOADED, function(event, data) {
+        this.hls.on(Hls.Events.MANIFEST_LOADED, function(event, data) {
           // console.log(event['details'], data)
         })
         
@@ -221,50 +214,153 @@ export class VideoPlayerComponent implements OnInit {
       source.type = type;
       element.appendChild(source);
     }
-    hls.on(Hls.Events.LEVEL_LOAD_ERROR, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.LEVEL_LOAD_ERROR, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.BUFFER_APPENDED, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.BUFFER_APPENDED, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.MANIFEST_LOAD_ERROR, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.MANIFEST_LOAD_ERROR, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.INTERNAL_EXCEPTION, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.INTERNAL_EXCEPTION, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.BUFFER_APPEND_ERROR, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.BUFFER_APPEND_ERROR, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.FRAG_DECRYPT_ERROR, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.FRAG_DECRYPT_ERROR, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.FRAG_PARSING_ERROR, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.FRAG_PARSING_ERROR, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.FRAG_LOAD_TIMEOUT, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.FRAG_LOAD_TIMEOUT, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.FRAG_CHANGED, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.FRAG_CHANGED, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.LEVEL_UPDATED, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.LEVEL_UPDATED, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.BUFFER_FLUSHING, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.BUFFER_FLUSHING, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.BUFFER_FLUSHED, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.BUFFER_FLUSHED, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.BUFFER_RESET, function(event, data) {
-      console.log(event, data);
+    this.hls.on(Hls.Events.BUFFER_RESET, function(event, data) {
+      // console.log(event, data);
     })
-    hls.on(Hls.Events.ERROR, function (event, data) {
+    this.hls.on(Hls.Events.ERROR, function (event, data) {
         var errorType = data.type;
         var errorDetails = data.details;
         var errorFatal = data.fatal;
         console.log(errorFatal, errorDetails, errorType, event, data);
+      });
+    })
+
+  }
+
+  ngOnInit() {
+    var screen = {
+      width: window.screen.width,
+      height: window.screen.height
+  }
+  this.savedVid.savedvideo['screenRes'] = `${screen['width']}x${screen['height']}`
+  this.savedVid.savedvideo['seekTime'] = 0
+  console.log("Screen info", this.savedVid.savedvideo)
+    this.http.post('http://192.168.1.86:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
+      this.video = event['err']
+      console.log(event, this.savedVid.savedvideo);
+      
+      this.stream = this.video['location'];
+      
+      if (Hls.isSupported()) {
+       
+       
+        this.videoLngth = parseFloat(this.video['duration'])
+        console.log("video lengthin seconds: " + this.videoLngth);
+        
+        this.convertTime(this.video['duration'])
+
+        this.hls.loadSource(this.stream);
+        this.hls.attachMedia(this.videoTwo.nativeElement);
+        this.hls.on(Hls.Events.MEDIA_ATTACHED, function (event, data) {
+          console.log("video and hls.js are now bound together !", event['media'], data);
+          this.hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+            console.log(this.videoTwo);
+            
+            console.log("manifest loaded, found " + data.levels.length + " quality level");
+          });
+        })
+
+        this.amtBuffered = this.hls.on(Hls.Events.LEVEL_LOADED, function(eve, data) {
+          //console.log(eve, data['details'], this.videoLngth, this.stream)
+
+          
+          return data
+        })
+
+        this.hls.on(Hls.Events.MANIFEST_LOADED, function(event, data) {
+          // console.log(event['details'], data)
+        })
+        
+      } else {
+        addSourceToVideo(this.videoTwo, this.stream, 'application/x-mpegURL"');
+    }
+
+    function addSourceToVideo(element, src, type) {
+      var source = document.createElement('source');
+      source.src = src;
+      source.type = type;
+      element.appendChild(source);
+    }
+    this.hls.on(Hls.Events.LEVEL_LOAD_ERROR, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.BUFFER_APPENDED, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.MANIFEST_LOAD_ERROR, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.INTERNAL_EXCEPTION, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.BUFFER_APPEND_ERROR, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.FRAG_DECRYPT_ERROR, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.FRAG_PARSING_ERROR, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.FRAG_LOAD_TIMEOUT, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.FRAG_CHANGED, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.LEVEL_UPDATED, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.BUFFER_FLUSHING, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.BUFFER_FLUSHED, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.BUFFER_RESET, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.ERROR, function (event, data) {
+        var errorType = data.type;
+        var errorDetails = data.details;
+        var errorFatal = data.fatal;
+        // console.log(errorFatal, errorDetails, errorType, event, data);
       });
     })
   }
