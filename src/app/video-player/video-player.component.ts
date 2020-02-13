@@ -164,6 +164,7 @@ export class VideoPlayerComponent implements OnInit {
     var tryThis = Math.abs(this.videoLngth * pxtoSec - this.videoLngth)
     this.videoTwo.nativeElement.currentTime = this.videoLngth * percentage
     
+    
     console.log(pxtoSec, this.videoLngth, tryThis)
     
     this.savedVid.savedvideo['screenRes'] = `${screen['width']}x${screen['height']}` 

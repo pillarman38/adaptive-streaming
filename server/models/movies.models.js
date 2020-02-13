@@ -97,11 +97,10 @@ let routeFunctions = {
                     moreData['results'][0]['color_transfer'] = returnedMetaData['streams'][0]['color_transfer']
                     } else {
                       moreData['results'][0]['hdrEnabled'] = false,
-                    moreData['results'][0]['color_range'] = 'undefined'
-                    moreData['results'][0]['color_space'] = 'undefined'
-                    moreData['results'][0]['color_transfer'] = 'undefined'
+                      moreData['results'][0]['color_range'] = 'undefined'
+                      moreData['results'][0]['color_space'] = 'undefined'
+                      moreData['results'][0]['color_transfer'] = 'undefined'
                     }
-                  
 
                   arrOfObj.push(moreData['results'][0])
                   return arrOfObj
@@ -167,9 +166,15 @@ function startConverting(movieTitle, killProcess, callback) {
   if (movieTitle['browser'] == "Safari") {
 
     ffstream = ffmpeg(movieTitle['filePath'])
-    .videoCodec('libx264')
+    .videoCodec('libx265')
     .size(movieTitle['screenRes'])
     .audioCodec('aac')
+    .addOption('-pix_fmt', 'yuv420p10')
+    .addOption("-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc")
+  
+    // .addOption('-color_primaries', '9')
+    
+
     .addOption('-crf', '18')
     .seekInput(`${h}:${m}:${s}`)
     .audioChannels(6)
