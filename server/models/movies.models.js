@@ -79,7 +79,7 @@ let routeFunctions = {
                 }).then((moreData) => {
 
               if(moreData['results']) {
-                  
+                
                   moreData['results'][0]['fileName'] = returnedMetaData['format']['tags']['title'].replace(/[~"#%&*:<>?]/g, '')
                   moreData['results'][0]['duration'] = returnedMetaData['format']['duration']
                   moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
@@ -164,16 +164,71 @@ function startConverting(movieTitle, killProcess, callback) {
       var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
       var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
   if (movieTitle['browser'] == "Safari") {
+    if(movieTitle['screenRes'] == '1920x1080' && movieTitle['hdrEnabled'] == false) {
+      ffstream = ffmpeg(movieTitle['filePath'])
+      .videoCodec('libx264')
+      .size(movieTitle['screenRes'])
+      .audioCodec('aac')
+      // .addOption('-color_primaries', '9')
+      .addOption('-crf', '18')
+      .seekInput(`${h}:${m}:${s}`)
+      .audioChannels(6)
+      // start_number
+      .addOption('-start_number', 0)
+  
+      // set hls segments time
+      .addOption('-hls_time', 5)
+  
+      .addOption("-force_key_frames", "expr:gte(t,n_forced*5)")
+      // include all the segments in the list
+      .addOption('-hls_list_size', 0)
+      // format -f
+  
+      .format('hls')
+      // setup event handlers
+      .on('start', function(cmd) {
+         console.log('Started ' + cmd);
+      })
+  
+      .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
+    }
+    if(movieTitle['screenRes'] == '1920x1080' && movieTitle['hdrEnabled'] == true) {
+      ffstream = ffmpeg(movieTitle['filePath'])
+    .videoCodec('libx265')
+    .size('3840x2160')
+    .audioCodec('aac')
+    .addOption('-pix_fmt', 'yuv420p10')
+    .addOption("-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc")
+    // .addOption('-color_primaries', '9')
+    .addOption('-crf', '18')
+    .seekInput(`${h}:${m}:${s}`)
+    .audioChannels(6)
+    // start_number
+    .addOption('-start_number', 0)
 
-    ffstream = ffmpeg(movieTitle['filePath'])
+    // set hls segments time
+    .addOption('-hls_time', 5)
+
+    .addOption("-force_key_frames", "expr:gte(t,n_forced*5)")
+    // include all the segments in the list
+    .addOption('-hls_list_size', 0)
+    // format -f
+
+    .format('hls')
+    // setup event handlers
+    .on('start', function(cmd) {
+       console.log('Started ' + cmd);
+    })
+
+    .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
+    }
+    if(movieTitle['screenRes'] == '3840x2160' && movieTitle['hdrEnabled'] == true) {
+      ffstream = ffmpeg(movieTitle['filePath'])
     .videoCodec('libx265')
     .size(movieTitle['screenRes'])
     .audioCodec('aac')
     .addOption('-pix_fmt', 'yuv420p10')
     .addOption("-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc")
-  
-    // .addOption('-color_primaries', '9')
-    
 
     .addOption('-crf', '18')
     .seekInput(`${h}:${m}:${s}`)
@@ -196,6 +251,8 @@ function startConverting(movieTitle, killProcess, callback) {
     })
 
     .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
+    }
+    
     if(process == true) {
       ffstream.kill()
     }
