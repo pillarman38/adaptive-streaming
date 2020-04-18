@@ -19,12 +19,10 @@ var url = ''
 var i = 0
 var fileLocation = ''
 var newSrc;
-var movieObj = {}
+
 var arr = []
 var killProcess = false
 var ffstream = ffmpeg()
-
-
 
 let routeFunctions = {
     getAllMovies: (callback) => {
@@ -37,106 +35,93 @@ let routeFunctions = {
       }, 1000);
      arrOfObj = []
       fs.readdir("D:/Videos/", (err, files) => {
-        async function foo() {
-          for(var k = 0; k < files.length; k++) {
-    
-            
-              var firstObj = new Promise((resolve, reject) => {
-                url = files[k].replace('.mkv', ''),
-                movieObj = {
-                url: files[k],
-                title: files[k].replace('.mkv', ''),
-                movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${url.replace(new RegExp(' ', 'g'), '%20')}`,
-              }
-                
-                ffmpeg.ffprobe(`D:/Videos/${movieObj['url']}`, function(err, metaData) {
-                  
-              if(metaData) {
-                var metaDataoObj = {
-                  title: movieObj['title'],
-                  location: movieObj['url'],
-                  format: metaData['format'],
-                  streams: metaData['streams']
-                }
-                // console.log(metaDataoObj);
-                
-                resolve(metaDataoObj)
-                // console.log(metaDataoObj['streams'][0]['codec_name']);
-                
-                return metaDataoObj
-                } 
-                if(!metaData) {
-                  console.log(err);
-                }
-              })
-            }).then((returnedMetaData) => {
-              // console.log(returnedMetaData);
-              
-              
-              fetch(`${movieObj['movieListUrl']}`).then((data) => {
-                
-                return data.json()
-                }).then((moreData) => {
+        console.log(files.length)
 
-              if(moreData['results']) {
-                
-                  moreData['results'][0]['fileName'] = returnedMetaData['format']['tags']['title'].replace(/[~"#%&*:<>?]/g, '')
-                  moreData['results'][0]['duration'] = returnedMetaData['format']['duration']
-                  moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
-                  moreData['results'][0]['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['backdrop_path']}`
-                  moreData['results'][0]['location'] = `http://192.168.1.86:4012/${returnedMetaData['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`
-                  moreData['results'][0]['filePath'] = `D:/Videos/${returnedMetaData['title']}.mkv`
-                  moreData['results'][0]['resolution'] = `${returnedMetaData['streams'][0]['coded_width']}x${returnedMetaData['streams'][0]['coded_height']}`
-                  moreData['results'][0]['channels'] = returnedMetaData['streams'][1]['channels']
-                  moreData['results'][0]['videoFormat'] = returnedMetaData['streams'][0]['codec_name']
-                  moreData['results'][0]['seekTime'] = 0 
-                  if(returnedMetaData['streams'][0]['pix_fmt'] == "yuv420p10le") {
-                    moreData['results'][0]['hdrEnabled'] = true,
-                    moreData['results'][0]['color_range'] = returnedMetaData['streams'][0]['color_range'],
-                    moreData['results'][0]['color_space'] = returnedMetaData['streams'][0]['color_space'],
-                    moreData['results'][0]['color_transfer'] = returnedMetaData['streams'][0]['color_transfer']
-                    } else {
-                      moreData['results'][0]['hdrEnabled'] = false,
-                      moreData['results'][0]['color_range'] = 'undefined'
-                      moreData['results'][0]['color_space'] = 'undefined'
-                      moreData['results'][0]['color_transfer'] = 'undefined'
-                    }
+        var arr = []
+       
+        var prom = new Promise((resolve, reject) => {
+          pool.query('SELEC * FROM ')
+          
+          files.forEach(function getMovieInfo(file) {
 
-                  arrOfObj.push(moreData['results'][0])
-                  return arrOfObj
-                }
-
-              }).then((res) => {
-               
-                console.log(arrOfObj.length, k);
-                
-              if(k == arrOfObj.length) {
-
-                callback(res)
-                
-                return arrOfObj
-            }
-          })
-            })
-              var results = await firstObj;
-            }   
+          var url = file.replace('.mkv', '')
+          var firstObj = {
+            url: file.replace('.mkv', ''),
+            title: file.replace('.mkv', ''),
+            movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${url.replace(new RegExp(' ', 'g'), '%20')}`,
           }
-          foo()
+ 
+          ffmpeg.ffprobe(`D:/Videos/${firstObj['url']}.mkv`, function(err, metaData) {
+          fetch(`${firstObj['movieListUrl']}`).then((data) => {
+            return data.json()
+          }).then((data)=>{
+            if(metaData) {
+          //         moreData['results'][0]['duration'] = returnedMetaData['format']['duration']
+          //         moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
+          //         moreData['results'][0]['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['backdrop_path']}`
+          //         moreData['results'][0]['location'] = `http://192.168.1.86:4012/${returnedMetaData['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`
+          //         moreData['results'][0]['filePath'] = `D:/Videos/${returnedMetaData['title']}.mkv`
+          //         moreData['results'][0]['resolution'] = `${returnedMetaData['streams'][0]['coded_width']}x${returnedMetaData['streams'][0]['coded_height']}`
+          //         moreData['results'][0]['channels'] = returnedMetaData['streams'][1]['channels']
+          //         moreData['results'][0]['videoFormat'] = returnedMetaData['streams'][0]['codec_name']
+          //         moreData['results'][0]['seekTime'] = 0 
+          //         if(returnedMetaData['streams'][0]['pix_fmt'] == "yuv420p10le") {
+          //           moreData['results'][0]['hdrEnabled'] = true,
+          //           moreData['results'][0]['color_range'] = returnedMetaData['streams'][0]['color_range'],
+          //           moreData['results'][0]['color_space'] = returnedMetaData['streams'][0]['color_space'],
+          //           moreData['results'][0]['color_transfer'] = returnedMetaData['streams'][0]['color_transfer']
+          //           } else {
+          //             moreData['results'][0]['hdrEnabled'] = false,
+          //             moreData['results'][0]['color_range'] = 'undefined'
+          //             moreData['results'][0]['color_space'] = 'undefined'
+          //             moreData['results'][0]['color_transfer'] = 'undefined'
+          //           }
+
+              var metaDataObj = {
+                title: data['results'][0]['original_title'],
+                location: `http://192.168.1.86:4012/${metaData['format']['tags']['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`,
+                photoUrl: `https://image.tmdb.org/t/p/w500${data['results'][0]['poster_path']}`,
+                backdropPhotoUrl: `https://image.tmdb.org/t/p/w500${data['results'][0]['backdrop_path']}`,
+                overview: data['results'][0]['overview'],
+                duration: metaData['format']['duration'],
+                location: `http://192.168.1.86:4012/${metaData['format']['tags']['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`,
+                resolution: `${metaData['streams'][0]['coded_width']}x${metaData['streams'][0]['coded_height']}`,
+                channels: metaData['streams'][1]['channels'],
+                fileformat: metaData['streams'][0]['codec_name']
+              }
+
+              if(metaData['streams'][0]['pix_fmt'] == "yuv420p10le") {
+                    metaDataObj['hrdEnabled'] = true,
+                    metaDataObj['color_range'] = metaData['streams'][0]['color_range'],
+                    metaDataObj['color_space'] = metaData['streams'][0]['color_space'],
+                    metaDataObj['color_transfer'] = metaData['streams'][0]['color_transfer']
+                  } else {
+                    metaDataObj['hrdEnabled'] = false,
+                    metaDataObj['color_range'] = 'undefined'
+                    metaDataObj['color_space'] = 'undefined'
+                    metaDataObj['color_transfer'] = 'undefined'
+                          }
+              arrOfObj.push(metaDataObj)
+              if(arrOfObj.length == files.length){
+                callback(arrOfObj)
+              }            
+            }          
+          })
+        })          
       })
-    },
+    })
+  })
+},
 
     getTranscodedMovie: (callback) => {
       pool.query('SELECT * FROM moviesplaying', (err, results)=>{
           callback(err,results)
       })
-    
   },
     
     startconvertingMovie: (movieTitle, callback)=>{
    
         var thing = false
- 
-
 
         pool.query('SELECT * FROM `moviesplaying` WHERE `title` = ?', movieTitle, (err, res)=>{
             
@@ -235,7 +220,6 @@ function startConverting(movieTitle, killProcess, callback) {
     .audioChannels(6)
     // start_number
     .addOption('-start_number', 0)
-
     // set hls segments time
     .addOption('-hls_time', 5)
 

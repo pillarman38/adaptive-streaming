@@ -57,10 +57,10 @@ export class VideoSelectionComponent {
     if(this.getRetainedData != null) {
       if(this.getRetainedData != this.selection){
       this.http.get('http://192.168.1.86:4012/api/mov/movies').subscribe((res: any[]) => {
+        console.log(res)
       this.selection = res
       var retain = localStorage.setItem("movielist", JSON.stringify(res))
-      console.log(this.selection)
-      
+
       
       this.carouselArr = this.selection.slice(-5)
       console.log(this.carouselArr, this.selection);
@@ -69,10 +69,8 @@ export class VideoSelectionComponent {
     } 
     }
      
-console.log(JSON.parse(this.getRetainedData));
+    console.log(JSON.parse(this.getRetainedData));
     this.selection = JSON.parse(this.getRetainedData)
-    
-
     }
     
   saveSelected(e) {
