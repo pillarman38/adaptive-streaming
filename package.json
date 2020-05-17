@@ -24,7 +24,7 @@
     "angular": "^1.7.9",
     "body-parser": "^1.19.0",
     "chokidar": "^3.3.0",
-    "concurrently": "^5.0.0",
+    "concurrently": "^5.2.0",
     "core-js": "^2.6.10",
     "cors": "^2.8.5",
     "dashjs": "^3.0.0",

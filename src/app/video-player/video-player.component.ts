@@ -39,7 +39,7 @@ export class VideoPlayerComponent implements OnInit {
   @ViewChild('customSeekBar') customSeekBar
   @ViewChild('spans') spans
   @ViewChild('spansBuffered') spansBuffered
-
+  selectedTime = 0;
   percentage = 0;
   currentTimeDisp;
 
@@ -124,20 +124,20 @@ export class VideoPlayerComponent implements OnInit {
    
     this.currentTimeDisp = hDisplay + mDisplay + sDisplay
 
-    var p = e.target.currentTime
+    var p = e.target.currentTime + this.selectedTime
     var d = this.videoLngth
     var c = p/d*100
-    this.percentage = ( this.videoTwo.nativeElement.currentTime / this.videoLngth) * 100
-    var percentBuffered = this.amtBuffered['levels']
-    console.log(percentBuffered)
+
+    this.percentage = ( p / this.videoLngth) * 100
+    var percentBuffered = (this.amtBuffered['levels'][0]['details']['totalduration'] + this.selectedTime) / this.videoLngth * 100
+
+    console.log(this.percentage, this.amtBuffered['levels'][0]['details']['totalduration'], percentBuffered, this.videoLngth, this.selectedTime)
+
     this.spans.nativeElement.style.width = this.percentage + '%'
     this.customSeekBar.nativeElement.style.width = 100
     // $( '#custom-seekbar span' ).css( 'width', percentage + '%' );
     this.spansBuffered.nativeElement.style.width = percentBuffered + "%"
     // console.log(this.amtBuffered['levels'][0]['details']['totalduration'])
- 
-
-
   }
   changeVolume() {
     
@@ -161,14 +161,14 @@ export class VideoPlayerComponent implements OnInit {
     totalWidth = this.customSeekBar.nativeElement.getBoundingClientRect()['width'],
     percentage = left / totalWidth;
     var pxtoSec = (totalWidth - left) / totalWidth
-    var tryThis = Math.abs(this.videoLngth * pxtoSec - this.videoLngth)
+    this.selectedTime = Math.abs(this.videoLngth * pxtoSec - this.videoLngth)
     this.videoTwo.nativeElement.currentTime = this.videoLngth * percentage
     
     
-    console.log(pxtoSec, this.videoLngth, tryThis)
+    console.log(pxtoSec, this.videoLngth, this.selectedTime)
     
     this.savedVid.savedvideo['screenRes'] = `${screen['width']}x${screen['height']}` 
-    this.savedVid.savedvideo['seekTime'] = tryThis
+    this.savedVid.savedvideo['seekTime'] = this.selectedTime
     this.hls.detachMedia(this.videoTwo.nativeElement)
     this.http.post('http://192.168.1.86:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']

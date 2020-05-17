@@ -52,55 +52,42 @@ let routeFunctions = {
           }
  
           ffmpeg.ffprobe(`D:/Videos/${firstObj['url']}.mkv`, function(err, metaData) {
+            // console.log(metaData['streams'][0]['tags'], metaData['format'])
           fetch(`${firstObj['movieListUrl']}`).then((data) => {
             return data.json()
           }).then((data)=>{
+            console.log(data['results'][0])
             if(metaData) {
-          //         moreData['results'][0]['duration'] = returnedMetaData['format']['duration']
-          //         moreData['results'][0]['photoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['poster_path']}`
-          //         moreData['results'][0]['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${moreData['results'][0]['backdrop_path']}`
-          //         moreData['results'][0]['location'] = `http://192.168.1.86:4012/${returnedMetaData['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`
-          //         moreData['results'][0]['filePath'] = `D:/Videos/${returnedMetaData['title']}.mkv`
-          //         moreData['results'][0]['resolution'] = `${returnedMetaData['streams'][0]['coded_width']}x${returnedMetaData['streams'][0]['coded_height']}`
-          //         moreData['results'][0]['channels'] = returnedMetaData['streams'][1]['channels']
-          //         moreData['results'][0]['videoFormat'] = returnedMetaData['streams'][0]['codec_name']
-          //         moreData['results'][0]['seekTime'] = 0 
-          //         if(returnedMetaData['streams'][0]['pix_fmt'] == "yuv420p10le") {
-          //           moreData['results'][0]['hdrEnabled'] = true,
-          //           moreData['results'][0]['color_range'] = returnedMetaData['streams'][0]['color_range'],
-          //           moreData['results'][0]['color_space'] = returnedMetaData['streams'][0]['color_space'],
-          //           moreData['results'][0]['color_transfer'] = returnedMetaData['streams'][0]['color_transfer']
-          //           } else {
-          //             moreData['results'][0]['hdrEnabled'] = false,
-          //             moreData['results'][0]['color_range'] = 'undefined'
-          //             moreData['results'][0]['color_space'] = 'undefined'
-          //             moreData['results'][0]['color_transfer'] = 'undefined'
-          //           }
-
               var metaDataObj = {
-                title: data['results'][0]['original_title'],
+                title: file.replace('.mkv', ''),
+                filePath: metaData['format']['filename'],
                 location: `http://192.168.1.86:4012/${metaData['format']['tags']['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`,
-                photoUrl: `https://image.tmdb.org/t/p/w500${data['results'][0]['poster_path']}`,
-                backdropPhotoUrl: `https://image.tmdb.org/t/p/w500${data['results'][0]['backdrop_path']}`,
+                // photoUrl: `https://image.tmdb.org/t/p/w500${data['results'][0]['poster_path']}`,
+                // backdropPhotoUrl: `https://image.tmdb.org/t/p/w500${data['results'][0]['backdrop_path']}`,
                 overview: data['results'][0]['overview'],
                 duration: metaData['format']['duration'],
                 location: `http://192.168.1.86:4012/${metaData['format']['tags']['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`,
                 resolution: `${metaData['streams'][0]['coded_width']}x${metaData['streams'][0]['coded_height']}`,
                 channels: metaData['streams'][1]['channels'],
-                fileformat: metaData['streams'][0]['codec_name']
+                fileformat: metaData['streams'][0]['codec_name'],
+                // originalLang: data['results'][0]['original_language'],
+                pixFmt: metaData['streams'][0]['pix_fmt'],
+                color_range: metaData['streams'][0]['color_range'],
+                color_space: metaData['streams'][0]['color_space'],
+                color_transfer: metaData['streams'][0]['color_transfer'],
+                fileName: file.replace('.mkv', '')
+              }
+              if(data['results'][0]['backdrop_path'] == null) {
+                metaDataObj['backdropPhotoUrl'] = 'http://192.168.1.86:4012/assets/images/four0four.gif'
+              } else {
+                metaDataObj['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${data['results'][0]['backdrop_path']}`
               }
 
-              if(metaData['streams'][0]['pix_fmt'] == "yuv420p10le") {
-                    metaDataObj['hrdEnabled'] = true,
-                    metaDataObj['color_range'] = metaData['streams'][0]['color_range'],
-                    metaDataObj['color_space'] = metaData['streams'][0]['color_space'],
-                    metaDataObj['color_transfer'] = metaData['streams'][0]['color_transfer']
-                  } else {
-                    metaDataObj['hrdEnabled'] = false,
-                    metaDataObj['color_range'] = 'undefined'
-                    metaDataObj['color_space'] = 'undefined'
-                    metaDataObj['color_transfer'] = 'undefined'
-                          }
+              if(data['results'][0]['poster_path'] == null) {
+                metaDataObj['photoUrl'] = 'http://192.168.1.86:4012/assets/images/placeholder.jpg'
+              } else {
+                metaDataObj['photoUrl'] = `https://image.tmdb.org/t/p/w500${data['results'][0]['poster_path']}`
+              }
               arrOfObj.push(metaDataObj)
               if(arrOfObj.length == files.length){
                 callback(arrOfObj)
@@ -120,16 +107,10 @@ let routeFunctions = {
   },
     
     startconvertingMovie: (movieTitle, callback)=>{
-   
         var thing = false
-
         pool.query('SELECT * FROM `moviesplaying` WHERE `title` = ?', movieTitle, (err, res)=>{
-            
-            
             if(err) {
               pool.query('INSERT INTO `moviesplaying` SET ?',movieTitle, (err, resultstwo) =>{
-                
-    
                 killProcess = false
                 startConverting(movieTitle, killProcess, callback)
                
@@ -140,7 +121,6 @@ let routeFunctions = {
 }
 
 function startConverting(movieTitle, killProcess, callback) {
-
   var getRes = codecGetter.getVideoResoluion(movieTitle)
   var getFormat = codecGetter.getVideoFormat(movieTitle)
   console.log("Here is movie title", movieTitle)
@@ -149,13 +129,14 @@ function startConverting(movieTitle, killProcess, callback) {
       var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
       var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
   if (movieTitle['browser'] == "Safari") {
-    if(movieTitle['screenRes'] == '1920x1080' && movieTitle['hdrEnabled'] == false) {
+    if(movieTitle['resolution'] == '1920x1080' && movieTitle['pixFmt'] == "yuv420p") {
       ffstream = ffmpeg(movieTitle['filePath'])
       .videoCodec('libx264')
       .size(movieTitle['screenRes'])
       .audioCodec('aac')
       // .addOption('-color_primaries', '9')
       .addOption('-crf', '18')
+
       .seekInput(`${h}:${m}:${s}`)
       .audioChannels(6)
       // start_number
@@ -172,18 +153,31 @@ function startConverting(movieTitle, killProcess, callback) {
       .format('hls')
       // setup event handlers
       .on('start', function(cmd) {
-         console.log('Started ' + cmd);
+        console.log('Started ' + cmd);
       })
-  
+      .on('start', function(commandLine) {
+        console.log('Spawned Ffmpeg with command: ' + commandLine);
+      })
+      .on('progress', function(progress) {
+    
+      })
+      .on('error', function(err) {
+        // console.log('An error occurred: ' + err.message);
+      })
+      .on('stderr', function(stderrLine) {
+        console.log('An stderror occurred: ' + stderrLine);
+      })
+
       .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
-    }
-    if(movieTitle['screenRes'] == '1920x1080' && movieTitle['hdrEnabled'] == true) {
+      }
+
+    if(movieTitle['resolution'] == '1920x1080' && movieTitle['pixFmt'] == "yuv420p10le") {
       ffstream = ffmpeg(movieTitle['filePath'])
     .videoCodec('libx265')
-    .size('3840x2160')
+    .size('1920x1080')
     .audioCodec('aac')
-    .addOption('-pix_fmt', 'yuv420p10')
-    .addOption("-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc")
+    // .addOption('-pix_fmt', 'yuv420p10le')
+    // .addOption("-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc")
     // .addOption('-color_primaries', '9')
     .addOption('-crf', '18')
     .seekInput(`${h}:${m}:${s}`)
@@ -198,21 +192,33 @@ function startConverting(movieTitle, killProcess, callback) {
     // include all the segments in the list
     .addOption('-hls_list_size', 0)
     // format -f
-
+ 
     .format('hls')
     // setup event handlers
     .on('start', function(cmd) {
-       console.log('Started ' + cmd);
+      console.log('Started ' + cmd);
     })
-
+    .on('start', function(commandLine) {
+      console.log('Spawned Ffmpeg with command: ' + commandLine);
+    })
+    .on('progress', function(progress) {
+  
+    })
+    .on('error', function(err) {
+      // console.log('An error occurred: ' + err.message);
+    })
+    .on('stderr', function(stderrLine) {
+      console.log('An stderror occurred: ' + stderrLine);
+    })
     .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
     }
-    if(movieTitle['screenRes'] == '3840x2160' && movieTitle['hdrEnabled'] == true) {
+    if(movieTitle['resolution'] == '3840x2160' && movieTitle['pixFmt'] == "yuv420p10le") {
+      console.log(movieTitle['fileName'])
       ffstream = ffmpeg(movieTitle['filePath'])
     .videoCodec('libx265')
     .size(movieTitle['screenRes'])
     .audioCodec('aac')
-    .addOption('-pix_fmt', 'yuv420p10')
+    .addOption('-pix_fmt', 'yuv420p10le')
     .addOption("-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc")
 
     .addOption('-crf', '18')
@@ -231,10 +237,22 @@ function startConverting(movieTitle, killProcess, callback) {
     .format('hls')
     // setup event handlers
     .on('start', function(cmd) {
-       console.log('Started ' + cmd);
+      console.log('Started ' + cmd);
     })
-
+    .on('start', function(commandLine) {
+      console.log('Spawned Ffmpeg with command: ' + commandLine);
+    })
+    .on('progress', function(progress) {
+  
+    })
+    .on('error', function(err) {
+      // console.log('An error occurred: ' + err.message);
+    })
+    .on('stderr', function(stderrLine) {
+      console.log('An stderror occurred: ' + stderrLine);
+    })
     .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
+    
     }
     
     if(process == true) {
@@ -243,12 +261,12 @@ function startConverting(movieTitle, killProcess, callback) {
     
     var watcher = fs.watch("D:/plexTemp/", (event, filename) => {
      
-      if(filename == `${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), '')){
+      if(filename == `${movieTitle['fileName'].replace(new RegExp(' ', 'g'), '')}.m3u8`){
         watcher.close()
 
         var movieReturner = {
           browser: movieTitle['browser'],
-          duration: movieTitle['duration'],
+          duration: movieTitle['duration'].toString,
           fileformat: movieTitle['fileformat'],
           location: 'http://192.168.1.86:4012/plexTemp/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '') + '.m3u8',
           title: movieTitle['title']
@@ -261,26 +279,12 @@ return console.log("This video already exisits in the database")
 }
 
 if(movieTitle['browser'] == "Chrome") {
-  
-//   ffstream.kill()
-    
-//     if(movieTitle['seekTime'] != 0){
-//       fs.readdir("D:/plexTemp/", (err, files) => {
-//     if (err) throw err;
-  
-//     for (var i = 0; i < files.length; i++) {
-//       fs.unlink(path.join("D:/plexTemp/", files[i]), err => {
-//         console.log("hiiiii", files)
-//         if (err) throw err;
-//       });
-//     }
-//   });
-// }
- 
+      var arr = []
       var h = Math.floor(movieTitle['seekTime'] / 3600);
       var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
       var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
       ffstream.kill()
+
     ffstream = ffmpeg(movieTitle['filePath'])
 
     .videoCodec('libx264')
@@ -317,7 +321,7 @@ if(movieTitle['browser'] == "Chrome") {
   .on('stderr', function(stderrLine) {
     console.log('An stderror occurred: ' + stderrLine);
   })
-  .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`)
+  .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
 
   if(process == true) {
     ffstream.kill()
@@ -331,7 +335,7 @@ if(movieTitle['browser'] == "Chrome") {
       browser: movieTitle['browser'],
       duration: movieTitle['duration'],
       fileformat: movieTitle['fileformat'],
-      location: 'http://192.168.1.86:4012/plexTemp/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '%20') + '.m3u8',
+      location: 'http://192.168.1.86:4012/plexTemp/' + movieTitle['fileName'] + '.m3u8',
       title: movieTitle['title']
     }
 

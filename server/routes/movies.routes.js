@@ -54,7 +54,8 @@ router.post('/pullVideo', (req, res)=>{
             color_range: req.body['color_range'],
             color_space: req.body['color_space'],
             color_transfer: req.body['color_transfer'],
-            seekTime: req.body['seekTime']
+            seekTime: req.body['seekTime'],
+            pixFmt: req.body['pixFmt']
         }
     , (err, results)=>{
         if(err){
