@@ -12,8 +12,11 @@ let chokidar = require('chokidar')
 var showPlayer = false
 var fetch = require('node-fetch')
 
-var arrOfObj = []
+const cp = require("child_process");
+const { spawn } = require('child_process')
 
+var arrOfObj = []
+var exec = require('child_process').exec;
 var newArr = []
 var url = ''
 var i = 0
@@ -23,10 +26,18 @@ var newSrc;
 var arr = []
 var killProcess = false
 var ffstream = ffmpeg()
-
+var exec = require('child_process').exec
 let routeFunctions = {
-    getAllMovies: (callback) => {
-      
+
+    getAllMovies: (pid, callback) => {
+      if(pid['pid'] == 0) {
+        console.log("nothing to kill")
+      }
+      if(pid['pid'] != 0) {
+        var pidInt = parseInt(pid['pid'])
+        process.kill(pid['pid'])
+      }
+
       setTimeout(function() {
         ffstream.on('error', function() {
           console.log('Ffmpeg has been killed');
@@ -56,7 +67,7 @@ let routeFunctions = {
           fetch(`${firstObj['movieListUrl']}`).then((data) => {
             return data.json()
           }).then((data)=>{
-            console.log(data['results'][0])
+          // console.log(data['results'][0])
             if(metaData) {
               var metaDataObj = {
                 title: file.replace('.mkv', ''),
@@ -75,6 +86,7 @@ let routeFunctions = {
                 color_range: metaData['streams'][0]['color_range'],
                 color_space: metaData['streams'][0]['color_space'],
                 color_transfer: metaData['streams'][0]['color_transfer'],
+                seekTime: 0,
                 fileName: file.replace('.mkv', '')
               }
               if(data['results'][0]['backdrop_path'] == null) {
@@ -100,23 +112,14 @@ let routeFunctions = {
   })
 },
 
-    getTranscodedMovie: (callback) => {
-      pool.query('SELECT * FROM moviesplaying', (err, results)=>{
-          callback(err,results)
-      })
-  },
     
     startconvertingMovie: (movieTitle, callback)=>{
         var thing = false
-        pool.query('SELECT * FROM `moviesplaying` WHERE `title` = ?', movieTitle, (err, res)=>{
-            if(err) {
-              pool.query('INSERT INTO `moviesplaying` SET ?',movieTitle, (err, resultstwo) =>{
+ 
                 killProcess = false
                 startConverting(movieTitle, killProcess, callback)
                
-              })  
-            }
-        })
+             
     }
 }
 
@@ -126,8 +129,10 @@ function startConverting(movieTitle, killProcess, callback) {
   console.log("Here is movie title", movieTitle)
 
   var h = Math.floor(movieTitle['seekTime'] / 3600);
-      var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
-      var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
+  var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
+  var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
+  ffstream.kill()
+  
   if (movieTitle['browser'] == "Safari") {
     if(movieTitle['resolution'] == '1920x1080' && movieTitle['pixFmt'] == "yuv420p") {
       ffstream = ffmpeg(movieTitle['filePath'])
@@ -159,13 +164,13 @@ function startConverting(movieTitle, killProcess, callback) {
         console.log('Spawned Ffmpeg with command: ' + commandLine);
       })
       .on('progress', function(progress) {
-    
+        
       })
       .on('error', function(err) {
         // console.log('An error occurred: ' + err.message);
       })
       .on('stderr', function(stderrLine) {
-        console.log('An stderror occurred: ' + stderrLine);
+        // console.log('An stderror occurred: ' + stderrLine);
       })
 
       .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
@@ -208,7 +213,7 @@ function startConverting(movieTitle, killProcess, callback) {
       // console.log('An error occurred: ' + err.message);
     })
     .on('stderr', function(stderrLine) {
-      console.log('An stderror occurred: ' + stderrLine);
+      // console.log('An stderror occurred: ' + stderrLine);
     })
     .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
     }
@@ -249,7 +254,7 @@ function startConverting(movieTitle, killProcess, callback) {
       // console.log('An error occurred: ' + err.message);
     })
     .on('stderr', function(stderrLine) {
-      console.log('An stderror occurred: ' + stderrLine);
+      // console.log('An stderror occurred: ' + stderrLine);
     })
     .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
     
@@ -269,70 +274,69 @@ function startConverting(movieTitle, killProcess, callback) {
           duration: movieTitle['duration'].toString,
           fileformat: movieTitle['fileformat'],
           location: 'http://192.168.1.86:4012/plexTemp/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '') + '.m3u8',
-          title: movieTitle['title']
+          title: movieTitle['title'],
+          seekTime: movieTitle['seekTime']
         }
         callback(movieReturner)
         return
       }
   });
-return console.log("This video already exisits in the database")
 }
 
 if(movieTitle['browser'] == "Chrome") {
+
       var arr = []
       var h = Math.floor(movieTitle['seekTime'] / 3600);
       var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
       var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
-      ffstream.kill()
+      
+      var processId = 0
+      var newJob = function () {
+        // D:/ffmpeg -ss ${h}:${m}:${s} -i "${movieTitle['filePath']}" -y -acodec aac -ac 6 -vcodec libx264 -filter:v scale=w=1920:h=1080 -crf 18 -start_number 0 -hls_time 5 
+        // -force_key_frames expr:gte(t,n_forced*5) -hls_list_size 0 -f hls "D:/plexTemp/${movieTitle['fileName']}.m3u8"`
+        var newProc = spawn('D:/ffmpeg', [
+          '-ss', `${h}:${m}:${s}`,
+          '-i', `${movieTitle['filePath']}`,
+          '-y', 
+          '-acodec', 
+          'aac','-ac', '6', 
+          '-vcodec', 'libx264', 
+          '-filter:v', 'scale=w=1920:h=1080', 
+          '-crf', '18', 
+          '-start_number', 0, 
+          '-hls_time', '5', 
+          '-force_key_frames', 'expr:gte(t,n_forced*5)', 
+          '-hls_list_size', '0', 
+          '-f', 'hls', `D:/plexTemp/${movieTitle['fileName']}.m3u8`
+        ])
+        newProc.on('error', function (err) {
+          console.log('ls error', err);
+        });
+        
+        newProc.stdout.on('data', function (data) {
+            console.log('stdout: ' + data);
+        });
+        
+        newProc.stderr.on('data', function (data) {
+            console.log('stderr: ' + data);
+        });
+        
+        newProc.on('close', function (code) {
+            console.log('child process exited with code ' + code);
+        });
+        processId = newProc.pid
+      }
+      newJob()
+      
 
-    ffstream = ffmpeg(movieTitle['filePath'])
-
-    .videoCodec('libx264')
-    .size(movieTitle['screenRes'])
-    .audioCodec('aac')
-    .addOption('-crf', '18')
-    .seekInput(`${h}:${m}:${s}`)
-    .audioChannels(6)
-    // start_number
-    .addOption('-start_number', 0)
-
-    // set hls segments time
-    .addOption('-hls_time', 5)
-
-    .addOption("-force_key_frames", "expr:gte(t,n_forced*5)")
-    // include all the segments in the list
-    .addOption('-hls_list_size', 0)
-    // format -f
-
-    .format('hls')
-    // setup event handlers
-    .on('start', function(cmd) {
-    console.log('Started ' + cmd);
-  })
-  .on('start', function(commandLine) {
-    console.log('Spawned Ffmpeg with command: ' + commandLine);
-  })
-  .on('progress', function(progress) {
-
-  })
-  .on('error', function(err) {
-    // console.log('An error occurred: ' + err.message);
-  })
-  .on('stderr', function(stderrLine) {
-    console.log('An stderror occurred: ' + stderrLine);
-  })
-  .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
-
-  if(process == true) {
-    ffstream.kill()
-  }
   var watcher = fs.watch("D:/plexTemp/", (event, filename) => {
-  console.log(filename)
+  console.log("HERE IS PID", processId)
   if(filename == `${movieTitle['fileName']}.m3u8`){
     watcher.close()
     console.log("its here")
     var movieReturner = {
       browser: movieTitle['browser'],
+      pid: processId,
       duration: movieTitle['duration'],
       fileformat: movieTitle['fileformat'],
       location: 'http://192.168.1.86:4012/plexTemp/' + movieTitle['fileName'] + '.m3u8',
@@ -344,8 +348,6 @@ if(movieTitle['browser'] == "Chrome") {
     return
   }
   });
-
-  return console.log("This video already exisits in the database")
   }
 }
 module.exports = routeFunctions

@@ -5,8 +5,13 @@ let models = require('../models/movies.models')
 let fs = require("fs")
 let fetch = require('node-fetch')
 
-router.get('/movies', (req, res)=>{
-    models.getAllMovies((err, results)=>{
+router.post('/movies', (req, res)=>{
+    console.log("body", req.body)
+    models.getAllMovies(
+        {
+            pid: req.body['pid']
+        },
+        (err, results)=>{
         if(err){
             res.send(err)
         } else {
@@ -18,8 +23,7 @@ router.get('/movies', (req, res)=>{
 router.get('/transcodedmovie', (req, res)=>{
     models.getTranscodedMovie((err, results)=>{
         if(err){
-            return ress.send({err: err})
-            
+            return res.send({err: err})
         } else {
             res.send(results)
         }
@@ -55,6 +59,7 @@ router.post('/pullVideo', (req, res)=>{
             color_space: req.body['color_space'],
             color_transfer: req.body['color_transfer'],
             seekTime: req.body['seekTime'],
+            pid: req.body['pid'],
             pixFmt: req.body['pixFmt']
         }
     , (err, results)=>{

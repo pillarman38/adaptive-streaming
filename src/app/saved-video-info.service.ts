@@ -7,4 +7,5 @@ export class SavedVideoInfoService {
 
   constructor() { }
   savedvideo: Object;
+  savedPid: Object = {pid: 0};
 }

@@ -128,7 +128,7 @@ export class VideoPlayerComponent implements OnInit {
     var d = this.videoLngth
     var c = p/d*100
 
-    this.percentage = ( p / this.videoLngth) * 100
+    this.percentage = (p / this.videoLngth) * 100
     var percentBuffered = (this.amtBuffered['levels'][0]['details']['totalduration'] + this.selectedTime) / this.videoLngth * 100
 
     console.log(this.percentage, this.amtBuffered['levels'][0]['details']['totalduration'], percentBuffered, this.videoLngth, this.selectedTime)
@@ -155,7 +155,6 @@ export class VideoPlayerComponent implements OnInit {
   seekBarClick(e) {
     var rec = this.customSeekBar.nativeElement.getBoundingClientRect();
 
-    
     var offset = this.customSeekBar.nativeElement.getBoundingClientRect(),
     left = e.pageX - offset.left,
     totalWidth = this.customSeekBar.nativeElement.getBoundingClientRect()['width'],
@@ -164,7 +163,6 @@ export class VideoPlayerComponent implements OnInit {
     this.selectedTime = Math.abs(this.videoLngth * pxtoSec - this.videoLngth)
     this.videoTwo.nativeElement.currentTime = this.videoLngth * percentage
     
-    
     console.log(pxtoSec, this.videoLngth, this.selectedTime)
     
     this.savedVid.savedvideo['screenRes'] = `${screen['width']}x${screen['height']}` 
@@ -172,6 +170,8 @@ export class VideoPlayerComponent implements OnInit {
     this.hls.detachMedia(this.videoTwo.nativeElement)
     this.http.post('http://192.168.1.86:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
+      this.savedVid.savedPid['pid'] = String(event['err']['pid'])
+      console.log(this.savedVid.savedPid['pid'])
       console.log(event, this.videoTwo.nativeElement.src);
       
       this.stream = this.video['location'];
@@ -274,7 +274,8 @@ export class VideoPlayerComponent implements OnInit {
   console.log("Screen info", this.savedVid.savedvideo)
     this.http.post('http://192.168.1.86:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
-      console.log(event, this.savedVid.savedvideo);
+      this.savedVid.savedPid = { pid: event['err']['pid']}
+      console.log(event, this.savedVid.savedPid);
       
       this.stream = this.video['location'];
       
