@@ -47,12 +47,12 @@ export class VideoSelectionComponent {
       
       
       this.http.post('http://192.168.1.86:4012/api/mov/movies', this.saveVid.savedPid).subscribe((res: any[]) => {
-      this.selection = res
-      var retain = localStorage.setItem("movielist", JSON.stringify(res))
-      console.log(this.selection)
+        this.selection = res
+        var retain = localStorage.setItem("movielist", JSON.stringify(res))
+        console.log(this.selection)
 
-      this.carouselArr = this.selection.slice(-5)
-      console.log(this.carouselArr, this.selection);
+        this.carouselArr = this.selection.slice(-5)
+        console.log(this.carouselArr, this.selection);
       })
       
     } 

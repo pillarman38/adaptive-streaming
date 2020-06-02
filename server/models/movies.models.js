@@ -131,157 +131,165 @@ function startConverting(movieTitle, killProcess, callback) {
   var h = Math.floor(movieTitle['seekTime'] / 3600);
   var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
   var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
-  ffstream.kill()
+
+  if(movieTitle['pid'] == 0) {
+    console.log("nothing to kill")
+  }
+  if(movieTitle['pid'] != 0) {
+    var pidInt = parseInt(movieTitle['pid'])
+    process.kill(movieTitle['pid'])
+  }
   
   if (movieTitle['browser'] == "Safari") {
+    var processId = 0
+
+    var arr = []
+    var h = Math.floor(movieTitle['seekTime'] / 3600);
+    var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
+    var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
     if(movieTitle['resolution'] == '1920x1080' && movieTitle['pixFmt'] == "yuv420p") {
-      ffstream = ffmpeg(movieTitle['filePath'])
-      .videoCodec('libx264')
-      .size(movieTitle['screenRes'])
-      .audioCodec('aac')
-      // .addOption('-color_primaries', '9')
-      .addOption('-crf', '18')
-
-      .seekInput(`${h}:${m}:${s}`)
-      .audioChannels(6)
-      // start_number
-      .addOption('-start_number', 0)
-  
-      // set hls segments time
-      .addOption('-hls_time', 5)
-  
-      .addOption("-force_key_frames", "expr:gte(t,n_forced*5)")
-      // include all the segments in the list
-      .addOption('-hls_list_size', 0)
-      // format -f
-  
-      .format('hls')
-      // setup event handlers
-      .on('start', function(cmd) {
-        console.log('Started ' + cmd);
-      })
-      .on('start', function(commandLine) {
-        console.log('Spawned Ffmpeg with command: ' + commandLine);
-      })
-      .on('progress', function(progress) {
+      
+      var newJob = function () {
+        // D:/ffmpeg -ss ${h}:${m}:${s} -i "${movieTitle['filePath']}" -y -acodec aac -ac 6 -vcodec libx264 -filter:v scale=w=1920:h=1080 -crf 18 -start_number 0 -hls_time 5 
+        // -force_key_frames expr:gte(t,n_forced*5) -hls_list_size 0 -f hls "D:/plexTemp/${movieTitle['fileName']}.m3u8"`
+        var newProc = spawn('D:/ffmpeg', [
+          '-ss', `${h}:${m}:${s}`,
+          '-i', `${movieTitle['filePath']}`,
+          '-y', 
+          '-acodec', 
+          'aac','-ac', '6', 
+          '-vcodec', 'libx264', 
+          '-filter:v', 'scale=w=1920:h=1080', 
+          // '-crf', '18', 
+          '-start_number', 0, 
+          '-hls_time', '5', 
+          '-force_key_frames', 'expr:gte(t,n_forced*5)', 
+          '-hls_list_size', '0', 
+          '-f', 'hls', `D:/plexTemp/${movieTitle['fileName']}.m3u8`
+        ])
+        newProc.on('error', function (err) {
+          console.log('ls error', err);
+        });
         
-      })
-      .on('error', function(err) {
-        // console.log('An error occurred: ' + err.message);
-      })
-      .on('stderr', function(stderrLine) {
-        // console.log('An stderror occurred: ' + stderrLine);
-      })
-
-      .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
+        newProc.stdout.on('data', function (data) {
+            console.log('stdout: ' + data);
+        });
+        
+        newProc.stderr.on('data', function (data) {
+            // console.log('stderr: ' + data);
+        });
+        
+        newProc.on('close', function (code) {
+            console.log('child process exited with code ' + code);
+        });
+        processId = newProc.pid
+      }
+      newJob()
       }
 
     if(movieTitle['resolution'] == '1920x1080' && movieTitle['pixFmt'] == "yuv420p10le") {
-      ffstream = ffmpeg(movieTitle['filePath'])
-    .videoCodec('libx265')
-    .size('1920x1080')
-    .audioCodec('aac')
-    // .addOption('-pix_fmt', 'yuv420p10le')
-    // .addOption("-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc")
-    // .addOption('-color_primaries', '9')
-    .addOption('-crf', '18')
-    .seekInput(`${h}:${m}:${s}`)
-    .audioChannels(6)
-    // start_number
-    .addOption('-start_number', 0)
-
-    // set hls segments time
-    .addOption('-hls_time', 5)
-
-    .addOption("-force_key_frames", "expr:gte(t,n_forced*5)")
-    // include all the segments in the list
-    .addOption('-hls_list_size', 0)
-    // format -f
- 
-    .format('hls')
-    // setup event handlers
-    .on('start', function(cmd) {
-      console.log('Started ' + cmd);
-    })
-    .on('start', function(commandLine) {
-      console.log('Spawned Ffmpeg with command: ' + commandLine);
-    })
-    .on('progress', function(progress) {
-  
-    })
-    .on('error', function(err) {
-      // console.log('An error occurred: ' + err.message);
-    })
-    .on('stderr', function(stderrLine) {
-      // console.log('An stderror occurred: ' + stderrLine);
-    })
-    .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
+     
+      var newJob = function () {
+        // D:/ffmpeg -ss ${h}:${m}:${s} -i "${movieTitle['filePath']}" -y -acodec aac -ac 6 -vcodec libx264 -filter:v scale=w=1920:h=1080 -crf 18 -start_number 0 -hls_time 5 
+        // -force_key_frames expr:gte(t,n_forced*5) -hls_list_size 0 -f hls "D:/plexTemp/${movieTitle['fileName']}.m3u8"`
+        var newProc = spawn('D:/ffmpeg', [
+          '-ss', `${h}:${m}:${s}`,
+          '-i', `${movieTitle['filePath']}`,
+          '-y', 
+          '-acodec', 
+          'aac','-ac', '6', 
+          '-vcodec', 'libx264', 
+          '-filter:v', 'scale=w=1920:h=1080', 
+          // '-crf', '18', 
+          '-start_number', 0, 
+          '-hls_time', '5', 
+          '-force_key_frames', 'expr:gte(t,n_forced*5)', 
+          '-hls_list_size', '0', 
+          '-f', 'hls', `D:/plexTemp/${movieTitle['fileName']}.m3u8`
+        ])
+        newProc.on('error', function (err) {
+          console.log('ls error', err);
+        });
+        
+        newProc.stdout.on('data', function (data) {
+            console.log('stdout: ' + data);
+        });
+        
+        newProc.stderr.on('data', function (data) {
+            // console.log('stderr: ' + data);
+        });
+        
+        newProc.on('close', function (code) {
+            console.log('child process exited with code ' + code);
+        });
+        processId = newProc.pid
+      }
+      newJob()
     }
     if(movieTitle['resolution'] == '3840x2160' && movieTitle['pixFmt'] == "yuv420p10le") {
-      console.log(movieTitle['fileName'])
-      ffstream = ffmpeg(movieTitle['filePath'])
-    .videoCodec('libx265')
-    .size(movieTitle['screenRes'])
-    .audioCodec('aac')
-    .addOption('-pix_fmt', 'yuv420p10le')
-    .addOption("-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc")
-
-    .addOption('-crf', '18')
-    .seekInput(`${h}:${m}:${s}`)
-    .audioChannels(6)
-    // start_number
-    .addOption('-start_number', 0)
-    // set hls segments time
-    .addOption('-hls_time', 5)
-
-    .addOption("-force_key_frames", "expr:gte(t,n_forced*5)")
-    // include all the segments in the list
-    .addOption('-hls_list_size', 0)
-    // format -f
-
-    .format('hls')
-    // setup event handlers
-    .on('start', function(cmd) {
-      console.log('Started ' + cmd);
-    })
-    .on('start', function(commandLine) {
-      console.log('Spawned Ffmpeg with command: ' + commandLine);
-    })
-    .on('progress', function(progress) {
-  
-    })
-    .on('error', function(err) {
-      // console.log('An error occurred: ' + err.message);
-    })
-    .on('stderr', function(stderrLine) {
-      // console.log('An stderror occurred: ' + stderrLine);
-    })
-    .save(`D:/plexTemp/${movieTitle['fileName']}.m3u8`.replace(new RegExp(' ', 'g'), ''))
-    
-    }
-    
-    if(process == true) {
-      ffstream.kill()
-    }
-    
-    var watcher = fs.watch("D:/plexTemp/", (event, filename) => {
-     
-      if(filename == `${movieTitle['fileName'].replace(new RegExp(' ', 'g'), '')}.m3u8`){
-        watcher.close()
-
-        var movieReturner = {
-          browser: movieTitle['browser'],
-          duration: movieTitle['duration'].toString,
-          fileformat: movieTitle['fileformat'],
-          location: 'http://192.168.1.86:4012/plexTemp/' + movieTitle['fileName'].replace(new RegExp(' ', 'g'), '') + '.m3u8',
-          title: movieTitle['title'],
-          seekTime: movieTitle['seekTime']
-        }
-        callback(movieReturner)
-        return
+      var newJob = function () {
+        // D:/ffmpeg -ss ${h}:${m}:${s} -i "${movieTitle['filePath']}" -y -acodec aac -ac 6 -vcodec libx264 -filter:v scale=w=1920:h=1080 -crf 18 -start_number 0 -hls_time 5 
+        // -force_key_frames expr:gte(t,n_forced*5) -hls_list_size 0 -f hls "D:/plexTemp/${movieTitle['fileName']}.m3u8"`
+        var newProc = spawn('D:/ffmpeg', [
+          '-ss', `${h}:${m}:${s}`,
+          '-i', `${movieTitle['filePath']}`,
+          '-y', 
+          '-acodec', 
+          'aac','-ac', '6', 
+          '-pix_fmt', 'yuv420p10le',
+          '-vcodec', 'libx265', 
+          "-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc",
+          '-filter:v', 'scale=w=1920:h=1080', 
+          // '-crf', '18', 
+          '-start_number', 0, 
+          '-hls_time', '5', 
+          '-force_key_frames', 'expr:gte(t,n_forced*5)', 
+          '-hls_list_size', '0', 
+          '-f', 'hls', `D:/plexTemp/${movieTitle['fileName']}.m3u8`
+        ])
+        newProc.on('error', function (err) {
+          console.log('ls error', err);
+        });
+        
+        newProc.stdout.on('data', function (data) {
+            console.log('stdout: ' + data);
+        });
+        
+        newProc.stderr.on('data', function (data) {
+            // console.log('stderr: ' + data);
+        });
+        
+        newProc.on('close', function (code) {
+            console.log('child process exited with code ' + code);
+        });
+        processId = newProc.pid
       }
-  });
-}
+      newJob()
+    }
+    
+
+      var watcher = fs.watch("D:/plexTemp/", (event, filename) => {
+        console.log("HERE IS PID", processId)
+        if(filename == `${movieTitle['fileName']}.m3u8`){
+          watcher.close()
+          console.log("its here")
+          var movieReturner = {
+            browser: movieTitle['browser'],
+            pid: processId,
+            duration: movieTitle['duration'],
+            fileformat: movieTitle['fileformat'],
+            location: 'http://192.168.1.86:4012/plexTemp/' + movieTitle['fileName'] + '.m3u8',
+            title: movieTitle['title']
+          }
+      
+            callback(movieReturner)
+      
+          return
+        }
+        });
+
+  }
+
 
 if(movieTitle['browser'] == "Chrome") {
 
@@ -318,7 +326,7 @@ if(movieTitle['browser'] == "Chrome") {
         });
         
         newProc.stderr.on('data', function (data) {
-            console.log('stderr: ' + data);
+            // console.log('stderr: ' + data);
         });
         
         newProc.on('close', function (code) {

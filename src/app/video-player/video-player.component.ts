@@ -167,6 +167,7 @@ export class VideoPlayerComponent implements OnInit {
     
     this.savedVid.savedvideo['screenRes'] = `${screen['width']}x${screen['height']}` 
     this.savedVid.savedvideo['seekTime'] = this.selectedTime
+    this.savedVid.savedvideo['pid'] = this.savedVid.savedPid['pid']
     this.hls.detachMedia(this.videoTwo.nativeElement)
     this.http.post('http://192.168.1.86:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
@@ -271,10 +272,11 @@ export class VideoPlayerComponent implements OnInit {
   }
   this.savedVid.savedvideo['screenRes'] = `${screen['width']}x${screen['height']}`
   this.savedVid.savedvideo['seekTime'] = 0
+  this.savedVid.savedvideo['pid'] = 0
   console.log("Screen info", this.savedVid.savedvideo)
     this.http.post('http://192.168.1.86:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
-      this.savedVid.savedPid = { pid: event['err']['pid']}
+      this.savedVid.savedPid = {pid: event['err']['pid']}
       console.log(event, this.savedVid.savedPid);
       
       this.stream = this.video['location'];
@@ -290,7 +292,7 @@ export class VideoPlayerComponent implements OnInit {
         this.hls.loadSource(this.stream);
         this.hls.attachMedia(this.videoTwo.nativeElement);
         this.hls.on(Hls.Events.MEDIA_ATTACHED, function (event, data) {
-          console.log("video and hls.js are now bound together !", event['media'], data);
+          // console.log("video and hls.js are now bound together !", event['media'], data);
           this.hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
             console.log(this.videoTwo);
             
