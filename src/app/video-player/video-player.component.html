@@ -11,9 +11,19 @@
                     <div class="speakers" #muteBtnLines></div>
                 </div>
             </button>
-            <button type="button" (click)="screentoggle($event)" class="fullScreen" #fullScreen>
-                
-            </button>
+            <button type="button" (click)="screentoggle($event)" class="fullScreen" #fullScreen></button>
+
+            <div class="captions">
+                <button (click)="captionSelector($event)" class="dropbtn">Dropdown</button>
+                <div id="myDropdown" #myDropdown class="dropdown-content">
+                    <ul>
+                        <li *ngFor="let language of languageArray">
+                          <button type="button" (click)="selectedCaption($event, language)">{{ language.tags.language }}</button> 
+                        </li>
+                      </ul>
+                </div>
+              </div>
+
             <div id="custom-seekbar" #customSeekBar (click)="seekBarClick($event)">
                 <span id="spans" #spans></span>
                 <span id="spansBuffered" #spansBuffered></span>

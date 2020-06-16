@@ -63,7 +63,20 @@ let routeFunctions = {
           }
  
           ffmpeg.ffprobe(`D:/Videos/${firstObj['url']}.mkv`, function(err, metaData) {
-            // console.log(metaData['streams'][0]['tags'], metaData['format'])
+            var subTArr = []
+            var counter = -1
+            for(var i = 0; i < metaData['streams'].length; i++) {
+              // metaData['streams'][i]['stream_number'] = i
+              if(metaData['streams'][i].hasOwnProperty('codec_name')) {
+                if(metaData['streams'][i]['codec_type'] == "subtitle") {
+                  console.log(metaData['streams'][i]['tags']['language'])
+                  counter += 1
+                  metaData['streams'][i]['indexInt'] = counter
+                  subTArr.push(metaData['streams'][i])
+                  }
+                }
+              }
+            // console.log(firstObj)
           fetch(`${firstObj['movieListUrl']}`).then((data) => {
             return data.json()
           }).then((data)=>{
@@ -72,17 +85,18 @@ let routeFunctions = {
               var metaDataObj = {
                 title: file.replace('.mkv', ''),
                 filePath: metaData['format']['filename'],
-                location: `http://192.168.1.86:4012/${metaData['format']['tags']['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`,
-                // photoUrl: `https://image.tmdb.org/t/p/w500${data['results'][0]['poster_path']}`,
-                // backdropPhotoUrl: `https://image.tmdb.org/t/p/w500${data['results'][0]['backdrop_path']}`,
+                // location: `http://192.168.1.86:4012/${metaData['format']['tags']['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`,
+                photoUrl: `https://image.tmdb.org/t/p/w500${data['results'][0]['poster_path']}`,
+                backdropPhotoUrl: `https://image.tmdb.org/t/p/w500${data['results'][0]['backdrop_path']}`,
                 overview: data['results'][0]['overview'],
                 duration: metaData['format']['duration'],
-                location: `http://192.168.1.86:4012/${metaData['format']['tags']['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`,
+                // location: `http://192.168.1.86:4012/${metaData['format']['tags']['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`,
                 resolution: `${metaData['streams'][0]['coded_width']}x${metaData['streams'][0]['coded_height']}`,
                 channels: metaData['streams'][1]['channels'],
                 fileformat: metaData['streams'][0]['codec_name'],
-                // originalLang: data['results'][0]['original_language'],
+                originalLang: data['results'][0]['original_language'],
                 pixFmt: metaData['streams'][0]['pix_fmt'],
+                subtitles: subTArr,
                 color_range: metaData['streams'][0]['color_range'],
                 color_space: metaData['streams'][0]['color_space'],
                 color_transfer: metaData['streams'][0]['color_transfer'],
@@ -100,8 +114,10 @@ let routeFunctions = {
               } else {
                 metaDataObj['photoUrl'] = `https://image.tmdb.org/t/p/w500${data['results'][0]['poster_path']}`
               }
+              // console.log(metaDataObj)
               arrOfObj.push(metaDataObj)
               if(arrOfObj.length == files.length){
+                console.log(arrOfObj)
                 callback(arrOfObj)
               }            
             }          
@@ -150,16 +166,15 @@ function startConverting(movieTitle, killProcess, callback) {
     if(movieTitle['resolution'] == '1920x1080' && movieTitle['pixFmt'] == "yuv420p") {
       
       var newJob = function () {
-        // D:/ffmpeg -ss ${h}:${m}:${s} -i "${movieTitle['filePath']}" -y -acodec aac -ac 6 -vcodec libx264 -filter:v scale=w=1920:h=1080 -crf 18 -start_number 0 -hls_time 5 
-        // -force_key_frames expr:gte(t,n_forced*5) -hls_list_size 0 -f hls "D:/plexTemp/${movieTitle['fileName']}.m3u8"`
-        var newProc = spawn('D:/ffmpeg', [
+        if(movieTitle['subtitles'] != -1) {
+          var newProc = spawn('D:/ffmpeg', [
           '-ss', `${h}:${m}:${s}`,
-          '-i', `${movieTitle['filePath']}`,
+          '-i', `${movieTitle['filePath']}`, '-filter_complex', '[0:v][0:s]overlay[v]', '-map', '[v]', '-map', '0:a',
           '-y', 
           '-acodec', 
           'aac','-ac', '6', 
           '-vcodec', 'libx264', 
-          '-filter:v', 'scale=w=1920:h=1080', 
+          // '-filter:v', 'scale=w=1920:h=1080', 
           // '-crf', '18', 
           '-start_number', 0, 
           '-hls_time', '5', 
@@ -176,13 +191,48 @@ function startConverting(movieTitle, killProcess, callback) {
         });
         
         newProc.stderr.on('data', function (data) {
-            // console.log('stderr: ' + data);
+            console.log('stderr: ' + data);
         });
         
         newProc.on('close', function (code) {
             console.log('child process exited with code ' + code);
         });
         processId = newProc.pid
+        }
+        
+        if(movieTitle['subtitles'] == -1) {
+          var newProc = spawn('D:/ffmpeg', [
+            '-ss', `${h}:${m}:${s}`,
+            '-i', `${movieTitle['filePath']}`, '-filter_complex', '[0:v][0:s]overlay[v]', '-map', '[v]', '-map', '0:a',
+            '-y', 
+            '-acodec', 
+            'aac','-ac', '6', 
+            '-vcodec', 'libx264', 
+            // '-filter:v', 'scale=w=1920:h=1080', 
+            // '-crf', '18', 
+            '-start_number', 0, 
+            '-hls_time', '5', 
+            '-force_key_frames', 'expr:gte(t,n_forced*5)', 
+            '-hls_list_size', '0', 
+            '-f', 'hls', `D:/plexTemp/${movieTitle['fileName']}.m3u8`
+          ])
+          newProc.on('error', function (err) {
+            console.log('ls error', err);
+          });
+          
+          newProc.stdout.on('data', function (data) {
+              console.log('stdout: ' + data);
+          });
+          
+          newProc.stderr.on('data', function (data) {
+              console.log('stderr: ' + data);
+          });
+          
+          newProc.on('close', function (code) {
+              console.log('child process exited with code ' + code);
+          });
+          processId = newProc.pid
+        }
       }
       newJob()
       }
@@ -190,9 +240,8 @@ function startConverting(movieTitle, killProcess, callback) {
     if(movieTitle['resolution'] == '1920x1080' && movieTitle['pixFmt'] == "yuv420p10le") {
      
       var newJob = function () {
-        // D:/ffmpeg -ss ${h}:${m}:${s} -i "${movieTitle['filePath']}" -y -acodec aac -ac 6 -vcodec libx264 -filter:v scale=w=1920:h=1080 -crf 18 -start_number 0 -hls_time 5 
-        // -force_key_frames expr:gte(t,n_forced*5) -hls_list_size 0 -f hls "D:/plexTemp/${movieTitle['fileName']}.m3u8"`
-        var newProc = spawn('D:/ffmpeg', [
+        if(movieTitle['subtitles'] == -1) {
+          var newProc = spawn('D:/ffmpeg', [
           '-ss', `${h}:${m}:${s}`,
           '-i', `${movieTitle['filePath']}`,
           '-y', 
@@ -223,7 +272,9 @@ function startConverting(movieTitle, killProcess, callback) {
             console.log('child process exited with code ' + code);
         });
         processId = newProc.pid
-      }
+          }
+        }
+        
       newJob()
     }
     if(movieTitle['resolution'] == '3840x2160' && movieTitle['pixFmt'] == "yuv420p10le") {
@@ -300,16 +351,15 @@ if(movieTitle['browser'] == "Chrome") {
       
       var processId = 0
       var newJob = function () {
-        // D:/ffmpeg -ss ${h}:${m}:${s} -i "${movieTitle['filePath']}" -y -acodec aac -ac 6 -vcodec libx264 -filter:v scale=w=1920:h=1080 -crf 18 -start_number 0 -hls_time 5 
-        // -force_key_frames expr:gte(t,n_forced*5) -hls_list_size 0 -f hls "D:/plexTemp/${movieTitle['fileName']}.m3u8"`
-        var newProc = spawn('D:/ffmpeg', [
+        if(movieTitle['subtitles'] != -1) {
+          var newProc = spawn('D:/ffmpeg', [
           '-ss', `${h}:${m}:${s}`,
-          '-i', `${movieTitle['filePath']}`,
+          '-i', `${movieTitle['filePath']}`, '-filter_complex', `[0:v][0:s:${movieTitle['subtitles']}]overlay[v]`, '-map', '[v]', '-map', '0:a',
           '-y', 
           '-acodec', 
           'aac','-ac', '6', 
           '-vcodec', 'libx264', 
-          '-filter:v', 'scale=w=1920:h=1080', 
+          // '-filter:v', 'scale=w=1920:h=1080', 
           '-crf', '18', 
           '-start_number', 0, 
           '-hls_time', '5', 
@@ -326,13 +376,48 @@ if(movieTitle['browser'] == "Chrome") {
         });
         
         newProc.stderr.on('data', function (data) {
-            // console.log('stderr: ' + data);
+            console.log('stderr: ' + data);
         });
         
         newProc.on('close', function (code) {
             console.log('child process exited with code ' + code);
         });
         processId = newProc.pid
+        }
+        
+        if(movieTitle['subtitles'] == -1) {
+          var newProc = spawn('D:/ffmpeg', [
+            '-ss', `${h}:${m}:${s}`,
+            '-i', `${movieTitle['filePath']}`, '-filter_complex', '[0:v][0:s]overlay[v]', '-map', '[v]', '-map', '0:a',
+            '-y', 
+            '-acodec', 
+            'aac','-ac', '6', 
+            '-vcodec', 'libx264', 
+            // '-filter:v', 'scale=w=1920:h=1080', 
+            '-crf', '18', 
+            '-start_number', 0, 
+            '-hls_time', '5', 
+            '-force_key_frames', 'expr:gte(t,n_forced*5)', 
+            '-hls_list_size', '0', 
+            '-f', 'hls', `D:/plexTemp/${movieTitle['fileName']}.m3u8`
+          ])
+          newProc.on('error', function (err) {
+            console.log('ls error', err);
+          });
+          
+          newProc.stdout.on('data', function (data) {
+              console.log('stdout: ' + data);
+          });
+          
+          newProc.stderr.on('data', function (data) {
+              console.log('stderr: ' + data);
+          });
+          
+          newProc.on('close', function (code) {
+              console.log('child process exited with code ' + code);
+          });
+          processId = newProc.pid
+        }
       }
       newJob()
       

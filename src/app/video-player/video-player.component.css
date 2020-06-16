@@ -280,3 +280,10 @@
   background-color: rgb(235, 55, 0);
   transition-duration: 0.2s
 }
+.captions{
+  width:25px;
+  height:25px;
+  background-color: grey;
+  margin-top: 100px;
+  margin-left: 100px;
+}

@@ -59,6 +59,7 @@ router.post('/pullVideo', (req, res)=>{
             color_space: req.body['color_space'],
             color_transfer: req.body['color_transfer'],
             seekTime: req.body['seekTime'],
+            subtitles: req.body['subtitles'],
             pid: req.body['pid'],
             pixFmt: req.body['pixFmt']
         }
