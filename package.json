@@ -21,7 +21,7 @@
     "@angular/router": "~7.2.0",
     "@ffmpeg-installer/ffmpeg": "^1.0.20",
     "@ffprobe-installer/ffprobe": "^1.0.12",
-    "angular": "^1.7.9",
+    "angular": "^1.8.0",
     "body-parser": "^1.19.0",
     "chokidar": "^3.3.0",
     "concurrently": "^5.2.0",
