@@ -20,6 +20,46 @@ router.post('/movies', (req, res)=>{
     })
 })
 
+router.post('/tv', (req, res)=>{
+    console.log("body", req.body)
+    models.getAllTvShows(
+        {
+            pid: req.body['pid']
+        },
+        (err, results)=>{
+        if(err){
+            res.send(err)
+        } else {
+            res.send(results)
+        }
+    })
+})
+
+router.post('/show', (req, res)=>{
+    console.log("body", req.body)
+    models.getAShow(
+        {
+            title: req.body['title'],
+            tvId: req.body['tvId'],
+            backdropPhotoUrl: req.body['backdropPhotoUrl'],
+            browser: req.body['browser'],
+            dirName: req.body['dirName'],
+            fileformat: req.body['fileformat'],
+            overview: req.body['overview'],
+            photoUrl: req.body['photoUrl'],
+            url: req.body['url'],
+            pid: req.body['pid']
+        },
+        (err, results)=>{
+            console.log(err, results)
+        if(err){
+            res.send(err)
+        } else {
+            res.send(results)
+        }
+    })
+})
+
 router.get('/transcodedmovie', (req, res)=>{
     models.getTranscodedMovie((err, results)=>{
         if(err){
@@ -60,6 +100,9 @@ router.post('/pullVideo', (req, res)=>{
             color_transfer: req.body['color_transfer'],
             seekTime: req.body['seekTime'],
             subtitles: req.body['subtitles'],
+            subtitleSelect: req.body['subtitleSelect'],
+            audio: req.body['audio'],
+            audioSelect: req.body['audioSelect'],
             pid: req.body['pid'],
             pixFmt: req.body['pixFmt']
         }

@@ -13,17 +13,17 @@ import { NavigationEnd, ActivatedRoute } from '@angular/router';
 import { filter } from 'rxjs/operators';
 
 @Component({
-  selector: 'app-video-selection',
-  templateUrl: './video-selection.component.html',
-  styleUrls: ['./video-selection.component.scss']
+  selector: 'app-tv',
+  templateUrl: './tv.component.html',
+  styleUrls: ['./tv.component.css']
 })
-export class VideoSelectionComponent {
-
+export class TvComponent {
+  selectedShow;
   selection;
   browserName = ""
   retain = "value"
   nAgt = navigator.appCodeName;
-  getRetainedData = localStorage.getItem("movielist")
+  getRetainedData = localStorage.getItem("tvlist")
   carouselArr = []
   @ViewChild('carousel') carousel;
   
@@ -45,9 +45,9 @@ export class VideoSelectionComponent {
     console.log("PID", this.saveVid.savedPid)
     if(this.getRetainedData == null) {
       
-      this.http.post('http://192.168.1.86:4012/api/mov/movies', this.saveVid.savedPid).subscribe((res: any[]) => {
+      this.http.post('http://192.168.1.86:4012/api/mov/tv', this.saveVid.savedPid).subscribe((res: any[]) => {
         this.selection = res
-        var retain = localStorage.setItem("movielist", JSON.stringify(res))
+        var retain = localStorage.setItem("tvlist", JSON.stringify(res))
         console.log(this.selection)
 
         this.carouselArr = this.selection.slice(-5)
@@ -57,10 +57,10 @@ export class VideoSelectionComponent {
     } 
     if(this.getRetainedData != null) {
       if(this.getRetainedData != this.selection){
-        this.http.post('http://192.168.1.86:4012/api/mov/movies', this.saveVid.savedPid).subscribe((res: any[]) => {
+        this.http.post('http://192.168.1.86:4012/api/mov/tv', this.saveVid.savedPid).subscribe((res: any[]) => {
         console.log(res)
       this.selection = res
-      var retain = localStorage.setItem("movielist", JSON.stringify(res))
+      var retain = localStorage.setItem("tvlist", JSON.stringify(res))
 
       
       this.carouselArr = this.selection.slice(-5)
@@ -88,8 +88,9 @@ export class VideoSelectionComponent {
         e['browser'] = "Safari"
         e['fileformat'] = ".m3u8"
         this.saveVid.savedvideo = e
+        console.log(this.saveVid.savedvideo)
   }
-    this.router.navigateByUrl('/videoPlayer')
+    this.router.navigateByUrl('/show')
   }
   mouseover(e) {
     console.log(e);

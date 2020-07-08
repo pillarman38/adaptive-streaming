@@ -46,6 +46,7 @@ export class VideoPlayerComponent implements OnInit {
   percentage = 0;
   currentTimeDisp;
   languageArray = new Array;
+  audioArray = new Array;
   constructor(private http: HttpClient, private savedVid: SavedVideoInfoService) { }
   
   users: any = [];
@@ -377,6 +378,110 @@ export class VideoPlayerComponent implements OnInit {
     })
   }
 
+  selectedAudio(e, audio) {
+    console.log(audio)
+    this.savedVid.savedvideo['screenRes'] = `${screen['width']}x${screen['height']}` 
+    this.savedVid.savedvideo['seekTime'] = this.selectedTime
+    this.savedVid.savedvideo['pid'] = this.savedVid.savedPid['pid']
+    console.log(audio)
+    this.savedVid.savedvideo['audio'] = audio['indexInt']
+
+    console.log(this.savedVid.savedvideo)
+    this.hls.detachMedia(this.videoTwo.nativeElement)
+    this.http.post('http://192.168.1.86:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
+      this.video = event['err']
+      this.savedVid.savedPid['pid'] = String(event['err']['pid'])
+      console.log(this.savedVid.savedPid['pid'])
+      console.log(event, this.videoTwo.nativeElement.src);
+      
+      this.stream = this.video['location'];
+      console.log("Here is the stream", this.stream)
+      if (Hls.isSupported()) {
+       
+        this.videoLngth = parseFloat(this.video['duration'])
+        console.log("video lengthin seconds: " + this.videoLngth);
+        
+        this.convertTime(this.video['duration'])
+        
+        this.hls.loadSource(this.stream);
+        this.hls.attachMedia(this.videoTwo.nativeElement);
+        this.hls.on(Hls.Events.MEDIA_ATTACHED, function (event, data) {
+          console.log("video and hls.js are now bound together !", event['media'], data);
+          this.hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+            console.log(this.videoTwo);
+            
+            console.log("manifest loaded, found " + data.levels.length + " quality level");
+          });
+        })
+
+        this.amtBuffered = this.hls.on(Hls.Events.LEVEL_LOADED, function(eve, data) {
+          //console.log(eve, data['details'], this.videoLngth, this.stream)
+
+          
+          return data
+        })
+
+        this.hls.on(Hls.Events.MANIFEST_LOADED, function(event, data) {
+          // console.log(event['details'], data)
+        })
+        
+      } else {
+        addSourceToVideo(this.videoTwo, this.stream, 'application/x-mpegURL"');
+    }
+
+    function addSourceToVideo(element, src, type) {
+      var source = document.createElement('source');
+      source.src = src;
+      source.type = type;
+      element.appendChild(source);
+    }
+    this.hls.on(Hls.Events.LEVEL_LOAD_ERROR, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.BUFFER_APPENDED, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.MANIFEST_LOAD_ERROR, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.INTERNAL_EXCEPTION, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.BUFFER_APPEND_ERROR, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.FRAG_DECRYPT_ERROR, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.FRAG_PARSING_ERROR, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.FRAG_LOAD_TIMEOUT, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.FRAG_CHANGED, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.LEVEL_UPDATED, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.BUFFER_FLUSHING, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.BUFFER_FLUSHED, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.BUFFER_RESET, function(event, data) {
+      // console.log(event, data);
+    })
+    this.hls.on(Hls.Events.ERROR, function (event, data) {
+        var errorType = data.type;
+        var errorDetails = data.details;
+        var errorFatal = data.fatal;
+        console.log(errorFatal, errorDetails, errorType, event, data);
+      });
+    })
+  }
   ngOnInit() {
     var screen = {
       width: window.screen.width,
@@ -388,8 +493,10 @@ export class VideoPlayerComponent implements OnInit {
   this.savedVid.savedvideo['seekTime'] = 0
   this.savedVid.savedvideo['pid'] = 0
   this.languageArray = this.savedVid.savedvideo['subtitles']
+  this.audioArray = this.savedVid.savedvideo['audio']
   this.savedVid.savedvideo['subtitles'] = 0
-  console.log("Screen info", this.languageArray)
+  this.savedVid.savedvideo['audio'] = 0
+  console.log("Screen info", this.languageArray, this.audioArray)
     this.http.post('http://192.168.1.86:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
       this.savedVid.savedPid = {pid: event['err']['pid']}

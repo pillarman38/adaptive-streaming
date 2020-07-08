@@ -1,0 +1,27 @@
+<div class="background">
+  
+  <table id="container">
+          <td *ngFor="let pic of selection" id="in">
+              
+              <div id="card">
+                  
+                  <div id="txt">
+                      <p id="title">{{pic.title}}</p>
+                      <div class="overview">
+                        <div class="resolution">
+                          <p>{{pic.resolution}}</p>
+                        </div>
+                        
+                        <div class="plot">
+                          <p class="ellipsis">{{pic.overview}}</p>
+                        </div>
+                        
+                      </div>
+                  </div>
+                  <div class="shadow">
+                  <img id="swap-on-hover__front-image" src="{{pic.photoUrl}}" (click)="saveSelected(pic)">
+                  <img id="swap-on-hover__back-image" src="{{pic.backdropPhotoUrl}}" (click)="saveSelected(pic)">
+                  </div>
+              </div>
+            </td>
+          </table>
