@@ -20,13 +20,27 @@ router.post('/movies', (req, res)=>{
     })
 })
 
-router.post('/tv', (req, res)=>{
+router.post('/homevideos', (req, res)=>{
     console.log("body", req.body)
-    models.getAllTvShows(
+    models.getAllHomeVids(
         {
             pid: req.body['pid']
         },
         (err, results)=>{
+        if(err){
+            res.send(err)
+        } else {
+            res.send(results)
+        }
+    })
+})
+
+router .post('/video', (req, res)=>{
+    models.getAHomeVideoList({
+        title: req.body['title'],
+        browser: req.body['browser'],
+        fileformat: req.body['fileformat']
+    }, (err, results)=>{
         if(err){
             res.send(err)
         } else {
@@ -47,8 +61,7 @@ router.post('/show', (req, res)=>{
             fileformat: req.body['fileformat'],
             overview: req.body['overview'],
             photoUrl: req.body['photoUrl'],
-            url: req.body['url'],
-            pid: req.body['pid']
+            url: req.body['url']
         },
         (err, results)=>{
             console.log(err, results)

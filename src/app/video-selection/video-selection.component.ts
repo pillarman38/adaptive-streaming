@@ -53,7 +53,6 @@ export class VideoSelectionComponent {
         this.carouselArr = this.selection.slice(-5)
         console.log(this.carouselArr, this.selection);
       })
-      
     } 
     if(this.getRetainedData != null) {
       if(this.getRetainedData != this.selection){
@@ -62,7 +61,6 @@ export class VideoSelectionComponent {
       this.selection = res
       var retain = localStorage.setItem("movielist", JSON.stringify(res))
 
-      
       this.carouselArr = this.selection.slice(-5)
       console.log(this.carouselArr, this.selection);
     })

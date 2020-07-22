@@ -4,7 +4,7 @@ body {
     height: 100vh;
 	font-family: "Exo", sans-serif;
 	color: #fff;
-	background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+	background:black;
 	background-size: 100% 100%;
 	animation: gradientBG linear 15s infinite alternate;
 	background-repeat: no-repeat;

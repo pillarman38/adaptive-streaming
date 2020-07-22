@@ -41,6 +41,7 @@ export class VideoPlayerComponent implements OnInit {
   @ViewChild('spansBuffered') spansBuffered
   @ViewChild('captions') captions
   @ViewChild('myDropdown') myDropdown;
+  @ViewChild('playBtnWaves') playBtnWaves;
   selectedTime = 0;
   counter = -1
   percentage = 0;
@@ -59,7 +60,7 @@ export class VideoPlayerComponent implements OnInit {
   position: number;
   playPause(e) {  
     if(this.firstPlayPress == true) {
-      this.playPauseBtn.nativeElement.style.marginTop = "60%"
+      this.playPauseBtn.nativeElement.style.marginTop = "48%"
       this.playPauseBtn.nativeElement.style.width = "30px"
       this.playPauseBtn.nativeElement.style.height = "30px"
       this.playBtnTriangle.nativeElement.style.borderLeft = "10px solid #fff"
@@ -73,6 +74,8 @@ export class VideoPlayerComponent implements OnInit {
       this.pauseBtn.nativeElement.style.opacity = "1"
       this.pauseBtn.nativeElement.style.transition= "opacity 0.5s"
       this.firstPlayPress = false
+      this.playBtnWaves.nativeElement.style.opacity = "0"
+      this.playBtnWaves.nativeElement.style.transition = "opacity 0.5s"
     }
     
     if(this.videoTwo.nativeElement.paused) {
@@ -95,11 +98,11 @@ export class VideoPlayerComponent implements OnInit {
   mute($event) {
     if(this.videoTwo.nativeElement.muted) {
       this.videoTwo.nativeElement.muted = false
-      this.muteBtnLines.nativeElement.style.left = "18px"
+      this.muteBtnLines.nativeElement.style.left = "7px"
       
     } else {
       this.videoTwo.nativeElement.muted = true
-      this.muteBtnLines.nativeElement.style.left = "8px"
+      this.muteBtnLines.nativeElement.style.left = "0px"
     }  
   }
 

@@ -13,10 +13,12 @@ var showPlayer = false
 var fetch = require('node-fetch')
 
 const cp = require("child_process");
-const { spawn } = require('child_process')
+const { spawn } = require('child_process');
+const { collapseTextChangeRangesAcrossMultipleVersions } = require('typescript');
+const { forEach } = require('core-js/fn/array');
 
 var arrOfObj = []
-var arrOfTvObj = []
+
 var exec = require('child_process').exec;
 var newArr = []
 var url = ''
@@ -28,70 +30,107 @@ var arr = []
 var killProcess = false
 var ffstream = ffmpeg()
 var exec = require('child_process').exec
+
 let routeFunctions = {
-    getAllTvShows: (pid, callback) => {
+    getAllHomeVids: (pid, callback) => {
+      var arrOfTvObj = []
       if(pid['pid'] == 0) {
         console.log("nothing to kill")
       }
       if(pid['pid'] != 0) {
-        var pidInt = parseInt(pid['pid'])
-        process.kill(pid['pid'])
+        try {
+          process.kill(pid['pid'])
+        }
+          catch(err) {
+            pid = 0
+            console.log(pid)
+          }
       }
 
-      setTimeout(function() {
-        ffstream.on('error', function() {
-          console.log('Ffmpeg has been killed');
-        });
-      }, 1000);
-      fs.readdir('D:/Shows/', (err, files) => {  
-        console.log(err, files)
-        files.forEach(function getMovieInfo(file) {
-        var url = `https://api.themoviedb.org/3/search/tv?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${file.replace(new RegExp(' ', 'g'), '%20')}`
-        console.log(url)
-        fetch(url).then((data)=>{
-          return data.json()
-        }).then((metaData)=>{
-          console.log(metaData)
-          if(metaData) {
-            var metaDataObj = {
-              // location: `http://192.168.1.86:4012/${metaData['format']['tags']['title'].replace(new RegExp(' ', 'g'), '%20')}.mkv`,
-              photoUrl: `https://image.tmdb.org/t/p/w500${metaData['results'][0]['poster_path']}`,
-              backdropPhotoUrl: `https://image.tmdb.org/t/p/w500${metaData['results'][0]['backdrop_path']}`,
-              overview: metaData['results'][0]['overview'],
-              title: metaData['results'][0]['name'],
-              url: url,
-              dirName: file,
-              tvId: metaData['results'][0]['id']
-            }
-            if(metaData['results'][0]['backdrop_path'] == null) {
-              metaDataObj['backdropPhotoUrl'] = 'http://192.168.1.86:4012/assets/images/four0four.gif'
-            } else {
-              metaDataObj['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${metaData['results'][0]['backdrop_path']}`
-            }
+      fs.readdir('D:/HomeVideo/', (err, files) => {  
+        
+        files.forEach(function getTvInfo(file) {
+    
+          fs.readdir('D:/HomeVideo/' + file, (err, fileTwo) => {
 
-            if(metaData['results'][0]['poster_path'] == null) {
-              metaDataObj['photoUrl'] = 'http://192.168.1.86:4012/assets/images/placeholder.jpg'
-            } else {
-              metaDataObj['photoUrl'] = `https://image.tmdb.org/t/p/w500${metaData['results'][0]['poster_path']}`
-            }
-            // console.log(metaDataObj)
-            arrOfTvObj.push(metaDataObj)
-            if(arrOfTvObj.length == files.length){
-              // console.log(arrOfObj)
-              callback(arrOfTvObj)
-            }            
-          }
-        })
+            fileTwo.forEach((fileTwoRes) => {
+
+              console.log(console.log(`D:/HomeVideo/${file}/${fileTwoRes}`))
+              
+              ffmpeg.ffprobe(`D:/HomeVideo/${file}/${fileTwoRes}`, function(err, metaData) {
+                console.log(err, metaData)
+                var homeVideoListObj = {
+                photoUrl: 'http://192.168.1.86:4012/assets/images/four0four.gif',
+                backdropPhotoUrl: 'http://192.168.1.86:4012/assets/images/four0four.gif',
+                // overview: metaData['results'][0]['overview'],
+                title: file,
+                // url: url,
+                show: true,
+                
+                dirName: file,
+                files: [{
+                  title: fileTwo[0],
+                  photoUrl: 'http://192.168.1.86:4012/assets/images/four0four.gif',
+                  backdropPhotoUrl: 'http://192.168.1.86:4012/assets/images/four0four.gif',
+                  show: true,
+                  filePath: metaData['format']['filename'],
+                  browser: 'Safari',
+                  pid: pid,
+                  resolution: '720x480',
+                  channels: metaData['streams'][1]['channels'],
+                  fileformat: '.m3u8',
+                  pixFmt: metaData['streams'][0]['pix_fmt'],
+                  // subtitles: subTArr,
+                  // subtitleSelect: 0,
+                  // audio: audioArr,
+                  duration: metaData['format']['duration'],
+                  audioSelect: 0,
+                  color_range: metaData['streams'][0]['color_range'],
+                  color_space: metaData['streams'][0]['color_space'],
+                  color_transfer: metaData['streams'][0]['color_transfer'],
+                  seekTime: 0,
+                  fileName: file.replace('.mkv', '')
+  
+                }]
+                
+                }
+            
+              arrOfTvObj.push(homeVideoListObj)
+              if(arrOfTvObj.length == files.length){
+                  callback(JSON.stringify(arrOfTvObj))
+                }
+              })
+        
+            })
+          })
         })
       })
     },
-
+    getAHomeVideoList: (videoList, callback) => {
+      var vidList = []
+      fs.readdir(`D:/HomeVideo/${videoList['title']}/`, (err, files) => {  
+        console.log("Videos", files)
+        files.forEach(function getShowInfoi(file, i) {
+          ffmpeg.ffprobe(`D:/Shows/${videoList['title']}`, function(err, metaData) {
+          var videoPlaylistObj = {
+            title: file,
+            photoUrl: `http://192.168.1.86:4012/assets/images/four0four.gif`,
+            backdropPhotoUrl: `http://192.168.1.86:4012/assets/images/four0four.gif`,
+            }
+            vidList.push(videoPlaylistObj)
+        if(vidList.length == files.length) {
+          callback(vidList)
+          }
+          })
+        })
+      })
+    },
     getAShow: (show, callback) =>{
       console.log(show)
-      if(show['pid']['pid'] == 0) {
+      if(show['pid'] == 0) {
         console.log("nothing to kill")
       }
-      if(show['pid']['pid'] != 0) {
+      if(show['pid'] != 0) {
         var pidInt = parseInt(show['pid']['pid'])
         process.kill(show['pid']['pid'])
       }
@@ -105,7 +144,7 @@ let routeFunctions = {
           pool.query('SELEC * FROM ')
           
           files.forEach(function getShowInfoi(file, i) {
-          console.log(i, file)
+          // console.log(i, file)
           var url = file.replace('.mkv', '')
           var firstObj = {
 
@@ -157,11 +196,11 @@ let routeFunctions = {
                 resolution: `${metaData['streams'][0]['coded_width']}x${metaData['streams'][0]['coded_height']}`,
                 channels: metaData['streams'][1]['channels'],
                 fileformat: metaData['streams'][0]['codec_name'],
-                // originalLang: data['results'][0]['original_language'],
                 pixFmt: metaData['streams'][0]['pix_fmt'],
                 subtitles: subTArr,
                 subtitleSelect: 0,
                 audio: audioArr,
+                show: false,
                 audioSelect: 0,
                 color_range: metaData['streams'][0]['color_range'],
                 color_space: metaData['streams'][0]['color_space'],
@@ -173,7 +212,7 @@ let routeFunctions = {
               arr.push(metaDataObj)
               arr.sort((a, b) => (a.title > b.title) ? 1 : -1)
               if(arr.length == files.length){
-                console.log(arr)
+                // console.log(arr)
                 callback(arr)
               }            
             }          
@@ -182,15 +221,21 @@ let routeFunctions = {
       })
     })
   })
-    },
+},
 
     getAllMovies: (pid, callback) => {
+      console.log(pid)
       if(pid['pid'] == 0) {
         console.log("nothing to kill")
       }
       if(pid['pid'] != 0) {
-        var pidInt = parseInt(pid['pid'])
-        process.kill(pid['pid'])
+        try {
+          process.kill(pid['pid'])
+        }
+          catch(err) {
+            pid['pid'] = 0
+            console.log(pid['pid'])
+          }
       }
 
       setTimeout(function() {
@@ -214,7 +259,7 @@ let routeFunctions = {
             title: file.replace('.mkv', ''),
             movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${url.replace(new RegExp(' ', 'g'), '%20')}`,
           }
- 
+
           ffmpeg.ffprobe(`D:/Videos/${firstObj['url']}.mkv`, function(err, metaData) {
             var subTArr = []
             var audioArr = []
@@ -297,6 +342,7 @@ let routeFunctions = {
     startconvertingMovie: (movieTitle, callback)=>{
       var thing = false
       killProcess = false
+      
       startConverting(movieTitle, killProcess, callback)
     }
 }
@@ -310,12 +356,18 @@ function startConverting(movieTitle, killProcess, callback) {
   var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
   var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
 
+
   if(movieTitle['pid'] == 0) {
     console.log("nothing to kill")
   }
   if(movieTitle['pid'] != 0) {
-    var pidInt = parseInt(movieTitle['pid'])
-    process.kill(movieTitle['pid'])
+    try {
+      process.kill(movieTitle['pid'])
+    }
+      catch(err) {
+        movieTitle['pid'] = 0
+        console.log(movieTitle['pid'])
+      }
   }
   
   if (movieTitle['browser'] == "Safari") {
@@ -325,6 +377,48 @@ function startConverting(movieTitle, killProcess, callback) {
     var h = Math.floor(movieTitle['seekTime'] / 3600);
     var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
     var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
+
+    if(movieTitle['resolution'] == '720x480' && movieTitle['pixFmt'] == "yuv420p") {
+     
+      var newJob = function () {
+        // if(movieTitle['subtitles'] == -1) {
+          var newProc = spawn('D:/ffmpeg', [
+          '-ss', `${h}:${m}:${s}`,
+          '-i', `${movieTitle['filePath']}`,
+          '-y', 
+          '-acodec', 
+          'aac','-ac', '2', 
+          '-vcodec', 'libx264', 
+          '-filter:v', 'scale=w=720:h=480', 
+          // '-crf', '18', 
+          '-start_number', 0, 
+          '-hls_time', '5', 
+          '-force_key_frames', 'expr:gte(t,n_forced*5)', 
+          '-hls_list_size', '0', 
+          '-f', 'hls', `D:/plexTemp/${movieTitle['fileName']}.m3u8`
+        ])
+        newProc.on('error', function (err) {
+          console.log('ls error', err);
+        });
+        
+        newProc.stdout.on('data', function (data) {
+            console.log('stdout: ' + data);
+        });
+        
+        newProc.stderr.on('data', function (data) {
+            console.log('stderr: ' + data);
+        });
+        
+        newProc.on('close', function (code) {
+            console.log('child process exited with code ' + code);
+        });
+        processId = newProc.pid
+          // }
+        }
+        
+      newJob()
+    }
+
     if(movieTitle['resolution'] == '1920x1080' && movieTitle['pixFmt'] == "yuv420p") {
       
       var newJob = function () {

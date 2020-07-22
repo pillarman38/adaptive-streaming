@@ -5,16 +5,18 @@
     height: 100%;
 }
 .play-btn {
+
+
   outline: none;
   width: 100px;
   height: 100px;
-  background: radial-gradient( rgba(255, 0, 128, 0.8) 60%, rgba(255, 255, 255, 1) 62%);
+  background: transparent;
   border-radius: 50%;
   position: absolute;
   margin-left: 45%;
   margin-right: 50%;
   margin-top: 25%;
-  box-shadow: 0px 0px 25px 3px rgba(255, 0, 128, 0.8);
+
   
 }
 
@@ -128,26 +130,32 @@
 #main{
     width: 100%;
     height: 100%;
-    border: 2px solid green;
     position: absolute;
 }
 #currentTime {
-  margin-top: 60%;
+  width: 100%;
+  margin-top: 46%;
     position: absolute;
 }
-
+.startTime {
+  float: left;
+  margin-left: 20px;
+}
+.stopTime {
+  float: right;
+  margin-right: 20px;
+}
 .mute-btn {
   outline: none;
-  width: 50px;
-  height: 50px;
-  background: radial-gradient( rgba(255, 0, 128, 0.8) 60%, rgba(255, 255, 255, 1) 62%);
+  width: 30px;
+  height: 30px;
+  background: transparent;
   border-radius: 50%;
   position: absolute;
-  margin-left: 80%;
-  margin-right: 50%;
-  margin-top: 60%;
+  margin-left: 60%;
+  margin-right: 25%;
+  margin-top: 48%;
   opacity: 0;
-  box-shadow: 0px 0px 25px 3px rgba(255, 0, 128, 0.8);
 }
 .mute-btn:before {
   content: "";
@@ -173,11 +181,12 @@
 }
 
 .speaker {
-  height: 30px;
-	width: 30px;
+  height: 20px;
+	width: 20px;
 	position: relative;
 	overflow: hidden;
-	display: inline-block;
+  display: inline-block;
+  
 }
 .speaker:after {
   content: '';
@@ -186,7 +195,7 @@
 			height: 0;
 			border-style: solid;
 			border-color: transparent #fff transparent transparent;
-			border-width: 10px 14px 10px 15px;
+			border-width: 7px 9px 7px 11px;
 			left: -13px;
 			top: 5px;
 }
@@ -195,19 +204,19 @@
   border-radius: 0 50px 0 0;
   content: '';
   position: absolute;
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-style: double;
   border-color: #fff;
-  border-width: 7px 7px 0 0;
-  left: 18px;
-  top: 9px;
+  border-width: 5px 5px 0 0;
+  left: 7px;
+  top: 7px;
   transition: all 0.2s ease-out;
 }
 .muteBlock {
   display: block;
-		width: 8px;
-		height: 8px;
+		width: 4px;
+		height: 4px;
 		background: #fff;
 		margin: 11px 0 0 2px;
 }
@@ -227,21 +236,16 @@
 	overflow: hidden;
 	display: inline-block;
 }
-.player {
-  position: relative;
-  width: 400px;
-  margin: 0 auto
-}
-#video {
-    width: 100%
-}
+
+
 #custom-seekbar {
-  position: absolute;
+  position: fixed;
   top: 0;
   cursor: pointer;
   height: 7px;
   width: 100%;
-  background-color: rgba(0, 0, 0, .2);
+  margin-top: 47%;
+  background-color: rgba(102, 102, 102, 0.5);
 }
 #spans {
   position: absolute;
@@ -254,6 +258,7 @@
   transition-duration: 0.2s
 }
 #play_button {
+  
   position: absolute;
   width: 25px;
   height: 25px;
@@ -286,4 +291,57 @@
   background-color: grey;
   margin-top: 100px;
   margin-left: 100px;
+}
+
+
+.waves {
+  
+  width: 100%;
+  height:80px;
+  margin-bottom:-25px; /*Fix for safari gap*/
+  border-radius: 48%;
+
+}
+
+/* Animation */
+
+.parallax > use {
+  animation: move-forever 25s cubic-bezier(.55,.5,.45,.5)     infinite;
+}
+.parallax > use:nth-child(1) {
+  animation-delay: -2s;
+  animation-duration: 7s;
+}
+.parallax > use:nth-child(2) {
+  animation-delay: -3s;
+  animation-duration: 10s;
+}
+.parallax > use:nth-child(3) {
+  animation-delay: -4s;
+  animation-duration: 13s;
+}
+.parallax > use:nth-child(4) {
+  animation-delay: -5s;
+  animation-duration: 20s;
+}
+@keyframes move-forever {
+  0% {
+   transform: translate3d(-90px,0,0);
+  }
+  100% { 
+    transform: translate3d(85px,0,0);
+  }
+}
+/*Shrinking for mobile*/
+@media (max-width: 768px) {
+  .waves {
+    height:40px;
+    min-height:40px;
+  }
+  .content {
+    height:30vh;
+  }
+  h1 {
+    font-size:24px;
+  }
 }
