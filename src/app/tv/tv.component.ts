@@ -45,7 +45,7 @@ export class TvComponent {
     console.log("PID", this.saveVid.savedPid)
     if(this.getRetainedData == null) {
       
-      this.http.post('http://192.168.1.86:4012/api/mov/tv', this.saveVid.savedPid).subscribe((res: any[]) => {
+      this.http.post('http://localhost:4012/api/mov/tv', this.saveVid.savedPid).subscribe((res: any[]) => {
         this.selection = res
         var retain = localStorage.setItem("tvlist", JSON.stringify(res))
         console.log(this.selection)
@@ -57,7 +57,7 @@ export class TvComponent {
     } 
     if(this.getRetainedData != null) {
       if(this.getRetainedData != this.selection){
-        this.http.post('http://192.168.1.86:4012/api/mov/tv', this.saveVid.savedPid).subscribe((res: any[]) => {
+        this.http.post('http://localhost:4012/api/mov/tv', this.saveVid.savedPid).subscribe((res: any[]) => {
         console.log(res)
       this.selection = res
       var retain = localStorage.setItem("tvlist", JSON.stringify(res))

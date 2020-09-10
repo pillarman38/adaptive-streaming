@@ -49,6 +49,17 @@ router .post('/video', (req, res)=>{
     })
 })
 
+router.post('/pidkill', (req, res) => {
+    console.log(req.body, res)
+    models.pidKiller(req.body, (err, results)=>{
+        if(err){
+            res.send(err)
+        } else {
+            res.send(results)
+        }
+    })
+})
+
 router.post('/show', (req, res)=>{
     console.log("body", req.body)
     models.getAShow(

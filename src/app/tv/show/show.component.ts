@@ -25,7 +25,7 @@ export class ShowComponent {
 
     console.log(this.saveVid.savedvideo)
     this.saveVid.savedvideo['pid'] = this.saveVid.savedPid
-    this.http.post('http://192.168.1.86:4012/api/mov/show', this.saveVid.savedvideo).subscribe((res: any[])=>{
+    this.http.post('http://localhost:4012/api/mov/show', this.saveVid.savedvideo).subscribe((res: any[])=>{
       console.log(res)
       this.selection = res
     })
