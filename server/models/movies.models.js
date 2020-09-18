@@ -35,7 +35,6 @@ let routeFunctions = {
     pidKiller: (pid, callback) => {
       console.log(pid)
       if(pid['pid'] == 0) {
-        
         console.log("nothing to kill")
         callback("nothing to kill")
       }
@@ -65,62 +64,82 @@ let routeFunctions = {
             console.log(pid)
           }
       }
-
+      
       fs.readdir('D:/HomeVideo/', (err, files) => {  
         
         files.forEach(function getTvInfo(file) {
     
           fs.readdir('D:/HomeVideo/' + file, (err, fileTwo) => {
+              console.log(file, fileTwo);
+              var arr = []
+              for(var i = 0; i < fileTwo.length; i++) {
+                ffmpeg.ffprobe(`D:/HomeVideo/${file}/${fileTwo[i]}`, function(err, metaData) {
+                  
+                  var what = {
+                    title: metaData['format']['filename'],
+                    photoUrl: 'http://192.168.1.86:4012/assets/images/four0four.gif',
+                    backdropPhotoUrl: 'http://192.168.1.86:4012/assets/images/four0four.gif',
+                    show: true,
+                    browser: "Safari",
+                    filePath: metaData['format']['filename'],
+                    pid: pid,
+                    resolution: '720x480',
+                    channels: metaData['streams'][1]['channels'],
+                    fileformat: '.m3u8',
+                    pixFmt: metaData['streams'][0]['pix_fmt'],
+                    duration: metaData['format']['duration'],
+                    audioSelect: 0,
+                    color_range: metaData['streams'][0]['color_range'],
+                    color_space: metaData['streams'][0]['color_space'],
+                    color_transfer: metaData['streams'][0]['color_transfer'],
+                    seekTime: 0,
+                  }
+                  arr.push(what)
 
-            fileTwo.forEach((fileTwoRes) => {
-
-              console.log(console.log(`D:/HomeVideo/${file}/${fileTwoRes}`))
-              
-              ffmpeg.ffprobe(`D:/HomeVideo/${file}/${fileTwoRes}`, function(err, metaData) {
-                console.log(err, metaData)
-                var homeVideoListObj = {
-                photoUrl: 'http://localhost:4012/assets/images/four0four.gif',
-                backdropPhotoUrl: 'http://localhost:4012/assets/images/four0four.gif',
-                // overview: metaData['results'][0]['overview'],
-                title: file,
-                // url: url,
-                show: true,
-                
-                dirName: file,
-                files: [{
-                  title: fileTwo[0],
-                  photoUrl: 'http://localhost:4012/assets/images/four0four.gif',
-                  backdropPhotoUrl: 'http://localhost:4012/assets/images/four0four.gif',
-                  show: true,
-                  filePath: metaData['format']['filename'],
-                  browser: 'Safari',
-                  pid: pid,
-                  resolution: '720x480',
-                  channels: metaData['streams'][1]['channels'],
-                  fileformat: '.m3u8',
-                  pixFmt: metaData['streams'][0]['pix_fmt'],
-                  duration: metaData['format']['duration'],
-                  audioSelect: 0,
-                  color_range: metaData['streams'][0]['color_range'],
-                  color_space: metaData['streams'][0]['color_space'],
-                  color_transfer: metaData['streams'][0]['color_transfer'],
-                  seekTime: 0,
-                  fileName: file.replace('.mkv', '')
-  
-                }]
-                
-                }
-            
-              arrOfTvObj.push(homeVideoListObj)
+                  var homeVideoListObj = {
+                    photoUrl: 'http://192.168.1.86:4012/assets/images/four0four.gif',
+                    backdropPhotoUrl: 'http://192.168.1.86:4012/assets/images/four0four.gif',
+                    // overview: metaData['results'][0]['overview'],
+                    title: file,
+                    // url: url,
+                    show: true,
+                    
+                    dirName: file,
+                    folders: [{
+                      title: fileTwo[i],
+                      photoUrl: 'http://192.168.1.86:4012/assets/images/four0four.gif',
+                      backdropPhotoUrl: 'http://192.168.1.86:4012/assets/images/four0four.gif',
+                      show: true,
+                      filePath: metaData['format']['filename'],
+                      browser: 'Safari',
+                      pid: pid,
+                      resolution: '720x480',
+                      channels: metaData['streams'][1]['channels'],
+                      fileformat: '.m3u8',
+                      pixFmt: metaData['streams'][0]['pix_fmt'],
+                      duration: metaData['format']['duration'],
+                      audioSelect: 0,
+                      files: arr,
+                      color_range: metaData['streams'][0]['color_range'],
+                      color_space: metaData['streams'][0]['color_space'],
+                      color_transfer: metaData['streams'][0]['color_transfer'],
+                      seekTime: 0,
+                      fileName: file.replace('.mkv', '')
+      
+                    }]
+                    
+                    }
+                   arrOfTvObj.push(homeVideoListObj)
               if(arrOfTvObj.length == files.length){
                   callback(JSON.stringify(arrOfTvObj))
-                }
+                } 
               })
-        
+              
+              }
             })
           })
         })
-      })
+      
     },
     getAHomeVideoList: (videoList, callback) => {
       var vidList = []
@@ -130,13 +149,13 @@ let routeFunctions = {
           ffmpeg.ffprobe(`D:/Shows/${videoList['title']}`, function(err, metaData) {
           var videoPlaylistObj = {
             title: file,
-            photoUrl: `http://localhost:4012/assets/images/four0four.gif`,
-            backdropPhotoUrl: `http://localhost:4012/assets/images/four0four.gif`,
+            photoUrl: `http://192.168.1.86:4012/assets/images/four0four.gif`,
+            backdropPhotoUrl: `http://192.168.1.86:4012/assets/images/four0four.gif`,
             }
             vidList.push(videoPlaylistObj)
-        if(vidList.length == files.length) {
-          callback(vidList)
-          }
+            if(vidList.length == files.length) {
+              callback(vidList)
+            }
           })
         })
       })
@@ -325,13 +344,13 @@ let routeFunctions = {
                 fileName: file.replace('.mkv', '')
               }
               if(data['results'][0]['backdrop_path'] == null) {
-                metaDataObj['backdropPhotoUrl'] = 'http://localhost:4012/assets/images/four0four.gif'
+                metaDataObj['backdropPhotoUrl'] = 'http://192.168.1.86:4012/assets/images/four0four.gif'
               } else {
                 metaDataObj['backdropPhotoUrl'] = `https://image.tmdb.org/t/p/w500${data['results'][0]['backdrop_path']}`
               }
 
               if(data['results'][0]['poster_path'] == null) {
-                metaDataObj['photoUrl'] = 'http://localhost:4012/assets/images/placeholder.jpg'
+                metaDataObj['photoUrl'] = 'http://192.168.1.86:4012/assets/images/placeholder.jpg'
               } else {
                 metaDataObj['photoUrl'] = `https://image.tmdb.org/t/p/w500${data['results'][0]['poster_path']}`
               }
@@ -599,7 +618,7 @@ function startConverting(movieTitle, killProcess, callback) {
             pid: processId,
             duration: movieTitle['duration'],
             fileformat: movieTitle['fileformat'],
-            location: 'http://localhost:4012/plexTemp/' + movieTitle['fileName'] + '.m3u8',
+            location: 'http://192.168.1.86:4012/plexTemp/' + movieTitle['fileName'] + '.m3u8',
             title: movieTitle['title']
           }
             callback(movieReturner)
@@ -698,7 +717,7 @@ if(movieTitle['browser'] == "Chrome") {
       pid: processId,
       duration: movieTitle['duration'],
       fileformat: movieTitle['fileformat'],
-      location: 'http://localhost:4012/plexTemp/' + movieTitle['fileName'] + '.m3u8',
+      location: 'http://:4012/plexTemp/' + movieTitle['fileName'] + '.m3u8',
       title: movieTitle['title']
     }
 

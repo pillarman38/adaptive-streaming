@@ -110,6 +110,4 @@ export class TvComponent {
     // e['srcElement']['parentElement']['parentElement']['nextSibling'].style.transform = "translate(0px)"
     // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transition = "transform 0.5s"
   }
-
-
 }
