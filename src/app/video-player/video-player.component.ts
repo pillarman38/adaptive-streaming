@@ -177,7 +177,7 @@ export class VideoPlayerComponent implements OnInit {
     this.savedVid.savedvideo['pid'] = this.savedVid.savedPid['pid']
     
     this.hls.detachMedia(this.videoTwo.nativeElement)
-    this.http.post('http://localhost:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
+    this.http.post('http://192.168.0.153:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
       this.savedVid.savedPid['pid'] = String(event['err']['pid'])
       console.log(this.savedVid.savedPid['pid'])
@@ -286,7 +286,7 @@ export class VideoPlayerComponent implements OnInit {
 
     console.log(this.savedVid.savedvideo)
     this.hls.detachMedia(this.videoTwo.nativeElement)
-    this.http.post('http://localhost:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
+    this.http.post('http://192.168.0.153:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
       this.savedVid.savedPid['pid'] = String(event['err']['pid'])
       console.log(this.savedVid.savedPid['pid'])
@@ -391,7 +391,7 @@ export class VideoPlayerComponent implements OnInit {
 
     console.log(this.savedVid.savedvideo)
     this.hls.detachMedia(this.videoTwo.nativeElement)
-    this.http.post('http://localhost:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
+    this.http.post('http://192.168.0.153:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
       this.savedVid.savedPid['pid'] = String(event['err']['pid'])
       console.log(this.savedVid.savedPid['pid'])
@@ -499,8 +499,8 @@ export class VideoPlayerComponent implements OnInit {
   this.audioArray = this.savedVid.savedvideo['audio']
   this.savedVid.savedvideo['subtitles'] = 0
   this.savedVid.savedvideo['audio'] = 0
-  console.log("Screen info", this.languageArray, this.audioArray)
-    this.http.post('http://localhost:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
+  console.log("Screen info", this.languageArray, this.audioArray, this.savedVid.savedvideo)
+    this.http.post('http://192.168.0.153:4012/api/mov/pullVideo', this.savedVid.savedvideo).subscribe(event => {
       this.video = event['err']
       this.savedVid.savedPid = {pid: event['err']['pid']}
       console.log(event, this.savedVid.savedPid);

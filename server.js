@@ -9,7 +9,7 @@ var bparser = require('body-parser').json()
 
 app.use(bparser)
 app.use(express.static(__dirname + '/dist'))
-app.use(express.static("D:/"))
+app.use(express.static("F:/"))
 
 app.use(cors())
 
@@ -22,7 +22,7 @@ app.get('*', (req, res) => {
 })
 
 var server = app.listen(port, function() {
-    var host = 'localhost';
+    var host = '192.168.0.153';
     var thisport = server.address().port;
     console.log(`Example app on port ${port}!`);
 });

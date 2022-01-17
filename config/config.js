@@ -1,4 +1,4 @@
 process.env.host = "localhost"
 process.env.user = "root"
 process.env.password = "root"
-process.env.database = "homevideosdata"
+process.env.database = "pixable"
