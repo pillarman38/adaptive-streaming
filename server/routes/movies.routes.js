@@ -4,10 +4,39 @@ let pool = require('../../config/connections')
 let models = require('../models/movies.models')
 let fs = require("fs")
 let fetch = require('node-fetch')
+let transcoder = require('../models/transcoder')
+let tv = require('../models/tvShows.models')
 
 router.post('/movies', (req, res)=>{
     console.log("body", req.body)
     models.getAllMovies(
+        {
+            pid: req.body['pid']
+        },
+        (err, results)=>{
+        if(err){
+            res.send(err)
+        } else {
+            res.send(results)
+        }
+    })
+})
+
+router.post('/selectedShow', (req, res)=>{
+    tv.getSelectedShow(
+        req.body,
+        (err, results)=>{
+        if(err){
+            res.send(err)
+        } else {
+            res.send(results)
+        }
+    })
+})
+
+router.post('/tv', (req, res)=>{
+    console.log("body", req.body)
+    tv.getAllShows(
         {
             pid: req.body['pid']
         },
@@ -52,6 +81,7 @@ router .post('/video', (req, res)=>{
 router.post('/pidkill', (req, res) => {
     console.log(req.body, res)
     models.pidKiller(req.body, (err, results)=>{
+        console.log("PID Return", err, results);
         if(err){
             res.send(err)
         } else {
@@ -62,7 +92,7 @@ router.post('/pidkill', (req, res) => {
 
 router.post('/show', (req, res)=>{
     console.log("body", req.body)
-    models.getAShow(
+    tv.getAShow(
         {
             title: req.body['title'],
             tvId: req.body['tvId'],
@@ -95,7 +125,7 @@ router.get('/transcodedmovie', (req, res)=>{
 })
 
 router.post('/pullVideo', (req, res)=>{
-    models.startconvertingMovie(
+    transcoder.startConverting(
         {
             title: req.body['title'],
             browser: req.body['browser'],

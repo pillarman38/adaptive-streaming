@@ -62,7 +62,6 @@ export class TvComponent {
       this.selection = res
       var retain = localStorage.setItem("tvlist", JSON.stringify(res))
 
-      
       this.carouselArr = this.selection.slice(-5)
       console.log(this.carouselArr, this.selection);
     })
@@ -90,7 +89,7 @@ export class TvComponent {
         this.saveVid.savedvideo = e
         console.log(this.saveVid.savedvideo)
   }
-    this.router.navigateByUrl('/show')
+    this.router.navigateByUrl('/selectedShow')
   }
   mouseover(e) {
     console.log(e);

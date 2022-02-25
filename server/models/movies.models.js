@@ -13,13 +13,8 @@ var showPlayer = false
 var fetch = require('node-fetch')
 
 const cp = require("child_process");
-const { spawn } = require('child_process');
-const { collapseTextChangeRangesAcrossMultipleVersions } = require('typescript');
-const { forEach } = require('core-js/fn/array');
 
 var arrOfObj = []
-
-var exec = require('child_process').exec;
 var newArr = []
 var url = ''
 var i = 0
@@ -182,14 +177,12 @@ let routeFunctions = {
           // console.log(i, file)
           var url = file.replace('.mkv', '')
           var firstObj = {
-
             url: file.replace('.mkv', ''),
             title: i,
             movieListUrl: ``,
           }
  
           ffmpeg.ffprobe(`F:/Shows/${show['dirName']}/${firstObj['url']}.mkv`, function(err, metaData) {
-            // console.log(err, metaData)
             var subTarr = []
             var audioArr = []
             var subcounter = -1
@@ -281,19 +274,22 @@ let routeFunctions = {
         var arr = []
           var selection = await files
         // var prom = new Promise((resolve, reject) => {
-          pool.query('SELECT * FROM movies', (err, res) => {
+          
+            
+
+          pool.query('SELECT * FROM movies', async (err, res) => {
             var fileList = files.map(file => file.replace('.mkv', ''))
             var responseTitlteList = res ? res.map(itm => itm.title) : []
 
-            var notIncluded = fileList.filter(itm => {
-              if(!responseTitlteList.includes(itm)) {
-                return itm
-              }
-            })
+              var notIncluded = fileList.filter(itm => {
+                if(!responseTitlteList.includes(itm)) {
+                  return itm
+                }
+              })
             
             var l = 0
-
-            function iterate() {
+            
+            async function iterate() {
               if(notIncluded.length > 0) {
               var fileName = notIncluded[l]
               var firstObj = {
@@ -301,7 +297,7 @@ let routeFunctions = {
                 movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${fileName.replace(new RegExp(' ', 'g'), '%20')}`,
               }
 
-            ffmpeg.ffprobe(`F:/Videos/${firstObj['title']}.mkv`, function(err, metaData) {
+            await ffmpeg.ffprobe(`F:/Videos/${firstObj['title']}.mkv`, async function(err, metaData) {
               // console.log(err, metaData);
               var subTarr = []
               var audioArr = []
@@ -326,16 +322,15 @@ let routeFunctions = {
                   }   
                 }
               // console.log(firstObj)
-            fetch(`${firstObj['movieListUrl']}`).then((data) => {
-              return data.json()
-            }).then((data)=>{
+            let moviedata = await fetch(`${firstObj['movieListUrl']}`)
+            let data = await moviedata.json()
               // console.log(data);
                 if(metaData) {
                   var metaDataObj = {
                     title: fileName,
                     filePath: metaData['format']['filename'],
-                    photoUrl: data['results'] === undefined || data['results'].length === 0 ? 'http://192.168.0.153:4012/assets/images/placeholder.jpg' : `https://image.tmdb.org/t/p/w500${data['results'][0]['poster_path']}`,
-                    backdropPhotoUrl: data['results'] === undefined || data['results'].length === 0 ? 'http://192.168.0.153:4012/assets/images/placeholder.jpg' : `https://image.tmdb.org/t/p/w500${data['results'][0]['backdrop_path']}`,
+                    photoUrl: data['results'] === undefined || data['results'].length === 0 ? 'http://192.168.0.153:4012/assets/images/four0four.gif' : `https://image.tmdb.org/t/p/w500${data['results'][0]['poster_path']}`,
+                    backdropPhotoUrl: data['results'] === undefined || data['results'][0] === undefined || data['results'][0]['backdrop_path'] === undefined || data['results'].length === 0 ? 'http://192.168.0.153:4012/assets/images/four0four.gif' : `https://image.tmdb.org/t/p/w500${data['results'][0]['backdrop_path']}`,
                     overview: data['results'] === undefined || data['results'].length === 0 ? '' : data['results'][0]['overview'],
                     duration: metaData['format']['duration'],
                     resolution: `${metaData['streams'][0]['coded_width']}x${metaData['streams'][0]['coded_height']}`,
@@ -361,16 +356,64 @@ let routeFunctions = {
                     console.log(err, res);
                   })
 
-                  if(l + 1 === notIncluded.length){
+                  try {
+                    const tmdbSession = await fetch('https://api.themoviedb.org/3/authentication/token/new?api_key=490cd30bbbd167dd3eb65511a8bf2328');
+                    const parsetoken = await tmdbSession.json();
+                    const token = parsetoken.request_token
+    
+                    const tokenValidation = await fetch('https://api.themoviedb.org/3/authentication/token/validate_with_login?api_key=490cd30bbbd167dd3eb65511a8bf2328', {
+                        method: 'POST',
+                        headers: {
+                          'Accept': 'application/json',
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                          username: "pillarman38",
+                          password: "goodkid38",
+                          request_token: token
+                        })
+                      });
+                      const content = await tokenValidation.json();
+  
+                      const session = await fetch('https://api.themoviedb.org/3/authentication/session/new?api_key=490cd30bbbd167dd3eb65511a8bf2328', {
+                        method: 'POST',
+                        headers: {
+                          'Accept': 'application/json',
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                          request_token: token
+                        })
+                      });
+                      const ses = await session.json()
+                      
+                      await fetch(`https://api.themoviedb.org/3/list/8192894/add_item?api_key=490cd30bbbd167dd3eb65511a8bf2328&session_id=${ses.session_id}`, {
+                        method: 'POST',
+                        headers: {
+                          'Accept': 'application/json',
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                          "media_id": data.results[0].id
+                        })
+                        }).then((response) => {
+                          return response.json()
+                        }).then((waitForit)=>{
+                          // console.log(waitForit);
+                        })
+                    } catch(err) {
+                      console.log("Could not get id for: ", fileName);
+                    }
+
+                  if(l + 1 === notIncluded.length) {
                     console.log("HI")
                     callback(arrOfObj)
                   } else {
                     l += 1
                     console.log("I: ", l);
-                    iterate()
+                    await iterate()
                   }
-                }
-            })
+                } 
           })    
         } else {
           console.log("HI");
@@ -378,367 +421,9 @@ let routeFunctions = {
         }
       }
         iterate()
-       
       })
   })
-},
-
-    
-    startconvertingMovie: (movieTitle, callback)=>{
-      var thing = false
-      killProcess = false
-      
-      startConverting(movieTitle, killProcess, callback)
-    }
-}
-
-function startConverting(movieTitle, killProcess, callback) { 
-  var getRes = codecGetter.getVideoResoluion(movieTitle)
-  var getFormat = codecGetter.getVideoFormat(movieTitle)
-  // console.log("Here is movie title", movieTitle)
-
-  var h = Math.floor(movieTitle['seekTime'] / 3600);
-  var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
-  var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
-
-
-  if(movieTitle['pid'] == 0) {
-    console.log("nothing to kill")
   }
-  if(movieTitle['pid'] != 0) {
-    try {
-      process.kill(movieTitle['pid'])
-    }
-      catch(err) {
-        movieTitle['pid'] = 0
-        console.log(movieTitle['pid'])
-      }
-  }
-  
-  if (movieTitle['browser'] == "Safari") {
-    var processId = 0
- 
-    var arr = []
-    var h = Math.floor(movieTitle['seekTime'] / 3600);
-    var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
-    var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
-
-    if(movieTitle['resolution'] == '720x480' && movieTitle['pixFmt'] == "yuv420p") {
-     
-      var newJob = function () {
-        // if(movieTitle['subtitles'] == -1) {
-          var newProc = spawn('F:/ffmpeg', [
-          '-ss', `${h}:${m}:${s}`,
-          '-i', `${movieTitle['filePath']}`,
-          '-y', 
-          '-acodec', 
-          'aac','-ac', '2', 
-          '-vcodec', 'libx264', 
-          '-filter:v', 'scale=w=720:h=480', 
-          // '-crf', '18', 
-          '-start_number', 0, 
-          '-hls_time', '5', 
-          '-force_key_frames', 'expr:gte(t,n_forced*5)', 
-          '-hls_list_size', '0', 
-          '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
-        ])
-        newProc.on('error', function (err) {
-          console.log('ls error', err);
-        });
-        
-        newProc.stdout.on('data', function (data) {
-            console.log('stdout: ' + data);
-        });
-        
-        newProc.stderr.on('data', function (data) {
-            console.log('stderr: ' + data);
-        });
-        
-        newProc.on('close', function (code) {
-            console.log('child process exited with code ' + code);
-        });
-        processId = newProc.pid
-          // }
-        }
-        
-      newJob()
-    }
-
-    if(movieTitle['resolution'] == '1920x1080' && movieTitle['pixFmt'] == "yuv420p") {
-      
-      var newJob = function () {
-        if(movieTitle['subtitleSelect'] != 0) {
-          var newProc = spawn('F:/ffmpeg', [
-          '-ss', `${h}:${m}:${s}`,
-          '-i', `${movieTitle['filePath']}`, 
-          '-filter_complex', `[0:v][0:s:${movieTitle['subtitleSelect']}]overlay[v]`, '-map', '[v]', '-map', `0:a:${movieTitle['audioSelect']}`,
-          '-y', 
-          '-acodec', 
-          'aac','-ac', '6', 
-          '-vcodec', 'libx264', 
-          // '-filter:v', 'scale=w=1920:h=1080', 
-          // '-crf', '18', 
-          '-start_number', 0, 
-          '-hls_time', '5', 
-          '-force_key_frames', 'expr:gte(t,n_forced*5)', 
-          '-hls_list_size', '0', 
-          '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
-        ])
-        newProc.on('error', function (err) {
-          console.log('ls error', err);
-        });
-        
-        newProc.stdout.on('data', function (data) {
-            // console.log('stdout: ' + data);
-        });
-        
-        newProc.stderr.on('data', function (data) {
-            // console.log('stderr: ' + data);
-        });
-        
-        newProc.on('close', function (code) {
-            console.log('child process exited with code ' + code);
-        });
-        processId = newProc.pid
-        }
-        
-        if(movieTitle['subtitleSelect'] == 0) {
-          var newProc = spawn('F:/ffmpeg', [
-            '-ss', `${h}:${m}:${s}`,
-            '-i', `${movieTitle['filePath']}`,
-            '-y', 
-            '-acodec', 
-            'aac','-ac', '6', 
-            '-vcodec', 'libx264', 
-            // '-filter:v', 'scale=w=1920:h=1080', 
-            // '-crf', '18', 
-            '-start_number', 0, 
-            '-hls_time', '5', 
-            '-force_key_frames', 'expr:gte(t,n_forced*5)', 
-            '-hls_list_size', '0', 
-            '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
-          ])
-          newProc.on('error', function (err) {
-            console.log('ls error', err);
-          });
-          
-          newProc.stdout.on('data', function (data) {
-              // console.log('stdout: ' + data);
-          });
-          
-          newProc.stderr.on('data', function (data) {
-              // console.log('stderr: ' + data);
-          });
-          
-          newProc.on('close', function (code) {
-              console.log('child process exited with code ' + code);
-          });
-          processId = newProc.pid
-        }
-      }
-      newJob()
-      }
-
-    if(movieTitle['resolution'] == '1920x1080' && movieTitle['pixFmt'] == "yuv420p10le") {
-     
-      var newJob = function () {
-        if(movieTitle['subtitles'] == -1) {
-          var newProc = spawn('F:/ffmpeg', [
-          '-ss', `${h}:${m}:${s}`,
-          '-i', `${movieTitle['filePath']}`,
-          '-y', 
-          '-acodec', 
-          'aac','-ac', '6', 
-          '-vcodec', 'libx264', 
-          '-filter:v', 'scale=w=1920:h=1080', 
-          // '-crf', '18', 
-          '-start_number', 0, 
-          '-hls_time', '5', 
-          '-force_key_frames', 'expr:gte(t,n_forced*5)', 
-          '-hls_list_size', '0', 
-          '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
-        ])
-        newProc.on('error', function (err) {
-          console.log('ls error', err);
-        });
-        
-        newProc.stdout.on('data', function (data) {
-            console.log('stdout: ' + data);
-        });
-        
-        newProc.stderr.on('data', function (data) {
-            // console.log('stderr: ' + data);
-        });
-        
-        newProc.on('close', function (code) {
-            console.log('child process exited with code ' + code);
-        });
-        processId = newProc.pid
-          }
-        }
-        
-      newJob()
-    }
-    if(movieTitle['resolution'] == '3840x2160' && movieTitle['pixFmt'] == "yuv420p10le") {
-      var newJob = function () {
-        // F:/ffmpeg -ss ${h}:${m}:${s} -i "${movieTitle['filePath']}" -y -acodec aac -ac 6 -vcodec libx264 -filter:v scale=w=1920:h=1080 -crf 18 -start_number 0 -hls_time 5 
-        // -force_key_frames expr:gte(t,n_forced*5) -hls_list_size 0 -f hls "F:/plexTemp/${movieTitle['fileName']}.m3u8"`
-        var newProc = spawn('F:/ffmpeg', [
-          '-ss', `${h}:${m}:${s}`,
-          '-i', `${movieTitle['filePath']}`,
-           '-crf', '18', 
-          '-filter_complex', `[0:v]scale=1920:1080[scaled];[scaled][0:s:0]overlay[v]`, '-map', '[v]', '-map', `0:a:${movieTitle['audioSelect']}`,
-          // '-filter:v', 'scale=w=1920:h=1080', 
-          '-y', 
-          '-acodec', 
-          'aac','-ac', '6', 
-          '-pix_fmt', 'yuv420p10le',
-          '-vcodec', 'libx265',  
-          "-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc",
-          // '-filter:v', 
-          
-          '-start_number', 0, 
-          '-hls_time', '5', 
-          '-force_key_frames', 'expr:gte(t,n_forced*5)', 
-          '-hls_list_size', '0', 
-          '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
-        ])
-        newProc.on('error', function (err) {
-          console.log('ls error', err);
-        });
-        
-        newProc.stdout.on('data', function (data) {
-            console.log('stdout: ' + data);
-        });
-        
-        newProc.stderr.on('data', function (data) {
-            console.log('stderr: ' + data);
-        });
-        
-        newProc.on('close', function (code) {
-            console.log('child process exited with code ' + code);
-        });
-        processId = newProc.pid
-      }
-      newJob()
-    }
-    
-      var watcher = fs.watch("F:/plexTemp/", (event, filename) => {
-        console.log("HERE IS PID", processId)
-        if(filename == `${movieTitle['fileName']}.m3u8`){
-          watcher.close()
-          console.log("its here")
-          var movieReturner = {
-            browser: movieTitle['browser'],
-            pid: processId,
-            duration: movieTitle['duration'],
-            fileformat: movieTitle['fileformat'],
-            location: 'http://192.168.0.153:4012/plexTemp/' + movieTitle['fileName'] + '.m3u8',
-            title: movieTitle['title']
-          }
-            callback(movieReturner)
-          return
-        }
-      });
   }
 
-if(movieTitle['browser'] == "Chrome") {
-      console.log("hi");
-      var arr = []
-      var h = Math.floor(movieTitle['seekTime'] / 3600);
-      var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
-      var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
-      
-      var processId = 0
-      var newJob = function () {
-        // if(movieTitle['subtitles'] != -1) {
-          var newProc = spawn('F:/ffmpeg', [
-            '-ss', '00:00:00', '-t', '00:10:00',
-            '-i', `${movieTitle['filePath']}`,
-            // '-filter:v', 'scale=w=1920:h=1080', 
-            '-acodec', 
-            'aac','-ac', `${movieTitle['channels']}`, 
-            '-vcodec', 'copy',
-            
-            '-start_number', 0, 
-            '-hls_time', '5', 
-            '-force_key_frames', 'expr:gte(t,n_forced*5)', 
-            '-hls_list_size', '0', 
-            '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
-        ])
-        newProc.on('error', function (err) {
-          console.log('ls error', err);
-        });
-        
-        newProc.stdout.on('data', function (data) {
-            console.log('stdout: ' + data);
-        });
-        
-        newProc.stderr.on('data', function (data) {
-            console.log('stderr: ' + data);
-        });
-        
-        newProc.on('close', function (code) {
-            console.log('child process exited with code ' + code);
-        });
-        processId = newProc.pid
-        // }
-        
-        // if(movieTitle['subtitles'] == -1) {
-        //   var newProc = spawn('F:/ffmpeg', [
-        //     '-ss', `${h}:${m}:${s}`,
-        //     '-i', `${movieTitle['filePath']}`, '-filter_complex', '[0:v][0:s]overlay[v]', '-map', '[v]', '-map', `0:a:${movieTitle['audio']}`,
-        //     '-y', 
-        //     '-acodec', 
-        //     'aac','-ac', '6', 
-        //     '-vcodec', 'libx264', 
-        //     // '-filter:v', 'scale=w=1920:h=1080', 
-        //     '-crf', '18', 
-        //     '-start_number', 0, 
-        //     '-hls_time', '5', 
-        //     '-force_key_frames', 'expr:gte(t,n_forced*5)', 
-        //     '-hls_list_size', '0', 
-        //     '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
-        //   ])
-        //   newProc.on('error', function (err) {
-        //     console.log('ls error', err);
-        //   });
-          
-        //   newProc.stdout.on('data', function (data) {
-        //       // console.log('stdout: ' + data);
-        //   });
-          
-        //   newProc.stderr.on('data', function (data) {
-        //       // console.log('stderr: ' + data);
-        //   });
-          
-        //   newProc.on('close', function (code) {
-        //       console.log('child process exited with code ' + code);
-        //   });
-        //   processId = newProc.pid
-        // }
-      }
-      newJob()
-      
-
-  var watcher = fs.watch("F:/plexTemp/", (event, filename) => {
-  console.log("HERE IS PID", processId)
-  if(filename == `${movieTitle['fileName']}.m3u8`){
-    watcher.close()
-    console.log("its here")
-    var movieReturner = {
-      browser: movieTitle['browser'],
-      pid: processId,
-      duration: movieTitle['duration'],
-      fileformat: movieTitle['fileformat'],
-      location: 'http://192.168.0.153:4012/plexTemp/' + movieTitle['fileName'] + '.m3u8',
-      title: movieTitle['title']
-    }
-      callback(movieReturner)
-
-    return
-  }
-  });
-  }
-}
 module.exports = routeFunctions

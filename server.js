@@ -5,9 +5,11 @@ const appTwo = express()
 const port = 4012
 var cors = require('cors')
 var http = require('http')
-var bparser = require('body-parser').json()
+var bparser = require('body-parser')
 
-app.use(bparser)
+app.use(bparser.urlencoded({ extended: true }));
+app.use(bparser.json());
+
 app.use(express.static(__dirname + '/dist'))
 app.use(express.static("F:/"))
 
@@ -26,3 +28,7 @@ var server = app.listen(port, function() {
     var thisport = server.address().port;
     console.log(`Example app on port ${port}!`);
 });
+
+
+
+
