@@ -40,7 +40,7 @@
     "mysql": "^2.18.1",
     "mysql2": "^1.7.0",
     "node": "^12.18.3",
-    "node-fetch": "^2.6.1",
+    "node-fetch": "^2.6.7",
     "node-gzip": "^1.1.2",
     "nodemon": "^1.19.4",
     "randomstring": "^1.2.2",
