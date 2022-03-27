@@ -6,6 +6,7 @@ let fs = require("fs")
 let fetch = require('node-fetch')
 let transcoder = require('../models/transcoder')
 let tv = require('../models/tvShows.models')
+let pixie = require('../models/pixie')
 
 router.post('/movies', (req, res)=>{
     console.log("body", req.body)
@@ -40,6 +41,18 @@ router.post('/tv', (req, res)=>{
         {
             pid: req.body['pid']
         },
+        (err, results)=>{
+        if(err){
+            res.send(err)
+        } else {
+            res.send(results)
+        }
+    })
+})
+
+router.post('/transcodedMovieDirectoryInfo', (req, res)=>{
+    pixie.getDirAfterTranscode(
+        req.body,
         (err, results)=>{
         if(err){
             res.send(err)
@@ -164,6 +177,20 @@ router.post('/pullVideo', (req, res)=>{
         if(err){
             
             return res.send({err: err})
+        } else {
+            res.send(results)
+        }
+    })
+})
+
+router.post('/transcodeMovies', (req, res)=>{
+    console.log("body", req.body)
+    pixie.transcodeMovies(
+        req.body,
+        (err, results)=>{
+            console.log(err, results)
+        if(err){
+            res.send(err)
         } else {
             res.send(results)
         }
