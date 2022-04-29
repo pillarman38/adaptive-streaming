@@ -59,83 +59,130 @@ let routeFunctions = {
             console.log(pid)
           }
       }
-      
-      fs.readdir('F:/HomeVideo/', (err, files) => {  
-        
-        files.forEach(function getTvInfo(file) {
-    
-          fs.readdir('F:/HomeVideo/' + file, (err, fileTwo) => {
-              console.log(file, fileTwo);
-              var arr = []
-              for(var i = 0; i < fileTwo.length; i++) {
-                ffmpeg.ffprobe(`F:/HomeVideo/${file}/${fileTwo[i]}`, function(err, metaData) {
-                  
-                  var what = {
-                    title: metaData['format']['filename'],
-                    photoUrl: 'http://192.168.0.153:4012/assets/images/four0four.gif',
-                    backdropPhotoUrl: 'http://192.168.0.153:4012/assets/images/four0four.gif',
-                    show: true,
-                    browser: "Safari",
-                    filePath: metaData['format']['filename'],
-                    pid: pid,
-                    resolution: '720x480',
-                    channels: metaData['streams'][1]['channels'],
-                    fileformat: '.m3u8',
-                    pixFmt: metaData['streams'][0]['pix_fmt'],
-                    duration: metaData['format']['duration'],
-                    audioSelect: 0,
-                    color_range: metaData['streams'][0]['color_range'],
-                    color_space: metaData['streams'][0]['color_space'],
-                    color_transfer: metaData['streams'][0]['color_transfer'],
-                    seekTime: 0,
-                  }
-                  arr.push(what)
 
-                  var homeVideoListObj = {
-                    photoUrl: 'http://192.168.0.153:4012/assets/images/four0four.gif',
-                    backdropPhotoUrl: 'http://192.168.0.153:4012/assets/images/four0four.gif',
-                    // overview: metaData['results'][0]['overview'],
-                    title: file,
-                    // url: url,
-                    show: true,
-                    
-                    dirName: file,
-                    folders: [{
-                      title: fileTwo[i],
-                      photoUrl: 'http://192.168.0.153:4012/assets/images/four0four.gif',
-                      backdropPhotoUrl: 'http://192.168.0.153:4012/assets/images/four0four.gif',
-                      show: true,
-                      filePath: metaData['format']['filename'],
-                      browser: 'Safari',
-                      pid: pid,
-                      resolution: '720x480',
-                      channels: metaData['streams'][1]['channels'],
-                      fileformat: '.m3u8',
-                      pixFmt: metaData['streams'][0]['pix_fmt'],
-                      duration: metaData['format']['duration'],
-                      audioSelect: 0,
-                      files: arr,
-                      color_range: metaData['streams'][0]['color_range'],
-                      color_space: metaData['streams'][0]['color_space'],
-                      color_transfer: metaData['streams'][0]['color_transfer'],
-                      seekTime: 0,
-                      fileName: file.replace('.mkv', '')
-      
-                    }]
-                    
-                    }
-                   arrOfTvObj.push(homeVideoListObj)
-              if(arrOfTvObj.length == files.length){
-                  callback(JSON.stringify(arrOfTvObj))
-                } 
-              })
-              
-              }
-            })
+      pool.query(`SELECT * FROM homeVideoFolders`, (err,res) => {
+        fs.readdir('F:/HomeVideo/', (err, folders) => { 
+          folders = folders.map(folder => `F:/HomeVideo/${folder}`)
+          var f = 0
+          
+          let folderList = folders.map(item => {
+            return {
+              backdropPhotoUrl: 'http://192.168.0.153:4012/assets/images/four0four.gif',
+              folderPath: `${item}`
+            }
+          })      
+
+          let ressed = res.map(itm => itm.folderPath)
+          let folderListPaths = folderList.map(itm => itm.folderPath)
+
+          let leftovers = folderListPaths.filter(folder => {
+            return !ressed.includes(folder)
           })
+          
+          leftovers = leftovers.map(itm => {
+            return {
+              folderTitle: itm.replace('F:/HomeVideo/', ''),
+              backdropPhotoUrl: 'http://192.168.0.153:4012/assets/images/four0four.gif',
+              folderPath: itm,
+              filePaths: []
+            }
+          })
+          
+          let fi = 0
+          function folderIterator() {
+            if(leftovers.length > 0) {
+            fs.readdir(leftovers[fi].folderPath, (er, files) => {
+              
+              for(var f = 0; f < files.length; f++) {
+                leftovers[fi]['filePaths'].push({
+                  path: `${leftovers[fi].folderPath}/${files[f]}`,
+                  resolution: '720x480',
+                  backdropPhotoUrl: 'http://192.168.0.153:4012/assets/images/four0four.gif',
+                  title: files[f]
+                })
+              }
+              
+              leftovers[fi]['filePaths'] = JSON.stringify(leftovers[fi]['filePaths'])
+
+              pool.query(`INSERT INTO homevideofolders SET ?`, leftovers[fi], (error, response)=>{
+                console.log(error, response);
+                if(fi + 1 !== leftovers.length) {
+                  fi += 1
+                  folderIterator()
+                } else {
+                  console.log("Everything is stored");
+                  pool.query(`SELECT * FROM homeVideoFolders`, (err,res) => {
+                    callback(err, res)
+                  })
+                }
+              })
+            })
+          } else {
+            pool.query(`SELECT * FROM homeVideoFolders`, (err,res) => {
+              callback(err, res)
+            })
+          }
+        }
+        folderIterator()
         })
-      
-    },
+        // let i = 0
+
+          // fs.readdir(folderList[i],(err, files) => {
+          //   getAllTheFiles.push(files.map((file) => {
+          //   return {
+          //     // title: file,
+          //     folderPath: `${folderList[i]}/${file}`,
+          //     // pixFmt: 'yup420',
+          //     // resolution: '720x480',
+          //     // location: `http://192.168.0.153:4012/plexTemp/${file.replace(new RegExp(' ', 'g'), '&%20')}`,
+          //     backdropPhotoUrl: 'http://192.168.0.153:4012/assets/images/four0four.gif'
+          //   }
+          // }))
+        //     if(i + 1 !== folderList.length) {
+        //       i += 1
+        //       fileIterator()
+        //     } else {
+        //       pool.query(`SELECT * FROM homevideos`, (err, res)=>{
+        //         var merged = [].concat.apply([], getAllTheFiles)
+        //         var mergedPathsOnly = merged.map(ite => ite.path)
+        //         let resssed = res.map(itm => itm.path)
+
+        //         let leftovers = mergedPathsOnly.filter(item =>{
+        //           return !resssed.includes(item) 
+        //         })
+                
+        //         let thingsToStore = leftovers.map(path => merged.find(itm => itm.path === path))
+
+        //         var st = 0
+        //         function store() {
+        //           pool.query(`INSERT INTO homevideos SET ?`, thingsToStore[st], (error, response)=>{
+        //             console.log(error, response);
+        //             if(st + 1 !== thingsToStore.length) {
+        //               st += 1
+        //               store()
+        //             } else {
+        //               console.log("We have stored everyting");
+        //               pool.query(`SELECT * FROM homevideos`, (erro, resp)=>{
+        //                 callback(erro, resp)
+        //               })
+        //             }
+        //           })
+        //         }
+        //         if(thingsToStore.length > 0) {
+        //           store()
+        //         } else {
+        //           console.log("nothing to store");
+        //           callback(err, res)
+        //         }
+        //       })
+        //     }
+        //   }) 
+        // }   
+        // fileIterator()
+          // })
+        // }
+    })
+  },
     getAHomeVideoList: (videoList, callback) => {
       var vidList = []
       fs.readdir(`F:/HomeVideo/${videoList['title']}/`, (err, files) => {  
@@ -275,8 +322,6 @@ let routeFunctions = {
           var selection = await files
         // var prom = new Promise((resolve, reject) => {
           
-            
-
           pool.query('SELECT * FROM movies', async (err, res) => {
             var fileList = files.map(file => file.replace('.mkv', ''))
             var responseTitlteList = res ? res.map(itm => itm.title) : []
@@ -410,7 +455,7 @@ let routeFunctions = {
                     callback(arrOfObj)
                   } else {
                     l += 1
-                    console.log("I: ", l);
+                    console.log("l: ", l, notIncluded.length);
                     await iterate()
                   }
                 } 
@@ -422,8 +467,8 @@ let routeFunctions = {
       }
         iterate()
       })
-  })
+    })
   }
-  }
+}
 
 module.exports = routeFunctions

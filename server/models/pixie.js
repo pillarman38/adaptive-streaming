@@ -53,13 +53,13 @@ let pixie = {
             // '-ss', '0', '-t', '20',
             '-i', `F:/Videos/${movie['movie']}.mkv`,
             '-y', 
-            '-acodec', 
-            'aac','-ac', '2', 
-            '-vcodec', 'libx264', 
-            '-pix_fmt', 'yuv420p',
-            '-filter:v', 'scale=w=1920:h=1080', 
-            '-crf', '18', 
-            `F:/toPixie/${movie['movie']}/${movie['movie']}.m4v`
+            '-vf', 'scale=w=1920:h=1080', 
+            '-c:v', 'libx265', 
+            '-crf', '18',
+            '-c:a', 'ac3',
+            '-tag:v', 'hvc1',
+            // '-movflags', '+faststart',
+            `F:/toPixie/${movie['movie']}/${movie['movie']}.mp4`
         ])
         newProc.on('error', function (err) {
           console.log('ls error', err);
@@ -81,7 +81,50 @@ let pixie = {
           processId = newProc.pid
           })
         }
-      
+      newJob() 
+  },
+  transcodeHomeVideos: (video, callback) =>{
+    callback({},"we'll be back...")
+    var newJob = function () {
+        
+          fs.mkdir(path.join('F:/toPixie', `${movie['movie']}`), (err) => {
+            if (err) {
+                return console.error(err);
+            }
+            console.log('Directory created successfully!');
+          })
+          console.log("MOVIEEEE", movie);
+          var newProc = spawn('F:/ffmpeg', [
+            '-ss', '0', '-t', '20',
+            '-i', `F:/Videos/${movie['movie']}.mkv`,
+            '-y', 
+            '-vf', 'scale=w=1920:h=1080', 
+            '-c:v', 'libx265', 
+            '-crf', '18',
+            '-c:a', 'aac',
+            '-tag:v', 'hvc1',
+            `F:/toPixie/${movie['movie']}/${movie['movie']}.mp4`
+        ])
+        newProc.on('error', function (err) {
+          console.log('ls error', err);
+        });
+        
+        newProc.stdout.on('data', function (data) {
+            console.log('stdout: ' + data, movie['movie']);
+        });
+        
+        newProc.stderr.on('data', function (data) {
+            console.log('stderr: ' + data, movie['movie']);
+        });
+        
+        newProc.on('close', function (code) {
+
+          connectedClients[0].write(movie['movie'])
+          console.log('child process exited with code ' + code, movie['movie']);
+          // });
+          processId = newProc.pid
+          })
+        }
       newJob() 
   },
   getDirAfterTranscode: (movie, callback) => {

@@ -33,7 +33,6 @@ const transcoder = {
     var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
     var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
   
-  
     if(movieTitle['pid'] == 0) {
       console.log("nothing to kill")
     }
@@ -55,7 +54,7 @@ const transcoder = {
       var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
       var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
   
-      if(movieTitle['resolution'] == '720x480' && movieTitle['pixFmt'] == "yuv420p") {
+      if(movieTitle['resolution'] == '720x480') {
        
         var newJob = function () {
           // if(movieTitle['subtitles'] == -1) {
@@ -65,14 +64,13 @@ const transcoder = {
             '-y', 
             '-acodec', 
             'aac','-ac', '2', 
-            '-vcodec', 'libx264', 
-            '-filter:v', 'scale=w=720:h=480', 
+            '-c:v', 'copy',
             // '-crf', '18', 
             '-start_number', 0, 
             '-hls_time', '5', 
             '-force_key_frames', 'expr:gte(t,n_forced*5)', 
             '-hls_list_size', '0', 
-            '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
+            '-f', 'hls', `F:/plexTemp/${movieTitle['title']}.m3u8`
           ])
           newProc.on('error', function (err) {
             console.log('ls error', err);
@@ -107,14 +105,14 @@ const transcoder = {
             '-y', 
             '-acodec', 
             'aac','-ac', '6', 
-            '-vcodec', 'libx264', 
+            '-c:v', 'copy', 
             // '-filter:v', 'scale=w=1920:h=1080', 
             // '-crf', '18', 
             '-start_number', 0, 
             '-hls_time', '5', 
             '-force_key_frames', 'expr:gte(t,n_forced*5)', 
             '-hls_list_size', '0', 
-            '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
+            '-f', 'hls', `F:/plexTemp/${movieTitle['title']}.m3u8`
           ])
           newProc.on('error', function (err) {
             console.log('ls error', err);
@@ -141,14 +139,14 @@ const transcoder = {
               '-y', 
               '-acodec', 
               'aac','-ac', '6', 
-              '-vcodec', 'libx264', 
+              '-c:v', 'copy', 
               // '-filter:v', 'scale=w=1920:h=1080', 
               // '-crf', '18', 
               '-start_number', 0, 
               '-hls_time', '5', 
               '-force_key_frames', 'expr:gte(t,n_forced*5)', 
               '-hls_list_size', '0', 
-              '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
+              '-f', 'hls', `F:/plexTemp/${movieTitle['title']}.m3u8`
             ])
             newProc.on('error', function (err) {
               console.log('ls error', err);
@@ -181,14 +179,14 @@ const transcoder = {
             '-y', 
             '-acodec', 
             'aac','-ac', '6', 
-            '-vcodec', 'libx264', 
-            '-filter:v', 'scale=w=1920:h=1080', 
+            '-c:v', 'copy',
+            // '-filter:v', 'scale=w=1920:h=1080', 
             // '-crf', '18', 
             '-start_number', 0, 
             '-hls_time', '5', 
             '-force_key_frames', 'expr:gte(t,n_forced*5)', 
             '-hls_list_size', '0', 
-            '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
+            '-f', 'hls', `F:/plexTemp/${movieTitle['title']}.m3u8`
           ])
           newProc.on('error', function (err) {
             console.log('ls error', err);
@@ -218,22 +216,17 @@ const transcoder = {
           var newProc = spawn('F:/ffmpeg', [
             '-ss', `${h}:${m}:${s}`,
             '-i', `${movieTitle['filePath']}`,
-             '-crf', '18', 
-            '-filter_complex', `[0:v]scale=1920:1080[scaled];[scaled][0:s:0]overlay[v]`, '-map', '[v]', '-map', `0:a:${movieTitle['audioSelect']}`,
-            // '-filter:v', 'scale=w=1920:h=1080', 
-            '-y', 
+
+            // '-map', '0',
             '-acodec', 
-            'aac','-ac', '6', 
-            '-pix_fmt', 'yuv420p10le',
-            '-vcodec', 'libx265',  
-            "-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc",
+            'aac','-ac', '6',
+            '-c:v', 'copy','-strict', 'unofficial',
             // '-filter:v', 
-            
             '-start_number', 0, 
             '-hls_time', '5', 
             '-force_key_frames', 'expr:gte(t,n_forced*5)', 
             '-hls_list_size', '0', 
-            '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
+            '-f', 'hls', `F:/plexTemp/${movieTitle['title']}.m3u8`
           ])
           newProc.on('error', function (err) {
             console.log('ls error', err);
@@ -257,7 +250,7 @@ const transcoder = {
       
         var watcher = fs.watch("F:/plexTemp/", (event, filename) => {
           console.log("HERE IS PID", processId)
-          if(filename == `${movieTitle['fileName']}.m3u8`){
+          if(filename == `${movieTitle['title']}.m3u8`){
             watcher.close()
             console.log("its here")
             var movieReturner = {
@@ -265,7 +258,7 @@ const transcoder = {
               pid: processId,
               duration: movieTitle['duration'],
               fileformat: movieTitle['fileformat'],
-              location: 'http://192.168.0.153:4012/plexTemp/' + movieTitle['fileName'] + '.m3u8',
+              location: 'http://192.168.0.153:4012/plexTemp/' + movieTitle['title'] + '.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
               title: movieTitle['title']
             }
               callback(movieReturner)
@@ -276,7 +269,6 @@ const transcoder = {
   
   if(movieTitle['browser'] == "Chrome") {
         console.log("hi");
-        var arr = []
         var h = Math.floor(movieTitle['seekTime'] / 3600);
         var m = Math.floor(movieTitle['seekTime'] % 3600 / 60);
         var s = Math.floor(movieTitle['seekTime'] % 3600 % 60);
@@ -290,13 +282,13 @@ const transcoder = {
               // '-filter:v', 'scale=w=1920:h=1080', 
               '-acodec', 
               'aac','-ac', `${movieTitle['channels']}`, 
-              '-vcodec', 'copy',
+              '-vcodec', 'copy', 
               
               '-start_number', 0, 
               '-hls_time', '5', 
               '-force_key_frames', 'expr:gte(t,n_forced*5)', 
               '-hls_list_size', '0', 
-              '-f', 'hls', `F:/plexTemp/${movieTitle['fileName']}.m3u8`
+              '-f', 'hls', `F:/plexTemp/${movieTitle['title']}.m3u8`
           ])
           newProc.on('error', function (err) {
             console.log('ls error', err);
@@ -355,7 +347,7 @@ const transcoder = {
   
     var watcher = fs.watch("F:/plexTemp/", (event, filename) => {
     console.log("HERE IS PID", processId)
-    if(filename == `${movieTitle['fileName']}.m3u8`){
+    // if(filename == `${movieTitle['fileName']}.m3u8`){
       watcher.close()
       console.log("its here")
       var movieReturner = {
@@ -363,15 +355,14 @@ const transcoder = {
         pid: processId,
         duration: movieTitle['duration'],
         fileformat: movieTitle['fileformat'],
-        location: 'http://192.168.0.153:4012/plexTemp/' + movieTitle['fileName'] + '.m3u8',
+        location: 'http://192.168.0.153:4012/plexTemp/' + movieTitle['title'] + '.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
         title: movieTitle['title']
       }
         callback(movieReturner)
   
-      return
-    }
+        return
     });
     }
   }
-  }
-  module.exports = transcoder
+}
+module.exports = transcoder

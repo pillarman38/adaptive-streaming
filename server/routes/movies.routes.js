@@ -183,7 +183,7 @@ router.post('/pullVideo', (req, res)=>{
     })
 })
 
-router.post('/transcodeMovies', (req, res)=>{
+router.post('/transcodeMoviesForPixie', (req, res)=>{
     console.log("body", req.body)
     pixie.transcodeMovies(
         req.body,
@@ -196,5 +196,7 @@ router.post('/transcodeMovies', (req, res)=>{
         }
     })
 })
+
+
 
 module.exports = router
