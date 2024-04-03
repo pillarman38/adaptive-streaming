@@ -1,112 +1,187 @@
-import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
-import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
-import { Routes, RouterModule } from '@angular/router';
-import { HttpClient, HttpHeaders, HttpEventType } from '@angular/common/http';
-import { FormsModule, ReactiveFormsModule, NgModel } from '@angular/forms';
-import { config } from 'rxjs';
-import { routerNgProbeToken } from '@angular/router/src/router_module';
-import { registerContentQuery } from '@angular/core/src/render3';
-import { Router } from '@angular/router'
-import { SavedVideoInfoService } from '../saved-video-info.service';
-import { NavigationEnd, ActivatedRoute } from '@angular/router';
-import { filter } from 'rxjs/operators';
+import {
+  Component,
+  ElementRef,
+  OnInit,
+  ViewChild,
+  QueryList,
+  ViewChildren,
+  HostListener,
+  SecurityContext,
+} from "@angular/core";
+import { SmartTvComponent } from "smart-tv";
+import { HttpClient } from "@angular/common/http";
+import { Router } from "@angular/router";
+import { InfoStoreService, movieInfo } from "../info-store.service";
+import { DomSanitizer } from "@angular/platform-browser";
+import { SideBarComponent } from "../side-bar/side-bar.component";
 
 @Component({
-  selector: 'app-video-selection',
-  templateUrl: './video-selection.component.html',
-  styleUrls: ['./video-selection.component.scss']
+  selector: "app-video-selection",
+  templateUrl: "./video-selection.component.html",
+  styleUrls: ["./video-selection.component.css"],
 })
-export class VideoSelectionComponent {
+export class VideoSelectionComponent implements OnInit {
+  title = "demoSmartTvLib";
+  smartTv: any;
+  index = 0;
+  movies: Array<movieInfo> = [];
+  currentBox: movieInfo = this.infoStore.videoInfo;
+  poster: string | undefined = "";
 
-  selection;
-  browserName = ""
-  retain = "value"
-  nAgt = navigator.appCodeName;
-  getRetainedData = localStorage.getItem("movielist")
-  carouselArr = []
-  @ViewChild('carousel') carousel;
-  
-  constructor(private http: HttpClient, private router: Router, private saveVid: SavedVideoInfoService, private activatedRoute: ActivatedRoute) { 
+  @ViewChild("wrapper") wrapper!: ElementRef;
+  @ViewChild("image") image!: ElementRef;
+  @ViewChild("backgroundPlacer") backgroundPlacer!: ElementRef;
+  @ViewChildren("boxes") boxes!: QueryList<ElementRef>;
+  @ViewChild(SideBarComponent) sideBar!: SideBarComponent;
 
-    this.router.events.pipe(filter((rs): rs is NavigationEnd => rs instanceof NavigationEnd)).subscribe(event => {
-      
-    })
-    var N = navigator.appName, ua= navigator.userAgent, tem;
-    var M = ua.match(/(opera|chrome|safari|firefox|msie|trident)\/?\s*(\.?\d+(\.\d+)*)/i);
-    if(M && (tem= ua.match(/version\/([\.\d]+)/i))!= null) {M[2]=tem[1];}
-    M= M? [M[1], M[2]]: [N, navigator.appVersion,'-?'];
-    
-    this.browserName = M[0]
+  @HostListener("window:keydown", ["$event"])
+  async onKeyDown(event: KeyboardEvent) {
+    console.log("EVENT: ", event);
 
-    console.log(this.browserName)
-   
-    console.log(JSON.parse(this.getRetainedData));
-    console.log("PID", this.saveVid.savedPid)
-    if(this.getRetainedData == null) {
-      
-      this.http.post('http://192.168.0.153:4012/api/mov/movies', this.saveVid.savedPid).subscribe((res: any[]) => {
-        this.selection = res
-        // var retain = localStorage.setItem("movielist", JSON.stringify(res))
-        console.log(this.selection)
+    this.smartTv.shifter(event);
+    const ind = this.smartTv.getCurrentIndex();
+    console.log("THI IND: ", ind);
 
-        this.carouselArr = this.selection.slice(-5)
-        console.log(this.carouselArr, this.selection);
-      })
-    } 
-    if(this.getRetainedData != null) {
-      if(this.getRetainedData != this.selection){
-        this.http.post('http://192.168.0.153:4012/api/mov/movies', this.saveVid.savedPid).subscribe((res: any[]) => {
-        console.log(res)
-      this.selection = res
-      // var retain = localStorage.setItem("movielist", JSON.stringify(res))
+    if (ind.list.name === "movies") {
+      this.index = ind.index;
+      console.log("THE INDEX: ", this.index);
 
-      this.carouselArr = this.selection.slice(-5)
-      console.log(this.carouselArr, this.selection);
-    })
-    
-    } 
+      this.currentBox = this.movies[this.index];
+      console.log(this.currentBox);
+
+      this.image.nativeElement.style.opacity = "0";
+      await this.delay(1000);
+
+      console.log("NEW POSTER: ", this.currentBox.backgroundPoster);
+
+      this.poster = this.currentBox.backgroundPoster;
+      this.delay(1000);
+      this.image.nativeElement.style.opacity = "1";
+
+      if (event.key === "Enter") {
+        console.log(this.index, this.movies[this.index]);
+        this.infoStore.videoInfo = this.movies[this.index];
+
+        this.router.navigateByUrl("/overview");
+      }
     }
-     
-    console.log(JSON.parse(this.getRetainedData));
-    this.selection = JSON.parse(this.getRetainedData)
+
+    if (ind.list.name === "sideBar") {
+      this.index = ind.index;
+
+      console.log("SIDE BAR: ", event);
+
+      if (event.key === "Enter") {
+        console.log(this.index, this.movies[this.index]);
+        this.infoStore.videoInfo = this.movies[this.index];
+        if (this.index === 0) {
+          this.router.navigateByUrl("/videoSelection");
+        }
+        if (this.index === 2) {
+          this.router.navigateByUrl("/tv");
+        }
+      }
     }
-    
-  saveSelected(e) {
-    console.log(e);
-    
-    if (this.browserName == "Chrome") {
-      e['browser'] = "Chrome"
-      e['fileformat'] = ".m3u8"
-      this.saveVid.savedvideo = e
-      console.log("heheheheheheh",e)
-      console.log('chrome')
-  }
-    if (this.browserName == "Safari") {
-        e['browser'] = "Safari"
-        e['fileformat'] = ".m3u8"
-        this.saveVid.savedvideo = e
-  }
-    this.router.navigateByUrl('/videoPlayer')
-  }
-  mouseover(e) {
-    console.log(e);
-    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transform = "translate(-100px)"
-    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transition = "transform 0.5s"
-    // e['srcElement']['parentElement']['parentElement']['nextSibling'].style.transform = "translate(100px)"
-    // e['srcElement']['parentElement']['parentElement']['nextSibling'].style.transition = "transform 0.5s"
-    // var container = document.getElementById ("tempDiv");
-    // var message = "The width of the contents with padding: " + container.scrollWidth + "px.\n";
-    // message += "The height of the contents with padding: " + container.scrollHeight + "px.\n";
-    // console.log(message);
-    
-  }
-  mouseout(e) {
-    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transform = "translate(0px)"
-    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transition = "transform 0.5s"
-    // e['srcElement']['parentElement']['parentElement']['nextSibling'].style.transform = "translate(0px)"
-    // e['srcElement']['parentElement']['parentElement']['previousSibling'].style.transition = "transform 0.5s"
   }
 
+  @HostListener("window:resize", ["$event"])
+  onResize(event: any) {
+    console.log(event.target.innerWidth);
+    this.smartTv.windowResize();
+  }
 
+  constructor(
+    private http: HttpClient,
+    private router: Router,
+    private infoStore: InfoStoreService,
+    private sanitizer: DomSanitizer
+  ) {
+    this.smartTv = new SmartTvComponent();
+  }
+  delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  selectMovie() {
+    console.log(this.index, this.movies[this.index]);
+    this.infoStore.videoInfo = this.movies[this.index];
+    this.router.navigateByUrl("/overview");
+  }
+
+  onHover(e: number, listName: string) {
+    console.log("EVVVENMT: ", e);
+    if (listName === "movies") {
+      const ind = this.smartTv.findAndSetIndex(e, "movies");
+      this.index = ind.index;
+    }
+    if (listName === "sideBar") {
+      this.smartTv.findAndSetIndex(e, "sideBar");
+    }
+  }
+
+  async onImageLoad() {
+    this.image.nativeElement.style.opacity = "1";
+  }
+
+  ngAfterViewInit() {
+    console.log("HOMEPAGE LIST: ", this.sideBar);
+    this.smartTv.currentBox = 0;
+  }
+
+  ngOnInit() {
+    this.infoStore.catchSideBarHover().subscribe((e: number) => {
+      this.onHover(e, "sideBar");
+    });
+
+    this.http
+      .post(`http://192.168.0.153:4012/api/mov/movies`, { pid: 0 })
+      .subscribe((res: any) => {
+        console.log("RES: ", res, this.boxes);
+
+        this.movies = res;
+        this.currentBox = res[this.index];
+        this.poster = this.currentBox.backgroundPoster;
+
+        this.smartTv.addOrChangeElems(
+          [
+            {
+              name: "movies",
+              elements: this.boxes,
+              listDirections: [
+                {
+                  moveToNewListOn: {
+                    direction: "left",
+                  },
+                  newFocusList: "sideBar",
+                },
+                {
+                  moveToNewListOn: {
+                    direction: "left",
+                  },
+                  newFocusList: "sideBar",
+                },
+              ],
+            },
+            {
+              name: "sideBar",
+              elements: this.sideBar.homepageList,
+              wrap: false,
+              listDirections: [
+                {
+                  moveToNewListOn: {
+                    direction: "right",
+                  },
+                  newFocusList: "movies",
+                },
+              ],
+            },
+          ],
+          {
+            listToStartWith: "movies",
+            indexOfStart: 0,
+            delay: 500,
+          }
+        );
+      });
+  }
 }

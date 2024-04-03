@@ -1,0 +1,25 @@
+#sideBar {
+    width: 50px;
+    height: 100vh;
+    z-index: 1;
+    position: absolute;
+    background: linear-gradient(90deg, rgba(71,71,71,0.14329481792717091) 0%, rgba(193,104,56,0.2805497198879552) 0%, rgba(244,89,0,0.4766281512605042) 100%);
+}
+.menuItem {
+    width: 32px;
+    height: 32px;
+    margin-left: 9px;
+    position: absolute;
+    top: 30%;
+}
+#alignSelection {
+    padding-top: 250px;
+}
+.button {
+    height: 100px;
+    width: 100%;
+    position: relative;
+}
+.elementBorder {
+    border: 5px solid green;
+}

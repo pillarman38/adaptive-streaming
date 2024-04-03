@@ -1,0 +1,22 @@
+<app-side-bar></app-side-bar>
+<div id="wrapper" #wrapper>
+    <div id="iframePlacer" #iframePlacer></div>
+    <div id="info" #info (mouseover)="hover()" (mouseout)="hoverOut()">
+        <img src="{{coverArt}}" id="coverArt">
+        <img id="playBtn" src="http://192.168.0.153:4012/assets/playVideo.png" #playBtn (click)="playMovie()">
+        <p id="plot">{{plot}}</p>
+    </div>
+
+    <div id="castList" #castList>
+        <div class="arrow-container">
+            <div class="left" id="left" #left (mouseenter)="leftEnter($event)" (mouseleave)="clear()"></div>
+            <div class="right" id="right" #right (mouseenter)="rightEnter($event)" (mouseleave)="clear()"></div>
+        </div>
+        
+        <div id="nav" #nav>
+            <div *ngFor="let castMember of cast" class="castMemberInfo">
+                <img src="{{castMember.picture}}" class="castMemberPic">
+            </div>
+        </div>
+    </div>
+</div>

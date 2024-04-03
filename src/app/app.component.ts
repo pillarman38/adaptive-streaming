@@ -1,13 +1,5 @@
-import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
-import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
-import { Routes, RouterModule } from '@angular/router';
-import { HttpClient, HttpHeaders, HttpEventType } from '@angular/common/http';
-import { FormsModule, ReactiveFormsModule, NgModel } from '@angular/forms';
-import { config } from 'rxjs';
-import { routerNgProbeToken } from '@angular/router/src/router_module';
-import { registerContentQuery } from '@angular/core/src/render3';
-import { Router } from '@angular/router'
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-root',
@@ -15,12 +7,10 @@ import { Router } from '@angular/router'
   styleUrls: ['./app.component.css']
 })
 
-export class AppComponent implements OnInit{
-    
-  constructor(private router:Router) { }
-
-  ngOnInit() {
-    this.router.navigateByUrl('/videoSelection')
-    };
+export class AppComponent implements OnInit {
+  constructor(private router: Router) {}
   
+  ngOnInit(): void {
+    this.router.navigateByUrl('/videoSelection')
+  }
 }

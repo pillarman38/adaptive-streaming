@@ -1,0 +1,86 @@
+#wrapper {
+    position: absolute;
+    width: 96%;
+    height: 100%;
+    margin-left: 50px;
+}
+#info {
+    margin-top: 150px;
+    width: 50%;
+    margin-left: 30px;
+    backdrop-filter: blur(100px);
+    padding: 10px;
+    border-radius: 10px;
+    transition: opacity 2.0s;
+}
+#playBtn {
+    width: 64px;
+    height: 64px;
+}
+#plot {
+    color: white;
+}
+.castMemberPic {
+    width: 200px;
+    height: 100%;
+}
+#castList {
+    margin-top: 165px;
+    width: 95%;
+    margin-left: 20px;
+    position: absolute;
+    transition: opacity 2.0s;
+}
+.castMemberInfo {
+    width: 200px;
+    height:300px;
+    box-shadow: 1px 1px 10px #999; 
+    margin: 2px;
+    cursor: pointer;
+    display:inline-block;
+    /* *display:inline;
+    *zoom:1; */
+    vertical-align:top;
+}
+
+.arrow-container {
+    width: 100%;
+    position: absolute;
+  }
+  #left {
+    float: left;
+    height: 320px;
+    width: 100px;
+}
+#right{
+    float: right;
+    height: 320px;
+    width: 100px;
+}
+#nav {
+    white-space: nowrap;
+    overflow-x: auto;
+    display: flex;
+    gap: 15px;
+    padding-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+#iframePlacer {
+    position: absolute;
+    z-index: -1;
+    width: 100%;
+    height: 100%;
+}
+#iframeHolder {
+    width: 100%;
+    height: 100%;
+}
+#coverArt{
+    width: 160px;
+    float: left;
+    margin-right: 10px;
+}
+.elementBorder {
+    border: 5px solid green;
+}

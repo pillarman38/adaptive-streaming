@@ -1,10 +1,8 @@
 require('./config/config')
 const express = require('express')
 const app = express()
-const appTwo = express()
 const port = 4012
 var cors = require('cors')
-var http = require('http')
 var bparser = require('body-parser')
 
 app.use(bparser.urlencoded({ extended: true }));
@@ -12,6 +10,9 @@ app.use(bparser.json());
 
 app.use(express.static(__dirname + '/dist'))
 app.use(express.static("F:/"))
+app.use(express.static("D:/"))
+app.use(express.static("I:/"))
+app.use(express.static("J:/"))
 
 app.use(cors())
 
@@ -24,11 +25,12 @@ app.get('*', (req, res) => {
 })
 
 var server = app.listen(port, function() {
-    var host = '192.168.0.153';
+    var host = 'helloworld';
     var thisport = server.address().port;
     console.log(`Example app on port ${port}!`);
 });
 
-
-
-
+//   io(server).on('connection', ()=>{
+//       console.log("Pixie connected");
+// })
+  

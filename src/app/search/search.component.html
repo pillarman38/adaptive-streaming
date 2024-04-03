@@ -1,0 +1,10 @@
+<app-side-bar></app-side-bar>
+<div id="searchArea">
+    <input type="text" id="searchBar" (keypress)="onKeyPress($event)">
+</div>
+<div id="results">
+    <div *ngFor="let res of results">
+        <p>{{res.title}}</p>
+        <img src="{{res.coverArt}}">
+    </div>
+</div>

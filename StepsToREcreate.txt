@@ -1,0 +1,8 @@
+- Open two terminals. One is to run the server. The other is to build the app for webos.
+- In the build terminal run `ng build --output-hashing=none`.
+- In file explorer go to the smart tv app and then go to the scripts directory.
+- There should be 6 script files There.
+- Open a new file explorer window
+- Go to the dist folder in this project
+- Copy all of the js files
+- In the smart tv app scripts folder replace these js files with the ones from the build in the dist directory

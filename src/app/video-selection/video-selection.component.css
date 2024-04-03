@@ -1,0 +1,94 @@
+#wrapper {
+    position: absolute;
+    width: 96%;
+    height: 100%;
+    margin-left: 50px;
+}
+#list {
+    height: 50%;
+    width: 100vw;;
+    overflow-y: scroll;
+    margin-top: 60px;
+    position: fixed;
+    bottom: 30px;
+    margin-left: 30px;
+}
+
+.boxes {
+    width: 233px;
+    height: 150px;
+    margin: 10px;
+    display: inline-block;
+}
+#info {
+    margin-left: 50px;
+    width: 500px;
+    height: 300px;
+    color: #fff;
+    margin-top: 100px;
+}
+#overview {
+    width: 500px;
+    height: 100px;
+    color: white;
+    border-bottom: 1px solid transparent;
+    overflow: hidden;
+    /* border-image: linear-gradient(to right, rgba(0, 0, 0, 1), red, rgba(0, 0, 0, 1)) 1; */
+}
+.coverArt {
+    width: 233px;
+    height: 150px;
+    position: absolute;
+    z-index: -1;
+}
+.elementBorder {
+    border: 5px solid green;
+}
+.bubbles{
+    float: left;
+    padding: 0px 10px;
+    margin-left: 10px;
+    border: 2px solid white;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+.titleCards {
+    width: 150px;
+    height: 50px;
+    background: linear-gradient(to right,rgb(0,0,0),rgba(0,0,0,.6));
+    color: #fff;
+    position: absolute;
+    margin-top: 100px;
+    padding: 0px 0px 2px 5px;
+}
+#backgroundPlacer{
+    width: 100vw;
+    height: 100vh;
+    background-image: linear-gradient(to right,rgb(0 0 0), rgb(0 0 0 / 70%));
+    background: linear-gradient(to left, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.92) 60%);
+    position: absolute;
+}
+
+#backgroundImg {
+    position: fixed;
+    width: 100vw;
+    height: 100vh;
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+    z-index: -1;
+}
+
+#titleStyling {
+    font-size: 40px;
+}
+
+#separator {
+    width: 500px;
+    height: 0px;
+    border: 1px solid;
+    border-image: linear-gradient(to right,rgb(0 0 0 / 0%),red,rgb(0 0 0 / 0%)) 1;
+    margin-top: 10px;
+}
+::-webkit-scrollbar {
+    display: none;
+}

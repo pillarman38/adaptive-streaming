@@ -1,0 +1,78 @@
+#controls {
+    width: 100%;
+    height: 200px;
+    border: 2px solid green;
+    position: absolute;
+    bottom: 0px;
+    opacity: 0;
+    transition: opacity 1s;
+}
+
+#controls:hover {
+    opacity: 1;
+    transition: opacity 1s;
+}
+
+#temp {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 20px);
+}
+.skipButtons {
+    margin: auto 20px;
+    width: 64px;
+    height: 64px;
+}
+.playPauseBtn {
+    width: 96px;
+    height: 96px;
+}
+#centerBtns {
+    display: block;
+    margin: 0 auto;
+    width: 50%;
+    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    margin-left: 25%;
+    margin-top: 50px;
+}
+.elementBorder {
+    border: 5px solid green;
+}
+#seekSpace {
+    width: 100%;
+    height: 50px;
+    position: absolute;
+}
+
+#seekBar {
+    background-color: red;
+    height: 50px;
+    position: absolute;
+}
+#video {
+    width:100%;
+    height: 100%;
+    position: absolute;
+    z-index: -1;
+}
+.nextEpisode {
+    width: 100px;
+    height: 50px;
+    background-color: red;
+    color: #fff;
+    margin-left: 80%;
+    position: absolute;
+    margin-top: 70px;
+}
+.skipIntro {
+    width: 100px;
+    height: 50px;
+    background-color: red;
+    color: #fff;
+    position: absolute;
+    margin-top: 70px;
+}

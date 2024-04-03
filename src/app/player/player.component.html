@@ -1,0 +1,33 @@
+<!-- <video controls width="640" height="568">
+    <source [src]="location" type="application/x-mpegURL">
+</video> -->
+
+<!-- <iframe src="{{location}}"></iframe> -->
+
+<!-- <video id="video"><source src="http://192.168.0.153:4012/plexTemp/12 Angry Men.m3u8" type="application/x-mpegURL"></video> -->
+<div id="videoContainer" #videoContainer>
+    <video id="video" #videoElem></video>
+    <div id="controls">
+        <div id="seekSpace" (click)="seekBarClick($event)">
+            <div id="seekBar" #seekBar></div>
+        </div>
+
+        <div *ngIf="show">
+            <div class="skipIntro" #controls>
+                <p>Skip Intro</p>
+            </div>
+        </div>
+        <div id="centerBtns">
+            <img src="http://192.168.0.153:4012/assets/skipBack.png" class="skipButtons" #controls>
+            <img src="http://192.168.0.153:4012/assets/left.png" class="skipButtons" #controls>
+            <img src="http://192.168.0.153:4012/assets/play.png" class="playPauseBtn" #controls>
+            <img src="http://192.168.0.153:4012/assets/right.png" class="skipButtons" #controls>
+            <img src="http://192.168.0.153:4012/assets/skipForward.png" class="skipButtons" #controls>
+        </div>
+        <div *ngIf="show">
+            <div class="nextEpisode" #controls (click)="getNextEp()">
+                <p>Next Episode</p>
+            </div>
+        </div>
+    </div>
+</div>

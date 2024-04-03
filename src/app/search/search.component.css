@@ -1,0 +1,15 @@
+#searchArea {
+    width: 100%;
+    height: 50px;
+    background-color: red;
+    display: flex;
+      justify-content: center;
+      align-items: center;
+}
+
+#searchBar {
+    width: 98%;
+    height: 60%;
+    border-radius: 5px;
+    background-color: lightcoral;
+}

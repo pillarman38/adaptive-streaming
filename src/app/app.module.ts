@@ -1,41 +1,39 @@
+import { NgModule, isDevMode } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { HttpClientModule } from '@angular/common/http';
+import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
-import { HttpClientModule } from '@angular/common/http'
-
-import { RouterModule, Routes } from '@angular/router';
-import { VideoPlayerComponent } from './video-player/video-player.component';
+import { OverviewComponent } from './overview/overview.component';
 import { VideoSelectionComponent } from './video-selection/video-selection.component';
+import { ServiceWorkerModule } from '@angular/service-worker';
+import { PlayerComponent, SafeHtmlPipe } from './player/player.component';
+import { SearchComponent } from './search/search.component';
+import { SideBarComponent } from './side-bar/side-bar.component';
 import { TvComponent } from './tv/tv.component';
-import { SelectedShowComponent } from './selected-show/selected-show.component';
-import { HomeVideosComponent } from './home-videos/home-videos.component';
-import { SelectedHomeVideoComponent } from './selected-home-video/selected-home-video.component';
-
-const appRoutes: Routes = [
-  {path: 'videoPlayer', component: VideoPlayerComponent},
-  {path: 'videoSelection', component: VideoSelectionComponent},
-  {path: 'tv', component: TvComponent},
-  {path: 'selectedShow', component: SelectedShowComponent },
-  {path: 'homeVideos', component: HomeVideosComponent},
-  {path: 'selectedHomeVideo', component: SelectedHomeVideoComponent}
-];
+import { SeasonsComponent } from './seasons/seasons.component';
 
 @NgModule({
   declarations: [
     AppComponent,
-    VideoPlayerComponent,
+    OverviewComponent,
     VideoSelectionComponent,
+    PlayerComponent,
+    SafeHtmlPipe,
+    SearchComponent,
+    SideBarComponent,
     TvComponent,
-    SelectedShowComponent,
-    HomeVideosComponent,
-    SelectedHomeVideoComponent
+    SeasonsComponent
   ],
   imports: [
     BrowserModule,
-    FormsModule,
+    AppRoutingModule,
     HttpClientModule,
-    RouterModule.forRoot(appRoutes)
+    ServiceWorkerModule.register('ngsw-worker.js', {
+      enabled: !isDevMode(),
+      // Register the ServiceWorker as soon as the application is stable
+      // or after 30 seconds (whichever comes first).
+      registrationStrategy: 'registerWhenStable:30000'
+    })
   ],
   providers: [],
   bootstrap: [AppComponent]
