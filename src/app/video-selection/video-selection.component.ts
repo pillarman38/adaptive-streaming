@@ -8,12 +8,12 @@ import {
   HostListener,
   SecurityContext,
 } from "@angular/core";
-import { SmartTvComponent } from "smart-tv";
 import { HttpClient } from "@angular/common/http";
 import { Router } from "@angular/router";
 import { InfoStoreService, movieInfo } from "../info-store.service";
 import { DomSanitizer } from "@angular/platform-browser";
 import { SideBarComponent } from "../side-bar/side-bar.component";
+import { SmartTvComponent } from "smart-tv";
 
 @Component({
   selector: "app-video-selection",
@@ -22,66 +22,73 @@ import { SideBarComponent } from "../side-bar/side-bar.component";
 })
 export class VideoSelectionComponent implements OnInit {
   title = "demoSmartTvLib";
-  smartTv: any;
   index = 0;
   movies: Array<movieInfo> = [];
   currentBox: movieInfo = this.infoStore.videoInfo;
   poster: string | undefined = "";
 
+  constructor(
+    private http: HttpClient,
+    private router: Router,
+    private infoStore: InfoStoreService,
+    private smartTv: SmartTvComponent
+  ) {}
+
   @ViewChild("wrapper") wrapper!: ElementRef;
   @ViewChild("image") image!: ElementRef;
   @ViewChild("backgroundPlacer") backgroundPlacer!: ElementRef;
-  @ViewChildren("boxes") boxes!: QueryList<ElementRef>;
+  @ViewChildren("boxes") boxes!: QueryList<ElementRef<any>>;
   @ViewChild(SideBarComponent) sideBar!: SideBarComponent;
-
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
     console.log("EVENT: ", event);
 
-    this.smartTv.shifter(event);
-    const ind = this.smartTv.getCurrentIndex();
+    const ind = this.smartTv.navigate(event);
     console.log("THI IND: ", ind);
-
-    if (ind.list.name === "movies") {
-      this.index = ind.index;
-      console.log("THE INDEX: ", this.index);
-
-      this.currentBox = this.movies[this.index];
-      console.log(this.currentBox);
-
-      this.image.nativeElement.style.opacity = "0";
-      await this.delay(1000);
-
-      console.log("NEW POSTER: ", this.currentBox.backgroundPoster);
-
-      this.poster = this.currentBox.backgroundPoster;
-      this.delay(1000);
-      this.image.nativeElement.style.opacity = "1";
-
-      if (event.key === "Enter") {
-        console.log(this.index, this.movies[this.index]);
-        this.infoStore.videoInfo = this.movies[this.index];
-
-        this.router.navigateByUrl("/overview");
-      }
+    if ((ind.borderReached = "left edge")) {
+      this.smartTv.wrapLeft();
     }
 
-    if (ind.list.name === "sideBar") {
-      this.index = ind.index;
+    // if (ind.name === "movies") {
+    //   this.index = ind.index;
+    //   console.log("THE INDEX: ", this.index);
 
-      console.log("SIDE BAR: ", event);
+    //   this.currentBox = this.movies[this.index];
+    //   console.log(this.currentBox);
 
-      if (event.key === "Enter") {
-        console.log(this.index, this.movies[this.index]);
-        this.infoStore.videoInfo = this.movies[this.index];
-        if (this.index === 0) {
-          this.router.navigateByUrl("/videoSelection");
-        }
-        if (this.index === 2) {
-          this.router.navigateByUrl("/tv");
-        }
-      }
-    }
+    //   this.image.nativeElement.style.opacity = "0";
+    //   await this.delay(1000);
+
+    //   console.log("NEW POSTER: ", this.currentBox.backgroundPoster);
+
+    //   this.poster = this.currentBox.backgroundPoster;
+    //   this.delay(1000);
+    //   this.image.nativeElement.style.opacity = "1";
+
+    //   if (event.key === "Enter") {
+    //     console.log(this.index, this.movies[this.index]);
+    //     this.infoStore.videoInfo = this.movies[this.index];
+
+    //     this.router.navigateByUrl("/overview");
+    //   }
+    // }
+
+    // if (ind.name === "sideBar") {
+    //   this.index = ind.index;
+
+    //   console.log("SIDE BAR: ", event);
+
+    //   if (event.key === "Enter") {
+    //     console.log(this.index, this.movies[this.index]);
+    //     this.infoStore.videoInfo = this.movies[this.index];
+    //     if (this.index === 0) {
+    //       this.router.navigateByUrl("/videoSelection");
+    //     }
+    //     if (this.index === 2) {
+    //       this.router.navigateByUrl("/tv");
+    //     }
+    //   }
+    // }
   }
 
   @HostListener("window:resize", ["$event"])
@@ -90,14 +97,6 @@ export class VideoSelectionComponent implements OnInit {
     this.smartTv.windowResize();
   }
 
-  constructor(
-    private http: HttpClient,
-    private router: Router,
-    private infoStore: InfoStoreService,
-    private sanitizer: DomSanitizer
-  ) {
-    this.smartTv = new SmartTvComponent();
-  }
   delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -111,12 +110,12 @@ export class VideoSelectionComponent implements OnInit {
   onHover(e: number, listName: string) {
     console.log("EVVVENMT: ", e);
     if (listName === "movies") {
-      const ind = this.smartTv.findAndSetIndex(e, "movies");
-      this.index = ind.index;
+      // const ind = this.smartTv.findAndSetIndex(e, "movies");
+      // this.index = ind.index;
     }
-    if (listName === "sideBar") {
-      this.smartTv.findAndSetIndex(e, "sideBar");
-    }
+    // if (listName === "sideBar") {
+    //   this.smartTv.findAndSetIndex(e, "sideBar");
+    // }
   }
 
   async onImageLoad() {
@@ -125,7 +124,7 @@ export class VideoSelectionComponent implements OnInit {
 
   ngAfterViewInit() {
     console.log("HOMEPAGE LIST: ", this.sideBar);
-    this.smartTv.currentBox = 0;
+    // this.smartTv.currentBox = 0;
   }
 
   ngOnInit() {
@@ -134,54 +133,20 @@ export class VideoSelectionComponent implements OnInit {
     });
 
     this.http
-      .post(`http://192.168.0.153:4012/api/mov/movies`, { pid: 0 })
+      .post(`http://192.168.0.154:4012/api/mov/movies`, { pid: 0 })
       .subscribe((res: any) => {
         console.log("RES: ", res, this.boxes);
 
         this.movies = res;
         this.currentBox = res[this.index];
         this.poster = this.currentBox.backgroundPoster;
-
-        this.smartTv.addOrChangeElems(
-          [
-            {
-              name: "movies",
-              elements: this.boxes,
-              listDirections: [
-                {
-                  moveToNewListOn: {
-                    direction: "left",
-                  },
-                  newFocusList: "sideBar",
-                },
-                {
-                  moveToNewListOn: {
-                    direction: "left",
-                  },
-                  newFocusList: "sideBar",
-                },
-              ],
-            },
-            {
-              name: "sideBar",
-              elements: this.sideBar.homepageList,
-              wrap: false,
-              listDirections: [
-                {
-                  moveToNewListOn: {
-                    direction: "right",
-                  },
-                  newFocusList: "movies",
-                },
-              ],
-            },
-          ],
-          {
-            listToStartWith: "movies",
-            indexOfStart: 0,
-            delay: 500,
-          }
-        );
+        setTimeout(() => {
+          this.smartTv.addCurrentList({
+            startingList: "movies",
+            startingIndex: 0,
+            listElements: this.boxes,
+          });
+        }, 1000);
       });
   }
 }

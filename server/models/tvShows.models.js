@@ -137,12 +137,12 @@ let tv = {
               title: showsToAdd[i],
               backdropPhotoUrl: tvPoster
                 ? tvPoster
-                : "http://192.168.0.153:4012/assets/images/four0four.gif",
+                : "/assets/images/four0four.gif",
               numberOfSeasons,
               overview: showInfo.results[0] ? showInfo.results[0].overview : "",
               coverArt: tvCoverArt
                 ? tvCoverArt
-                : "http://192.168.0.153:4012/assets/images/four0four.gif",
+                : "/assets/images/four0four.gif",
               cast: castinfo ? JSON.stringify(castinfo) : JSON.stringify(""),
               audio: audioArr[0].codec_name,
               resolution,
@@ -207,7 +207,7 @@ let tv = {
                         title: showsToAdd[i],
                         season_number: l,
                         numOfEpInSeason: numOfEpsInSeason.length,
-                        // poster: 'http://192.168.0.153:4012/assets/images/four0four.gif'
+                        // poster: '/assets/images/four0four.gif'
                       };
                     }
                     let seasonArt;
@@ -267,9 +267,7 @@ let tv = {
                               backdropPhotoUrl: epCoverArt,
                               // backgroundPoster,
                               epNumber: e + 1,
-                              location: `http://192.168.0.153:4012/plexTemp/${files[
-                                e
-                              ]
+                              location: `/plexTemp/${files[e]
                                 .replace(".mkv", "")
                                 .replace(new RegExp(" ", "g"), "%20")}.m3u8`,
                               season: l,
@@ -361,7 +359,7 @@ let tv = {
                 seasonNum: seasons[i].season_number,
                 poster: seasons[i]
                   ? seasons[i].poster
-                  : "http://192.168.0.153:4012/assets/images/four0four.gif",
+                  : "/assets/images/four0four.gif",
               };
               seasonsList.push(seasonObj);
 
@@ -378,6 +376,7 @@ let tv = {
                   backdropPhotoUrl: response[0].backdropPhotoUrl,
                   coverArt: response[0].coverArt,
                   cast: response[0].cast,
+                  allEps: res,
                 };
                 callback(err, showObject);
               }

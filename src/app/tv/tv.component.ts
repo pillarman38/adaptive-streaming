@@ -92,16 +92,16 @@ export class TvComponent implements OnInit {
     private router: Router,
     private infoStore: InfoStoreService
   ) {
-    this.smartTv = new SmartTvComponent();
+    // this.smartTv = new SmartTvComponent();
   }
 
   onHover(e: number, listName: string) {
     if (listName === "tv") {
-      const ind = this.smartTv.findAndSetIndex(e, "tv");
-      this.index = ind.index;
+      // const ind = this.smartTv.findAndSetIndex(e, "tv");
+      // this.index = ind.index;
     }
     if (listName === "sideBar") {
-      this.smartTv.findAndSetIndex(e, "sideBar");
+      // this.smartTv.findAndSetIndex(e, "sideBar");
     }
   }
 
@@ -131,7 +131,7 @@ export class TvComponent implements OnInit {
     });
 
     this.http
-      .post(`http://192.168.0.153:4012/api/mov/tv`, { pid: 0 })
+      .post(`http://192.168.0.154:4012/api/mov/tv`, { pid: 0 })
       .subscribe((res: any) => {
         console.log("RES: ", res, this.boxes);
 

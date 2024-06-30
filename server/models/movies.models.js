@@ -32,6 +32,12 @@ var ffstream = ffmpeg();
 var exec = require("child_process").exec;
 const { execSync } = require("child_process");
 const { restart } = require("nodemon");
+const os = require("os");
+const localIP = os
+  .networkInterfaces()
+  ["Wi-Fi"].filter((itm) => itm.family === "IPv4")[0].address;
+
+console.log("Local IP address:", localIP);
 
 let routeFunctions = {
   resumeOrNot: (title, callback) => {
@@ -61,8 +67,7 @@ let routeFunctions = {
 
         let folderList = folders.map((item) => {
           return {
-            backdropPhotoUrl:
-              "http://192.168.0.153:4012/assets/images/four0four.gif",
+            backdropPhotoUrl: "/assets/images/four0four.gif",
             folderPath: `${item}`,
           };
         });
@@ -77,8 +82,7 @@ let routeFunctions = {
         leftovers = leftovers.map((itm) => {
           return {
             folderTitle: itm.replace("F:/HomeVideo/", ""),
-            backdropPhotoUrl:
-              "http://192.168.0.153:4012/assets/images/four0four.gif",
+            backdropPhotoUrl: "/assets/images/four0four.gif",
             folderPath: itm,
             filePaths: [],
           };
@@ -92,8 +96,7 @@ let routeFunctions = {
                 leftovers[fi]["filePaths"].push({
                   path: `${leftovers[fi].folderPath}/${files[f]}`,
                   resolution: "720x480",
-                  backdropPhotoUrl:
-                    "http://192.168.0.153:4012/assets/images/four0four.gif",
+                  backdropPhotoUrl: "/assets/images/four0four.gif",
                   title: files[f],
                 });
               }
@@ -137,8 +140,8 @@ let routeFunctions = {
           function (err, metaData) {
             var videoPlaylistObj = {
               title: file,
-              photoUrl: `http://192.168.0.153:4012/assets/images/four0four.gif`,
-              backdropPhotoUrl: `http://192.168.0.153:4012/assets/images/four0four.gif`,
+              photoUrl: `/assets/images/four0four.gif`,
+              backdropPhotoUrl: `/assets/images/four0four.gif`,
             };
             vidList.push(videoPlaylistObj);
             if (vidList.length == files.length) {
@@ -335,7 +338,7 @@ let routeFunctions = {
                 let location = "";
 
                 if (fileExt === "mp4") {
-                  location = `http://192.168.0.153:4012/Videos/${fileNameNoExt.replace(
+                  location = `/Videos/${fileNameNoExt.replace(
                     new RegExp(" ", "g"),
                     "%20"
                   )}.${fileExt}`;
@@ -343,7 +346,7 @@ let routeFunctions = {
 
                 if (fileExt === "mkv") {
                   fileExt = "m3u8";
-                  location = `http://192.168.0.153:4012/plexTemp/${fileNameNoExt.replace(
+                  location = `/plexTemp/${fileNameNoExt.replace(
                     new RegExp(" ", "g"),
                     "&%20"
                   )}.${fileExt}`;
@@ -513,6 +516,11 @@ let routeFunctions = {
             pool.query(`SELECT * from pickupwhereleftoff`, (e, r) => {
               res.map((movie, i) => {
                 let hi = r.find((mo) => mo.titleOrEpisode === movie.title);
+
+                movie.posterUrl = `http://${localIP}:4012${movie.posterUrl}`;
+                movie.backgroundPoster = `http://${localIP}:4012${movie.backgroundPoster}`;
+                movie.location = `http://${localIP}:4012${movie.location}`;
+                movie.coverArt = `http://${localIP}:4012${movie.coverArt}`;
 
                 if (hi) {
                   res[i].seekTime = hi ? hi.time : 0;

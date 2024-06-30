@@ -37,7 +37,7 @@
   </div>
 
   <div id="list">
-    <div class="boxes" #boxes *ngFor="let movie of movies; index as i" (mouseover)="onHover(i, 'movies')" (click)="selectMovie()">
+    <div class="boxes" #boxes boxes *ngFor="let movie of movies; index as i" (mouseover)="onHover(i, 'movies')" (click)="selectMovie()">
       <img src="{{movie.posterUrl}}" class="coverArt">
       <div class="titleCards">
         <p>{{movie.title}}</p>

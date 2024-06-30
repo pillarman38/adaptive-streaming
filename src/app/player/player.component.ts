@@ -43,6 +43,7 @@ export class PlayerComponent implements OnInit {
   @ViewChild("seekBar") seekBar!: ElementRef;
   @ViewChildren("controls") controls!: QueryList<ElementRef>;
   @ViewChild("videoElem") videoElem!: ElementRef;
+  @ViewChildren("controlBtns") controlBtns!: QueryList<ElementRef>;
 
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
@@ -64,7 +65,7 @@ export class PlayerComponent implements OnInit {
     private http: HttpClient,
     private sanitizer: DomSanitizer
   ) {
-    this.smartTv = new SmartTvComponent();
+    // this.smartTv = new SmartTvComponent();
   }
 
   seekBarClick($event: any) {
@@ -88,7 +89,7 @@ export class PlayerComponent implements OnInit {
   getNextEp() {
     this.http
       .post(
-        `http://192.168.0.153:4012/api/mov/nextep`,
+        `http://192.168.0.154:4012/api/mov/nextep`,
         this.infoStore.videoInfo
       )
       .subscribe((res: any) => {
@@ -123,7 +124,7 @@ export class PlayerComponent implements OnInit {
 
     this.http
       .post(
-        "http://192.168.0.153:4012/api/mov/pullVideo",
+        "http://192.168.0.154:4012/api/mov/pullVideo",
         this.infoStore.videoInfo
       )
       .subscribe((event: any) => {
@@ -163,7 +164,7 @@ export class PlayerComponent implements OnInit {
         [
           {
             name: "controls",
-            elements: this.controls,
+            elements: this.controlBtns,
             listDirections: [],
           },
         ],

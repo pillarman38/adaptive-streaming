@@ -89,21 +89,21 @@ export class SeasonsComponent implements OnInit {
     private router: Router,
     private seasonService: SeaseonChangesService
   ) {
-    this.smartTv = new SmartTvComponent();
+    // this.smartTv = new SmartTvComponent();
   }
 
   onHover(e: number, listName: string) {
     if (listName === "episodes") {
-      const ind = this.smartTv.findAndSetIndex(e, "episodes");
-      this.index = ind.index;
+      // const ind = this.smartTv.findAndSetIndex(e, "episodes");
+      // this.index = ind.index;
       console.log("EPISODE: ", this.index, this.eps[this.index]);
       this.infoStore.videoInfo = this.eps[this.index];
     }
     if (listName === "seasons") {
-      this.smartTv.findAndSetIndex(e, "seasons");
+      // this.smartTv.findAndSetIndex(e, "seasons");
     }
     if (listName === "sideBar") {
-      this.smartTv.findAndSetIndex(e, "sideBar");
+      // this.smartTv.findAndSetIndex(e, "sideBar");
     }
   }
 
@@ -140,7 +140,7 @@ export class SeasonsComponent implements OnInit {
       console.log("INSIDE PID: ");
 
       this.http
-        .post(`http://192.168.0.153:4012/api/mov/pidkill`, {
+        .post(`http://192.168.0.154:4012/api/mov/pidkill`, {
           pid: this.infoStore.videoInfo.pid,
         })
         .subscribe((res) => {
@@ -149,7 +149,7 @@ export class SeasonsComponent implements OnInit {
     }
 
     this.http
-      .post(`http://192.168.0.153:4012/api/mov/seasons`, {
+      .post(`http://192.168.0.154:4012/api/mov/seasons`, {
         show: this.infoStore.showInfo.title,
       })
       .subscribe((res: any) => {

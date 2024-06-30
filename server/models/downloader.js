@@ -34,14 +34,12 @@ class Downloader {
               (100 * totalBytes) / contentLength
             );
             if (downloadComplete === 100) {
-              return resolve(
-                `http://192.168.0.153:4012/tvCoverArt/${notIncludedFileName}.jpg`
-              );
+              return resolve(`/tvCoverArt/${notIncludedFileName}.jpg`);
             }
           });
         });
       } else {
-        return `http://192.168.0.153:4012/tvCoverArt/${notIncludedFileName}.jpg`;
+        return `/tvCoverArt/${notIncludedFileName}.jpg`;
       }
     }
 
@@ -74,14 +72,12 @@ class Downloader {
               (100 * totalBytes) / contentLength
             );
             if (downloadComplete === 100) {
-              return resolve(
-                `http://192.168.0.153:4012/MovieCoverArt/${notIncludedFileName}.jpg`
-              );
+              return resolve(`/MovieCoverArt/${notIncludedFileName}.jpg`);
             }
           });
         });
       } else {
-        return `http://192.168.0.153:4012/MovieCoverArt/${notIncludedFileName}.jpg`;
+        return `/MovieCoverArt/${notIncludedFileName}.jpg`;
       }
     }
   }
@@ -110,13 +106,13 @@ class Downloader {
           let downloadComplete = Math.floor((100 * totalBytes) / contentLength);
           if (downloadComplete === 100) {
             return resolve(
-              `http://192.168.0.153:4012/epPosters/${show}-ep${epInfo.episode_number}-s${epInfo.season_number}.jpg`
+              `/epPosters/${show}-ep${epInfo.episode_number}-s${epInfo.season_number}.jpg`
             );
           }
         });
       });
     } else {
-      return "http://192.168.0.153:4012/assets/images/four0four.gif";
+      return "/assets/images/four0four.gif";
     }
   }
 
@@ -147,15 +143,15 @@ class Downloader {
   //           let downloadComplete = Math.floor((100 * totalBytes) / contentLength)
   //           console.log('downloading', downloadComplete);
   //           if(downloadComplete === 100) {
-  //             return resolve(`http://192.168.0.153:4012/seasonArt/${show}-season-${seasonNum}.jpg`.replace(new RegExp(' ', 'g'), '%20'))
+  //             return resolve(`/seasonArt/${show}-season-${seasonNum}.jpg`.replace(new RegExp(' ', 'g'), '%20'))
   //           }
   //         })
   //       })
   //     } else {
-  //       return 'http://192.168.0.153:4012/assets/images/four0four.gif'
+  //       return '/assets/images/four0four.gif'
   //     }
   //   } else {
-  //     return 'http://192.168.0.153:4012/assets/images/four0four.gif'
+  //     return '/assets/images/four0four.gif'
   //   }
   // }
 
@@ -224,7 +220,7 @@ class Downloader {
             castList.push({
               character: parseCastList.cast[i].character,
               name: parseCastList.cast[i].name,
-              picture: `http://192.168.0.153:4012/assets/images/noProfilePicture.JPG`,
+              picture: `/assets/images/noProfilePicture.JPG`,
             });
           }
         }
@@ -260,7 +256,7 @@ class Downloader {
           const extraction = await execSync(
             `F:/MKVToolNix/mkvextract "I:/Videos/${notIncluded}.mkv" attachments "${id}:F:/MoviePosters/${notIncluded}.jpg"`
           );
-          return `http://192.168.0.153:4012/MoviePosters/${notIncluded.replace(
+          return `/MoviePosters/${notIncluded.replace(
             new RegExp(" ", "g"),
             "%20"
           )}.jpg`;
@@ -277,12 +273,12 @@ class Downloader {
               fileStreamPosters.on("finish", resolve);
             });
 
-            return `http://192.168.0.153:4012/MoviePosters/${notIncluded.replace(
+            return `/MoviePosters/${notIncluded.replace(
               new RegExp(" ", "g"),
               "%20"
             )}.jpg`;
           } catch (err) {
-            return "http://192.168.0.153:4012/assets/images/four0four.gif";
+            return "/assets/images/four0four.gif";
           }
         }
       }
@@ -309,7 +305,7 @@ class Downloader {
           const extraction = await execSync(
             `F:/MKVToolNix/mkvextract "I:/Videos/${notIncluded}.mkv" attachments "${id}:J:/tvPosters/${notIncluded}.jpg"`
           );
-          return `http://192.168.0.153:4012/tvPosters/${notIncluded.replace(
+          return `/tvPosters/${notIncluded.replace(
             new RegExp(" ", "g"),
             "%20"
           )}.jpg`;
@@ -326,12 +322,12 @@ class Downloader {
               fileStreamPosters.on("finish", resolve);
             });
 
-            return `http://192.168.0.153:4012/tvPosters/${notIncluded.replace(
+            return `/tvPosters/${notIncluded.replace(
               new RegExp(" ", "g"),
               "%20"
             )}.jpg`;
           } catch (err) {
-            return "http://192.168.0.153:4012/assets/images/four0four.gif";
+            return "/assets/images/four0four.gif";
           }
         }
       }
@@ -358,7 +354,7 @@ class Downloader {
               downloadPosterFile.body.on("error", reject);
               fileStreamPosters.on("finish", resolve);
             });
-            return `http://192.168.0.153:4012/BackgroundImages/${notIncluded.replace(
+            return `/BackgroundImages/${notIncluded.replace(
               new RegExp(" ", "g"),
               "%20"
             )}.jpg`;
@@ -369,7 +365,7 @@ class Downloader {
           return "";
         }
       } else {
-        return `http://192.168.0.153:4012/BackgroundImages/${notIncluded.replace(
+        return `/BackgroundImages/${notIncluded.replace(
           new RegExp(" ", "g"),
           "%20"
         )}.jpg`;
@@ -445,11 +441,11 @@ class Downloader {
                 downloadSubFile.body.on("error", reject);
                 fileStream.on("finish", resolve);
               });
-              return `http://192.168.0.153:4012/Subtitles/${notIncluded}.srt`;
+              return `/Subtitles/${notIncluded}.srt`;
             }
           }
         } else {
-          return `http://192.168.0.153:4012/Subtitles/${notIncluded}.srt`;
+          return `/Subtitles/${notIncluded}.srt`;
         }
       } catch (err) {
         console.log(err);

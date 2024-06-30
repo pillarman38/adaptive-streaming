@@ -96,7 +96,7 @@ export class OverviewComponent implements OnInit, AfterViewInit {
     private renderer: Renderer2,
     private http: HttpClient
   ) {
-    this.smartTv = new SmartTvComponent();
+    // this.smartTv = new SmartTvComponent();
   }
 
   playMovie() {
@@ -161,7 +161,7 @@ export class OverviewComponent implements OnInit, AfterViewInit {
       console.log("INSIDE PID: ");
 
       this.http
-        .post(`http://192.168.0.153:4012/api/mov/pidkill`, {
+        .post(`http://192.168.0.154:4012/api/mov/pidkill`, {
           pid: this.infoStore.videoInfo.pid,
         })
         .subscribe((res) => {

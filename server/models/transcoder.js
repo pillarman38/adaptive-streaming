@@ -238,7 +238,8 @@ const transcoder = {
                   "copy",
                   "-c:a",
                   "eac3",
-                  // '-ac', '6',
+                  "-ac",
+                  "6",
                   "-pix_fmt",
                   "yuv420p10le",
                   // '-filter:v',
@@ -293,12 +294,12 @@ const transcoder = {
                   duration: movieTitle["duration"],
                   fileformat: movieTitle["fileformat"],
                   location:
-                    "http://192.168.0.153:4012/plexTemp/" +
+                    "http://192.168.0.154:4012/plexTemp/" +
                     movieTitle["title"] +
                     ".m3u8".replace(new RegExp(" ", "g"), "%20"),
-                  // location: 'http://192.168.0.153:4012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
+                  // location: 'http://192.168.0.154:4012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
                   title: movieTitle["title"],
-                  subtitleFile: `http://192.168.0.153:4012/modifiedVtts/${movieTitle["title"]}.vtt`,
+                  subtitleFile: `http://192.168.0.154:4012/modifiedVtts/${movieTitle["title"]}.vtt`,
                 };
                 callback(null, movieReturner);
                 return;
@@ -382,7 +383,7 @@ const transcoder = {
                 duration: movieTitle["duration"],
                 fileformat: movieTitle["fileformat"],
                 location:
-                  "http://192.168.0.153:4012/plexTemp/" +
+                  "http://192.168.0.154:4012/plexTemp/" +
                   movieTitle["title"] +
                   ".m3u8".replace(new RegExp(" ", "g"), "%20"),
                 title: movieTitle["title"],
@@ -399,9 +400,9 @@ const transcoder = {
             duration: movieTitle["duration"],
             fileformat: movieTitle["fileformat"],
             location: movieTitle.location,
-            // location: 'http://192.168.0.153:4012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
+            // location: 'http://192.168.0.154:4012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
             title: movieTitle["title"],
-            subtitleFile: `http://192.168.0.153:4012/modifiedVtts/${movieTitle["title"]}.vtt`,
+            subtitleFile: `http://192.168.0.154:4012/modifiedVtts/${movieTitle["title"]}.vtt`,
           };
           callback(null, movieReturner);
         }

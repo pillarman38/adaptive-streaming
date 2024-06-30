@@ -4,7 +4,7 @@
 
 <!-- <iframe src="{{location}}"></iframe> -->
 
-<!-- <video id="video"><source src="http://192.168.0.153:4012/plexTemp/12 Angry Men.m3u8" type="application/x-mpegURL"></video> -->
+<!-- <video id="video"><source src="http://192.168.0.154:4012/plexTemp/12 Angry Men.m3u8" type="application/x-mpegURL"></video> -->
 <div id="videoContainer" #videoContainer>
     <video id="video" #videoElem></video>
     <div id="controls">
@@ -18,11 +18,11 @@
             </div>
         </div>
         <div id="centerBtns">
-            <img src="http://192.168.0.153:4012/assets/skipBack.png" class="skipButtons" #controls>
-            <img src="http://192.168.0.153:4012/assets/left.png" class="skipButtons" #controls>
-            <img src="http://192.168.0.153:4012/assets/play.png" class="playPauseBtn" #controls>
-            <img src="http://192.168.0.153:4012/assets/right.png" class="skipButtons" #controls>
-            <img src="http://192.168.0.153:4012/assets/skipForward.png" class="skipButtons" #controls>
+            <img src="http://192.168.0.154:4012/assets/skipBack.png" class="skipButtons" #controlBtns>
+            <img src="http://192.168.0.154:4012/assets/left.png" class="skipButtons" #controlBtns>
+            <img src="http://192.168.0.154:4012/assets/play.png" class="playPauseBtn" #controlBtns>
+            <img src="http://192.168.0.154:4012/assets/right.png" class="skipButtons" #controlBtns>
+            <img src="http://192.168.0.154:4012/assets/skipForward.png" class="skipButtons" #controlBtns>
         </div>
         <div *ngIf="show">
             <div class="nextEpisode" #controls (click)="getNextEp()">

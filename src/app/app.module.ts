@@ -1,16 +1,17 @@
-import { NgModule, isDevMode } from '@angular/core';
-import { BrowserModule } from '@angular/platform-browser';
-import { HttpClientModule } from '@angular/common/http';
-import { AppRoutingModule } from './app-routing.module';
-import { AppComponent } from './app.component';
-import { OverviewComponent } from './overview/overview.component';
-import { VideoSelectionComponent } from './video-selection/video-selection.component';
-import { ServiceWorkerModule } from '@angular/service-worker';
-import { PlayerComponent, SafeHtmlPipe } from './player/player.component';
-import { SearchComponent } from './search/search.component';
-import { SideBarComponent } from './side-bar/side-bar.component';
-import { TvComponent } from './tv/tv.component';
-import { SeasonsComponent } from './seasons/seasons.component';
+import { NgModule, isDevMode } from "@angular/core";
+import { BrowserModule } from "@angular/platform-browser";
+import { HttpClientModule } from "@angular/common/http";
+import { AppRoutingModule } from "./app-routing.module";
+import { AppComponent } from "./app.component";
+import { OverviewComponent } from "./overview/overview.component";
+import { VideoSelectionComponent } from "./video-selection/video-selection.component";
+import { ServiceWorkerModule } from "@angular/service-worker";
+import { PlayerComponent, SafeHtmlPipe } from "./player/player.component";
+import { SearchComponent } from "./search/search.component";
+import { SideBarComponent } from "./side-bar/side-bar.component";
+import { TvComponent } from "./tv/tv.component";
+import { SeasonsComponent } from "./seasons/seasons.component";
+import { SmartTvComponent, SmartTvModule } from "smart-tv";
 
 @NgModule({
   declarations: [
@@ -22,20 +23,21 @@ import { SeasonsComponent } from './seasons/seasons.component';
     SearchComponent,
     SideBarComponent,
     TvComponent,
-    SeasonsComponent
+    SeasonsComponent,
   ],
   imports: [
     BrowserModule,
     AppRoutingModule,
     HttpClientModule,
-    ServiceWorkerModule.register('ngsw-worker.js', {
+    SmartTvModule,
+    ServiceWorkerModule.register("ngsw-worker.js", {
       enabled: !isDevMode(),
       // Register the ServiceWorker as soon as the application is stable
       // or after 30 seconds (whichever comes first).
-      registrationStrategy: 'registerWhenStable:30000'
-    })
+      registrationStrategy: "registerWhenStable:30000",
+    }),
   ],
   providers: [],
-  bootstrap: [AppComponent]
+  bootstrap: [AppComponent],
 })
-export class AppModule { }
+export class AppModule {}

@@ -1,32 +1,22 @@
 let pool = require("../../config/connections");
 let fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
-let codecGetter = require("./codec-determine");
 const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
 const ffprobePath = require("@ffprobe-installer/ffprobe").path;
 const path = require("path");
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
-let chokidar = require("chokidar");
-var showPlayer = false;
-var fetch = require("node-fetch");
 const spawn = require("child_process").spawn;
-var ffstream = ffmpeg();
-var exec = require("child_process").exec;
-var WebSocketServer = require("ws").Server;
-const { client } = require("websocket");
-const { async } = require("rxjs/internal/scheduler/async");
-const { execSync } = require("child_process");
+
+let WebSocketServer = require("ws").Server;
 
 let wss = new WebSocketServer({
   port: 4444,
 });
+console.log("WSS: ");
 
-function originIsAllowed(origin) {
-  return true;
-}
 let clients = [];
-var videoObj;
+let videoObj;
 
 wss.on("connection", function (connection) {
   console.log(new Date() + " Connection accepted.");
@@ -43,7 +33,7 @@ wss.on("connection", function (connection) {
         videoObj = {};
       }
 
-      var backendClient = undefined;
+      let backendClient = undefined;
 
       if (videoObj.backOrFront === "backend") {
         backendClient = connection;
@@ -56,7 +46,7 @@ wss.on("connection", function (connection) {
           movie = `I:/Videos/${videoObj.title}.mp4`;
         }
         ffmpeg.ffprobe(`${movie}`, (e, metadata) => {
-          var newJob = async () => {
+          let newJob = async () => {
             console.log("firing!!!!");
             let files = await fs.readdirSync("I:/toPixie");
 
@@ -95,7 +85,7 @@ wss.on("connection", function (connection) {
               `I:/toPixie/${videoObj.title}.mp4`,
             ];
 
-            var newProc = spawn("F:/ffmpeg", command);
+            let newProc = spawn("F:/ffmpeg", command);
             newProc.on("error", function (err) {
               console.log("ls error", err);
             });
@@ -108,8 +98,8 @@ wss.on("connection", function (connection) {
               console.log("DATA: ", String(data));
               if (metadata) {
                 function secondsToDhms(hms) {
-                  var a = hms.split(":");
-                  var seconds = +a[0] * 60 * 60 + +a[1] * 60 + +a[2];
+                  let a = hms.split(":");
+                  let seconds = +a[0] * 60 * 60 + +a[1] * 60 + +a[2];
                   return seconds;
                 }
 
@@ -211,7 +201,7 @@ wss.on("connection", function (connection) {
                 const filePath = videoObj.filePath;
                 const seasonGrabber = videoObj.season;
                 await ffmpeg.ffprobe(filePath, (e, metadata) => {
-                  var newProc = spawn("J:/ffmpeg", [
+                  let newProc = spawn("J:/ffmpeg", [
                     // "-ss",
                     // "0",
                     // "-t",
@@ -248,8 +238,8 @@ wss.on("connection", function (connection) {
                     console.log("DATA: ", String(data));
                     if (metadata) {
                       function secondsToDhms(hms) {
-                        var a = hms.split(":");
-                        var seconds = +a[0] * 60 * 60 + +a[1] * 60 + +a[2];
+                        let a = hms.split(":");
+                        let seconds = +a[0] * 60 * 60 + +a[1] * 60 + +a[2];
                         return seconds;
                       }
 
