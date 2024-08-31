@@ -7,7 +7,7 @@ import {
 } from "@angular/core";
 import { Router } from "@angular/router";
 import { InfoStoreService } from "../info-store.service";
-import { SmartTvComponent } from "smart-tv";
+import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 
 @Component({
   selector: "app-side-bar",
@@ -19,10 +19,8 @@ export class SideBarComponent implements OnInit {
   constructor(
     private router: Router,
     private infoStore: InfoStoreService, // private smarTvCompenent: SmartTvComponent
-    private smartTv: SmartTvComponent
-  ) {
-    // this.smartTv = new SmartTvComponent();
-  }
+    private smartTv: SmartTvLibSingletonService
+  ) {}
 
   @ViewChildren("homepageList") homepageList!: QueryList<ElementRef>;
 
@@ -30,17 +28,22 @@ export class SideBarComponent implements OnInit {
     this.infoStore.onSideBarHover(e);
   }
 
+  updateBorder(element: any): void {
+    console.log("ELEMENT: ", element);
+  }
+
   navigateTo(url: string) {
     this.router.navigateByUrl(url);
   }
+
   ngOnInit() {
     setTimeout(() => {
-      // this.smartTv = new SmartTvComponent();
-      // this.smartTv.addCurrentList({
-      //   startingList: "sideBar",
-      //   startingIndex: 0,
-      //   listElements: this.homepageList,
-      // });
+      console.log("SIDEBAR: ", this.homepageList, this.smartTv);
+      this.smartTv.smartTv?.addCurrentList({
+        startingIndex: 0,
+        listName: "sideBar",
+        listElements: this.homepageList,
+      });
     }, 1000);
   }
 }

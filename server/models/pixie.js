@@ -16,35 +16,49 @@ let wss = new WebSocketServer({
 console.log("WSS: ");
 
 let clients = [];
-let videoObj;
+// let message;
 
 wss.on("connection", function (connection) {
   console.log(new Date() + " Connection accepted.");
   clients.push(connection);
+  // connection.send("Connection recieved!");
   connection.on("message", async function (message) {
-    if (!videoObj) {
+    console.log("message: ", message);
+    message = JSON.parse(message);
+    if (message.type === "Downloading") {
+      clients.forEach((client) => {
+        client.send(JSON.stringify(message));
+      });
+    }
+
+    if (message) {
       console.log("CLIENTS LENGTH: ", clients.length);
 
       try {
-        videoObj = JSON.parse(message);
-        console.log(videoObj);
+        // message = message;
+        console.log(message);
       } catch (err) {
         console.log(err);
-        videoObj = {};
+        message = {};
       }
 
       let backendClient = undefined;
 
-      if (videoObj.backOrFront === "backend") {
+      if (message.backOrFront === "backend") {
         backendClient = connection;
       }
 
-      if (videoObj.type === "movie") {
-        let dvMovies = await fs.readdirSync("I:/ConvertedDVMKVs");
-        let movie = `I:/Videos/${videoObj.title}.mkv`;
-        if (dvMovies.includes(`${videoObj.title}.mkv`)) {
-          movie = `I:/Videos/${videoObj.title}.mp4`;
-        }
+      if (message.type === "movie") {
+        let moviesList = await fs.readdirSync("I:/Videos");
+        // let movie = `I:/Videos/${message.title}.mkv`;
+        // if (dvMovies.includes(`${message.title}.mkv`)) {
+        //   movie = `I:/Videos/${message.title}.mp4`;
+        // }
+        let movie = moviesList.find((element) =>
+          element.includes(message.title)
+        );
+        movie = `I:/Videos/${movie}`;
+
         ffmpeg.ffprobe(`${movie}`, (e, metadata) => {
           let newJob = async () => {
             console.log("firing!!!!");
@@ -59,31 +73,57 @@ wss.on("connection", function (connection) {
             }
 
             let command = [];
-
-            command = [
-              // "-ss", "0",
-              "-t",
-              "5",
-              "-i",
-              `${movie}`,
-              "-y",
-              "-vf",
-              "scale=w=1920:h=1080",
-              "-c:v",
-              "libx264",
-              "-c:a",
-              "aac",
-              "-ac",
-              "6",
-              // "-tag:v", "hvc1",
-              "-pix_fmt",
-              "yuv420p",
-              "-b:v",
-              "4000k",
-              "-movflags",
-              "+faststart",
-              `I:/toPixie/${videoObj.title}.mp4`,
-            ];
+            if (metadata.streams[0].codec_name === "hevc") {
+              command = [
+                // "-t",
+                // "5",
+                "-y",
+                "-i",
+                `${movie}`,
+                "-vf",
+                "scale=w=1920:h=1080",
+                "-c:v",
+                "libx265",
+                "-b:v",
+                "4000k",
+                "-bsf:v",
+                "hevc_metadata",
+                "-c:a",
+                "eac3",
+                "-b:a",
+                "640k",
+                "-tag:v",
+                "hvc1",
+                `I:/toPixie/${message.title}.mp4`,
+              ];
+            } else {
+              command = [
+                "-y",
+                // "-ss", "0",
+                // "-t",
+                // "5",
+                "-i",
+                `${movie}`,
+                "-y",
+                "-vf",
+                "scale=w=1920:h=1080",
+                "-c:v",
+                "libx265",
+                "-c:a",
+                "eac3",
+                "-ac",
+                "6",
+                "-tag:v",
+                "hvc1",
+                "-pix_fmt",
+                "yuv420p",
+                "-b:v",
+                "4000k",
+                "-movflags",
+                "+faststart",
+                `I:/toPixie/${message.title}.mp4`,
+              ];
+            }
 
             let newProc = spawn("F:/ffmpeg", command);
             newProc.on("error", function (err) {
@@ -107,8 +147,8 @@ wss.on("connection", function (connection) {
                 let parser = stringData.split("=");
 
                 if (parser[5]) {
-                  // let totalDuration = metadata["format"]["duration"];
-                  let totalDuration = 5;
+                  let totalDuration = metadata["format"]["duration"];
+                  // let totalDuration = 5;
                   let currentTranscodedTime = parser[5].split(" ")[0];
                   let seconds = secondsToDhms(currentTranscodedTime);
                   if (seconds) {
@@ -126,9 +166,9 @@ wss.on("connection", function (connection) {
                         );
                         client.send(
                           JSON.stringify({
-                            type: "Syncing",
-                            video: videoObj.video,
-                            percentDone: predictedPercentage,
+                            syncStatus: "Syncing",
+                            title: message.title,
+                            percentage: predictedPercentage,
                             type: "movie",
                           })
                         );
@@ -144,20 +184,20 @@ wss.on("connection", function (connection) {
                 client.send(
                   JSON.stringify({
                     type: "Syncing",
-                    title: videoObj.title,
-                    percentDone: 100,
+                    title: message.title,
+                    percentage: 100,
                     type: "movie",
                   })
                 );
               });
-              videoObj = undefined;
+              message = undefined;
             });
           };
           newJob();
         });
       }
 
-      if (videoObj.type === "tv") {
+      if (message.type === "tv") {
         function emptyDir(dirPath) {
           const dirContents = fs.readdirSync(dirPath); // List dir content
 
@@ -189,42 +229,44 @@ wss.on("connection", function (connection) {
 
         console.log("Directory created successfully!");
         pool.query(
-          `SELECT * FROM tv WHERE title = '${videoObj.show}'`,
+          `SELECT * FROM tv WHERE title = '${message.show}'`,
           async (er, res) => {
             pool.query(
-              `SELECT * FROM episodes WHERE title = '${videoObj.show}'`,
+              `SELECT * FROM episodes WHERE title = '${message.show}'`,
               async (e, epInfo) => {
-                let seasonIterator = videoObj.season;
-                videoObj.overview = epInfo[0].overview;
+                let seasonIterator = message.season;
+                message.overview = epInfo[0].overview;
                 const files = [];
 
-                const filePath = videoObj.filePath;
-                const seasonGrabber = videoObj.season;
+                const filePath = message.filePath;
+                const seasonGrabber = message.season;
                 await ffmpeg.ffprobe(filePath, (e, metadata) => {
                   let newProc = spawn("J:/ffmpeg", [
                     // "-ss",
                     // "0",
                     // "-t",
-                    // "15",
+                    // "5",
+                    "-y",
                     "-i",
                     filePath,
                     "-y",
                     "-vf",
                     "scale=w=1920:h=1080",
                     "-c:v",
-                    "libx264",
+                    "libx265",
                     "-c:a",
-                    "aac",
+                    "eac3",
                     "-ac",
                     "6",
-                    // "-tag:v", "hvc1",
-                    "-pix_fmt",
-                    "yuv420p",
+                    "-tag:v",
+                    "hvc1",
+                    // "-pix_fmt",
+                    // "yuv420p",
                     "-b:v",
-                    "2000k",
+                    "4000k",
                     "-movflags",
                     "+faststart",
-                    `J:/toPixie/${videoObj.title.replace("?", "")}.mp4`,
+                    `J:/toPixie/${message.title.replace("?", "")}.mp4`,
                   ]);
                   newProc.on("error", function (err) {
                     console.log("ls error", err);
@@ -248,7 +290,7 @@ wss.on("connection", function (connection) {
 
                       if (parser[5]) {
                         let totalDuration = metadata["format"]["duration"];
-                        // let totalDuration = 15;
+                        // let totalDuration = 5;
                         let currentTranscodedTime = parser[5].split(" ")[0];
                         let seconds = secondsToDhms(currentTranscodedTime);
                         if (seconds) {
@@ -267,8 +309,8 @@ wss.on("connection", function (connection) {
                               client.send(
                                 JSON.stringify({
                                   type: "Syncing",
-                                  title: videoObj.title,
-                                  percentDone: predictedPercentage,
+                                  title: message.title,
+                                  percentage: predictedPercentage,
                                   type: "tv",
                                 })
                               );
@@ -280,19 +322,20 @@ wss.on("connection", function (connection) {
                   });
                   newProc.on("close", function (code) {
                     clients.forEach((client) => {
-                      client.send(
-                        JSON.stringify({
-                          type: "Syncing",
-                          title: videoObj.show,
-                          percentDone: 100,
-                          type: "tv",
-                          season: videoObj.season,
-                          epTitle: videoObj.title,
-                          overview: videoObj.overview,
-                        })
-                      );
+                      const senderObj = {
+                        type: "Syncing",
+                        title: message.show,
+                        percentage: 100,
+                        type: "tv",
+                        season: message.season,
+                        epTitle: message.title,
+                        overview: message.overview,
+                        epNumber: message.epNumber,
+                      };
+                      console.log(senderObj);
+                      client.send(JSON.stringify(senderObj));
                     });
-                    videoObj = undefined;
+                    message = undefined;
                   });
                 });
               }
@@ -301,23 +344,23 @@ wss.on("connection", function (connection) {
         );
       }
 
-      if (videoObj.type === "transcoding") {
+      if (message.type === "transcoding") {
         backendClient.send(
-          JSON.stringify({ type: "transcoding", video: videoObj.video })
+          JSON.stringify({ type: "transcoding", video: message.video })
         );
       }
 
-      if (videoObj.type === "Downloading") {
-        clients.forEach((client) => {
-          client.send(
-            JSON.stringify({
-              type: "Downloading",
-              video: videoObj.video,
-              percentDone: 100,
-            })
-          );
-        });
-      }
+      // if (message.type === "Downloading") {
+      //   clients.forEach((client) => {
+      //     client.send(
+      //       JSON.stringify({
+      //         type: "Downloading",
+      //         video: message.video,
+      //         percentage: 100,
+      //       })
+      //     );
+      //   });
+      // }
 
       if (message.type === "binary") {
         console.log(
@@ -326,23 +369,23 @@ wss.on("connection", function (connection) {
         connection.sendBytes(message.binaryData);
       }
 
-      if (videoObj.type === "finished downloading") {
-        fs.rmdir(`F:/toPixie/${videoObj.video}`, (err, res) => {
+      if (message.type === "finished downloading") {
+        fs.rmdir(`F:/toPixie/${message.video}`, (err, res) => {
           console.log(
             "Removed dir after complete download: ",
-            videoObj.video,
+            message.video,
             err,
             res
           );
         });
       }
 
-      if (videoObj.type === "Syncing complete") {
+      if (message.type === "Syncing complete") {
         clients.send(
           JSON.stringify({
             type: "Syncing complete",
-            video: videoObj.video,
-            percentDone: 100,
+            video: message.video,
+            percentage: 100,
           })
         );
       }

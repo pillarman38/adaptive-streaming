@@ -1,9 +1,11 @@
-<app-side-bar></app-side-bar>
+<!-- <app-side-bar></app-side-bar> -->
 <div id="wrapper" #wrapper>
     <div id="iframePlacer" #iframePlacer></div>
     <div id="info" #info (mouseover)="hover()" (mouseout)="hoverOut()">
         <img src="{{coverArt}}" id="coverArt">
-        <img id="playBtn" src="http://192.168.0.154:4012/assets/playVideo.png" #playBtn (click)="playMovie()">
+        <div id="playBtnContainer" #playBtnContainer>
+            <img id="playBtn" src="http://192.168.0.154:4012/assets/playVideo.png" #playBtn (click)="playMovie()">
+        </div>
         <p id="plot">{{plot}}</p>
     </div>
 

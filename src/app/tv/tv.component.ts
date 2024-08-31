@@ -7,10 +7,11 @@ import {
   ViewChildren,
   HostListener,
 } from "@angular/core";
-import { SmartTvComponent } from "smart-tv";
+// import { SmartTvComponent } from "smart-tv";
 import { HttpClient } from "@angular/common/http";
 import { Router } from "@angular/router";
 import { InfoStoreService, showInfo } from "../info-store.service";
+import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 import { SideBarComponent } from "../side-bar/side-bar.component";
 
 @Component({
@@ -20,8 +21,7 @@ import { SideBarComponent } from "../side-bar/side-bar.component";
 })
 export class TvComponent implements OnInit {
   shows: Array<showInfo> = [];
-  smartTv: any;
-  index = 0;
+  index: number = 0;
   movies: Array<showInfo> = [];
   currentBox: showInfo = this.infoStore.showInfo;
   poster: string | undefined = "";
@@ -34,67 +34,35 @@ export class TvComponent implements OnInit {
 
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
-    console.log("EVENT: ", event);
-
-    this.smartTv.shifter(event);
-    const ind = this.smartTv.getCurrentIndex();
+    const ind = this.smartTv.smartTv?.navigate(event);
     console.log("THI IND: ", ind);
+    this.index = ind?.currentIndex || 0;
 
-    if (ind.list.name === "tv") {
-      this.index = ind.index;
-      console.log("THE INDEX: ", this.index);
-
-      this.currentBox = this.shows[this.index];
-      console.log("CURRENT BOX: ", this.currentBox, this.shows);
-
-      this.image.nativeElement.style.opacity = "0";
-      await this.delay(1000);
-
-      console.log("NEW POSTER: ", this.currentBox.backgroundPoster);
-
-      this.poster = this.currentBox.backgroundPoster;
-      this.delay(1000);
-      this.image.nativeElement.style.opacity = "1";
-
-      if (event.key === "Enter") {
-        console.log(this.index, this.shows[this.index]);
-        this.infoStore.showInfo = this.shows[this.index];
-        console.log("SELECTED SHOW: ", this.shows[this.index], this.index);
-
-        this.router.navigateByUrl("/seasons");
-      }
+    if (ind?.borderReached === "left edge") {
+      this.smartTv.smartTv?.switchList("sideBar", 0);
     }
-
-    if (ind.list.name === "sideBar") {
-      this.index = ind.index;
-      console.log("SIDE BAR: ", event);
-
-      if (event.key === "Enter") {
-        console.log(this.index, this.shows[this.index]);
-        // this.infoStore.videoInfo = this.shows[this.index];
-        if (this.index === 1) {
-          this.router.navigateByUrl("/videoSelection");
-        }
-        if (this.index === 2) {
-          this.router.navigateByUrl("/tv");
-        }
-      }
+    if (
+      ind?.borderReached === "right edge" &&
+      ind?.currentListName === "sideBar"
+    ) {
+      this.smartTv.smartTv?.switchList("tv", 0);
+    }
+    if (ind?.borderReached === "right edge" && ind?.currentListName === "tv") {
+      this.smartTv.smartTv?.wrapRight();
     }
   }
 
   @HostListener("window:resize", ["$event"])
   onResize(event: any) {
     console.log(event.target.innerWidth);
-    this.smartTv.windowResize();
+    this.smartTv.smartTv?.windowResize();
   }
   constructor(
     private http: HttpClient,
     private router: Router,
-    private infoStore: InfoStoreService
-  ) {
-    // this.smartTv = new SmartTvComponent();
-  }
-
+    private infoStore: InfoStoreService,
+    private smartTv: SmartTvLibSingletonService
+  ) {}
   onHover(e: number, listName: string) {
     if (listName === "tv") {
       // const ind = this.smartTv.findAndSetIndex(e, "tv");
@@ -121,9 +89,9 @@ export class TvComponent implements OnInit {
     this.image.nativeElement.style.opacity = "1";
   }
 
-  ngAfterViewInit() {
-    this.smartTv.currentBox = 0;
-  }
+  // ngAfterViewInit() {
+  //   this.smartTv.currentBox = 0;
+  // }
 
   ngOnInit(): void {
     this.infoStore.catchSideBarHover().subscribe((e: number) => {
@@ -138,40 +106,14 @@ export class TvComponent implements OnInit {
         this.shows = res;
         this.currentBox = res[this.index];
         this.poster = this.currentBox.backgroundPoster;
-        this.smartTv.addOrChangeElems(
-          [
-            {
-              name: "tv",
-              elements: this.boxes,
-              listDirections: [
-                {
-                  moveToNewListOn: {
-                    direction: "left",
-                  },
-                  newFocusList: "sideBar",
-                },
-              ],
-            },
-            {
-              name: "sideBar",
-              elements: this.sideBar.homepageList,
-              wrap: false,
-              listDirections: [
-                {
-                  moveToNewListOn: {
-                    direction: "right",
-                  },
-                  newFocusList: "tv",
-                },
-              ],
-            },
-          ],
-          {
-            listToStartWith: "tv",
-            indexOfStart: 0,
-            delay: 500,
-          }
-        );
+        setTimeout(() => {
+          this.smartTv.smartTv?.addCurrentList({
+            startingList: true,
+            listName: "tv",
+            startingIndex: 0,
+            listElements: this.boxes,
+          });
+        }, 1000);
       });
   }
 }

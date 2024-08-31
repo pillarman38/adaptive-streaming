@@ -14,7 +14,7 @@ import {
   showInfo,
 } from "../info-store.service";
 import { HttpClient } from "@angular/common/http";
-import { SmartTvComponent } from "smart-tv";
+import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 import { Router } from "@angular/router";
 import { SeaseonChangesService } from "../seaseon-changes.service";
 import { SideBarComponent } from "../side-bar/side-bar.component";
@@ -28,7 +28,6 @@ export class SeasonsComponent implements OnInit {
   seasons: Array<seasonInfo> = [];
   selectedSeason: number = 0;
   eps: Array<movieInfo> = [];
-  smartTv: any;
   index: number = 0;
   currentBox: movieInfo = this.infoStore.videoInfo;
 
@@ -39,47 +38,41 @@ export class SeasonsComponent implements OnInit {
   @HostListener("window:resize", ["$event"])
   onResize(event: any) {
     console.log(event.target.innerWidth);
-    this.smartTv.windowResize();
+    this.smartTv.smartTv?.windowResize();
   }
 
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
-    this.smartTv.shifter(event);
+    console.log("EVENT: ", event);
 
-    const ind = this.smartTv.getCurrentIndex();
-    console.log("IND: ", ind);
-
-    if (ind.list.name === "episodes") {
-      this.index = ind.index;
-      this.currentBox = this.eps[ind.index];
-      console.log("THI IND: ", ind, this.currentBox);
-
-      if (event.key === "Enter") {
-        // const ind = this.smartTv.findAndSetIndex(event, "episodes");
-
-        console.log("EPISODE: ", this.index, this.eps[this.index]);
-        this.infoStore.videoInfo = this.eps[this.index];
-        this.router.navigateByUrl("/player");
-      }
+    const ind = this.smartTv.smartTv?.navigate(event);
+    console.log("THI IND: ", ind);
+    if (
+      ind?.borderReached === "left edge" &&
+      ind?.currentListName === "seasons"
+    ) {
+      this.smartTv.smartTv?.switchList("sideBar", 0);
     }
 
-    if (ind.list.name === "seasons") {
-      this.selectSeason(ind.index);
+    if (
+      ind?.borderReached === "right edge" &&
+      ind?.currentListName === "sideBar"
+    ) {
+      this.smartTv.smartTv?.switchList("seasons", 0);
     }
 
-    if (ind.list.name === "sideBar") {
-      this.index = ind.index;
+    if (
+      ind?.borderReached === "right edge" &&
+      ind?.currentListName === "seasons"
+    ) {
+      this.smartTv.smartTv?.switchList("episodes", 0);
+    }
 
-      console.log("SIDE BAR: ", this.index);
-
-      if (event.key === "Enter") {
-        if (this.index === 1) {
-          this.router.navigateByUrl("/videoSelection");
-        }
-        if (this.index === 2) {
-          this.router.navigateByUrl("/tv");
-        }
-      }
+    if (
+      ind?.borderReached === "left edge" &&
+      ind?.currentListName === "episodes"
+    ) {
+      this.smartTv.smartTv?.switchList("seasons", 0);
     }
   }
 
@@ -87,7 +80,8 @@ export class SeasonsComponent implements OnInit {
     private infoStore: InfoStoreService,
     private http: HttpClient,
     private router: Router,
-    private seasonService: SeaseonChangesService
+    private seasonService: SeaseonChangesService,
+    private smartTv: SmartTvLibSingletonService
   ) {
     // this.smartTv = new SmartTvComponent();
   }
@@ -116,11 +110,6 @@ export class SeasonsComponent implements OnInit {
     this.seasonService.newSelectedseason(this.selectedSeason);
   }
 
-  ngAfterViewInit() {
-    this.smartTv.currentBox = 0;
-    console.log("GET ELEMS: ", this.seasonsElements, this.boxes);
-  }
-
   ngOnInit(): void {
     this.infoStore.catchSideBarHover().subscribe((e: number) => {
       this.onHover(e, "sideBar");
@@ -130,10 +119,20 @@ export class SeasonsComponent implements OnInit {
       console.log("NEW SEASON: ", res);
 
       this.selectedSeason = res;
+
+      this.smartTv.smartTv?.removeList("episodes");
+      setTimeout(() => {
+        this.smartTv.smartTv?.addCurrentList({
+          listName: "episodes",
+          startingIndex: 0,
+          listElements: this.boxes,
+        });
+      }, 1000);
+
       this.eps = this.seasons[res].episodes;
       this.index = 0;
       this.currentBox = res[this.index];
-      this.smartTv.currentBox = 0;
+      // this.smartTv.currentBox = 0;
     });
 
     if (this.infoStore.videoInfo.pid > 0) {
@@ -159,57 +158,20 @@ export class SeasonsComponent implements OnInit {
         this.eps = this.seasons[0].episodes;
         this.currentBox = res[this.index];
 
-        this.smartTv.addOrChangeElems(
-          [
-            {
-              name: "episodes",
-              elements: this.boxes,
-              listDirections: [
-                {
-                  moveToNewListOn: {
-                    direction: "left",
-                  },
-                  newFocusList: "seasons",
-                },
-              ],
-            },
-            {
-              name: "seasons",
-              elements: this.seasonsElements,
-              listDirections: [
-                {
-                  moveToNewListOn: {
-                    direction: "left",
-                  },
-                  newFocusList: "sideBar",
-                },
-                {
-                  moveToNewListOn: {
-                    direction: "right",
-                  },
-                  newFocusList: "episodes",
-                },
-              ],
-            },
-            {
-              name: "sideBar",
-              elements: this.sideBar.homepageList,
-              listDirections: [
-                {
-                  moveToNewListOn: {
-                    direction: "right",
-                  },
-                  newFocusList: "seasons",
-                },
-              ],
-            },
-          ],
-          {
-            listToStartWith: "episodes",
-            indexOfStart: 0,
-            delay: 500,
-          }
-        );
+        setTimeout(() => {
+          this.smartTv.smartTv?.addCurrentList({
+            startingList: true,
+            listName: "seasons",
+            startingIndex: 0,
+            listElements: this.seasonsElements,
+          });
+
+          this.smartTv.smartTv?.addCurrentList({
+            listName: "episodes",
+            startingIndex: 0,
+            listElements: this.boxes,
+          });
+        }, 1000);
       });
   }
 }

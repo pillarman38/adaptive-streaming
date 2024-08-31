@@ -13,7 +13,7 @@ import {
 import { InfoStoreService } from "../info-store.service";
 import { HttpClient } from "@angular/common/http";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
-import { SmartTvComponent } from "smart-tv";
+import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 
 @Pipe({
   name: "safeHtml",
@@ -33,7 +33,6 @@ export class SafeHtmlPipe implements PipeTransform {
 })
 export class PlayerComponent implements OnInit {
   location: SafeResourceUrl = "";
-  smartTv: any;
   index: number = 0;
   currentTime: number = 0;
   event: any;
@@ -49,24 +48,16 @@ export class PlayerComponent implements OnInit {
   async onKeyDown(event: KeyboardEvent) {
     console.log("EVENT: ", event);
 
-    this.smartTv.shifter(event);
-    const ind = this.smartTv.getCurrentIndex();
+    const ind = this.smartTv.smartTv?.navigate(event);
     console.log("THI IND: ", ind);
-
-    if (ind.list.name === "conrols" && event.key === "Enter") {
-      // console.log(this.index, this.movies[this.index]);
-      // this.infoStore.videoInfo = this.movies[this.index];
-      // this.router.navigateByUrl("/overview");
-    }
   }
 
   constructor(
     private infoStore: InfoStoreService,
     private http: HttpClient,
-    private sanitizer: DomSanitizer
-  ) {
-    // this.smartTv = new SmartTvComponent();
-  }
+    private sanitizer: DomSanitizer,
+    private smartTv: SmartTvLibSingletonService
+  ) {}
 
   seekBarClick($event: any) {
     var totalWidth = 1920;
@@ -157,23 +148,17 @@ export class PlayerComponent implements OnInit {
     // this.location = this.infoStore.videoInfo.location
     this.infoStore.videoInfo.browser = "Safari";
 
-    this.getVideo();
+    // this.getVideo();
 
     setTimeout(() => {
-      this.smartTv.addOrChangeElems(
-        [
-          {
-            name: "controls",
-            elements: this.controlBtns,
-            listDirections: [],
-          },
-        ],
-        {
-          listToStartWith: "controls",
-          indexOfStart: 0,
-          delay: 500,
-        }
-      );
-    }, 500);
+      setTimeout(() => {
+        this.smartTv.smartTv?.addCurrentList({
+          startingList: true,
+          listName: "controlBtns",
+          startingIndex: 0,
+          listElements: this.controlBtns,
+        });
+      }, 500);
+    });
   }
 }

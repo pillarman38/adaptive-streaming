@@ -13,7 +13,7 @@ import { Router } from "@angular/router";
 import { InfoStoreService, movieInfo } from "../info-store.service";
 import { DomSanitizer } from "@angular/platform-browser";
 import { SideBarComponent } from "../side-bar/side-bar.component";
-import { SmartTvComponent } from "smart-tv";
+import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 
 @Component({
   selector: "app-video-selection",
@@ -31,7 +31,7 @@ export class VideoSelectionComponent implements OnInit {
     private http: HttpClient,
     private router: Router,
     private infoStore: InfoStoreService,
-    private smartTv: SmartTvComponent
+    private smartTv: SmartTvLibSingletonService
   ) {}
 
   @ViewChild("wrapper") wrapper!: ElementRef;
@@ -43,58 +43,29 @@ export class VideoSelectionComponent implements OnInit {
   async onKeyDown(event: KeyboardEvent) {
     console.log("EVENT: ", event);
 
-    const ind = this.smartTv.navigate(event);
+    const ind = this.smartTv.smartTv?.navigate(event);
     console.log("THI IND: ", ind);
-    if ((ind.borderReached = "left edge")) {
-      this.smartTv.wrapLeft();
+    if (ind?.borderReached === "left edge") {
+      this.smartTv.smartTv?.switchList("sideBar", 0);
     }
-
-    // if (ind.name === "movies") {
-    //   this.index = ind.index;
-    //   console.log("THE INDEX: ", this.index);
-
-    //   this.currentBox = this.movies[this.index];
-    //   console.log(this.currentBox);
-
-    //   this.image.nativeElement.style.opacity = "0";
-    //   await this.delay(1000);
-
-    //   console.log("NEW POSTER: ", this.currentBox.backgroundPoster);
-
-    //   this.poster = this.currentBox.backgroundPoster;
-    //   this.delay(1000);
-    //   this.image.nativeElement.style.opacity = "1";
-
-    //   if (event.key === "Enter") {
-    //     console.log(this.index, this.movies[this.index]);
-    //     this.infoStore.videoInfo = this.movies[this.index];
-
-    //     this.router.navigateByUrl("/overview");
-    //   }
-    // }
-
-    // if (ind.name === "sideBar") {
-    //   this.index = ind.index;
-
-    //   console.log("SIDE BAR: ", event);
-
-    //   if (event.key === "Enter") {
-    //     console.log(this.index, this.movies[this.index]);
-    //     this.infoStore.videoInfo = this.movies[this.index];
-    //     if (this.index === 0) {
-    //       this.router.navigateByUrl("/videoSelection");
-    //     }
-    //     if (this.index === 2) {
-    //       this.router.navigateByUrl("/tv");
-    //     }
-    //   }
-    // }
+    if (
+      ind?.borderReached === "right edge" &&
+      ind.currentListName === "sideBar"
+    ) {
+      this.smartTv.smartTv?.switchList("movies", 0);
+    }
+    if (
+      ind?.borderReached === "right edge" &&
+      ind.currentListName === "movies"
+    ) {
+      this.smartTv.smartTv?.wrapRight();
+    }
   }
 
   @HostListener("window:resize", ["$event"])
   onResize(event: any) {
     console.log(event.target.innerWidth);
-    this.smartTv.windowResize();
+    this.smartTv.smartTv?.windowResize();
   }
 
   delay(ms: number) {
@@ -108,10 +79,10 @@ export class VideoSelectionComponent implements OnInit {
   }
 
   onHover(e: number, listName: string) {
-    console.log("EVVVENMT: ", e);
+    console.log("EVVVENMT: ", e, listName);
     if (listName === "movies") {
-      // const ind = this.smartTv.findAndSetIndex(e, "movies");
-      // this.index = ind.index;
+      const ind = this.smartTv.smartTv?.findAndSetIndex(e, listName);
+      this.index = ind.index;
     }
     // if (listName === "sideBar") {
     //   this.smartTv.findAndSetIndex(e, "sideBar");
@@ -120,11 +91,6 @@ export class VideoSelectionComponent implements OnInit {
 
   async onImageLoad() {
     this.image.nativeElement.style.opacity = "1";
-  }
-
-  ngAfterViewInit() {
-    console.log("HOMEPAGE LIST: ", this.sideBar);
-    // this.smartTv.currentBox = 0;
   }
 
   ngOnInit() {
@@ -141,8 +107,11 @@ export class VideoSelectionComponent implements OnInit {
         this.currentBox = res[this.index];
         this.poster = this.currentBox.backgroundPoster;
         setTimeout(() => {
-          this.smartTv.addCurrentList({
-            startingList: "movies",
+          console.log("SMART TV VIDEO: ", this.smartTv);
+
+          this.smartTv.smartTv?.addCurrentList({
+            startingList: true,
+            listName: "movies",
             startingIndex: 0,
             listElements: this.boxes,
           });

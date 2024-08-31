@@ -14,9 +14,9 @@ import {
 import { InfoStoreService, movieInfo } from "../info-store.service";
 import { Router } from "@angular/router";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
-import { SmartTvComponent } from "smart-tv";
 import { SideBarComponent } from "../side-bar/side-bar.component";
 import { HttpClient } from "@angular/common/http";
+import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 
 @Pipe({
   name: "safeHtml",
@@ -41,8 +41,15 @@ export class OverviewComponent implements OnInit, AfterViewInit {
   trailer: string = "";
   coverArt = "";
   currentBox: movieInfo = this.infoStore.videoInfo;
-  smartTv: any;
   index = 0;
+
+  constructor(
+    private infoStore: InfoStoreService,
+    private router: Router,
+    private renderer: Renderer2,
+    private http: HttpClient,
+    private smartTv: SmartTvLibSingletonService
+  ) {}
 
   @ViewChild("right") right!: ElementRef;
   @ViewChild("left") left!: ElementRef;
@@ -52,51 +59,36 @@ export class OverviewComponent implements OnInit, AfterViewInit {
   @ViewChild("castList") castList!: ElementRef;
   @ViewChild("info") info!: ElementRef;
   @ViewChildren("playBtn") playBtn!: QueryList<ElementRef>;
-  @ViewChild(SideBarComponent) sideBar!: SideBarComponent;
+  // @ViewChild(SideBarComponent) sideBar!: SideBarComponent;
+  @ViewChild(SideBarComponent) sideBarComponent!: SideBarComponent;
 
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
     console.log("EVENT: ", event);
 
-    this.smartTv.shifter(event);
-    const ind = this.smartTv.getCurrentIndex();
+    const ind = this.smartTv.smartTv?.navigate(event);
     console.log("THI IND: ", ind);
 
-    if (ind.list.name === "playBtn") {
-      if (event.key === "Enter") {
-        console.log(this.index, this.infoStore.videoInfo);
-        this.playMovie();
-      }
+    if (
+      ind?.borderReached === "right edge" &&
+      ind?.currentListName === "playBtn"
+    ) {
+      this.smartTv.smartTv?.switchList("sideBar", 0);
     }
 
-    if (ind.list.name === "sideBar") {
-      this.index = ind.index;
-
-      console.log("SIDE BAR: ", event);
-
-      if (event.key === "Enter") {
-        // console.log(this.index, this.movies[this.index]);
-        // this.infoStore.videoInfo = this.movies[this.index];
-        if (this.index === 0) {
-          this.router.navigateByUrl("/search");
-        }
-        if (this.index === 1) {
-          this.router.navigateByUrl("/videoSelection");
-        }
-        if (this.index === 2) {
-          this.router.navigateByUrl("/tv");
-        }
-      }
+    if (
+      ind?.borderReached === "left edge" &&
+      ind?.currentListName === "playBtn"
+    ) {
+      this.smartTv.smartTv?.switchList("sideBar", 0);
     }
-  }
 
-  constructor(
-    private infoStore: InfoStoreService,
-    private router: Router,
-    private renderer: Renderer2,
-    private http: HttpClient
-  ) {
-    // this.smartTv = new SmartTvComponent();
+    if (
+      ind?.borderReached === "right edge" &&
+      ind?.currentListName === "sideBar"
+    ) {
+      this.smartTv.smartTv?.switchList("playBtn", 0);
+    }
   }
 
   playMovie() {
@@ -136,7 +128,6 @@ export class OverviewComponent implements OnInit, AfterViewInit {
     const divElement = this.renderer.createElement("div");
     divElement.id = "iframeHolder";
     this.renderer.setProperty(divElement, "innerHTML", iframeHtml);
-
     // Append the div (with iframe) to the container
     this.renderer.appendChild(this.iframePlacer.nativeElement, divElement);
     setTimeout(() => {
@@ -146,16 +137,39 @@ export class OverviewComponent implements OnInit, AfterViewInit {
       // plotSection.style.transition = "opacity 2.0s"
       this.castList.nativeElement.style.opacity = "0";
       this.info.nativeElement.style.opacity = "0";
-
       // this.castList.style.transition = "opacity 2.0s"
     }, 3000);
   }
-
+  onHover(e: number, listName: string) {
+    console.log("EVVVENMT: ", e);
+    if (listName === "movies") {
+      // const ind = this.smartTv.findAndSetIndex(e, "movies");
+      // this.index = ind.index;
+    }
+    // if (listName === "sideBar") {
+    //   this.smartTv.findAndSetIndex(e, "sideBar");
+    // }
+  }
   ngOnInit(): void {
     this.plot = this.infoStore.videoInfo.overview;
     this.cast = JSON.parse(this.infoStore.videoInfo.cast);
     this.coverArt = this.infoStore.videoInfo.coverArt;
     console.log("PID: ", this.infoStore.videoInfo.pid);
+
+    setTimeout(() => {
+      console.log(
+        "SIDEBAR: ",
+        this.sideBarComponent,
+        this.smartTv.smartTv?.listsArr
+      );
+
+      this.smartTv.smartTv?.addCurrentList({
+        startingList: true,
+        listName: "playBtn",
+        startingIndex: 0,
+        listElements: this.playBtn,
+      });
+    }, 1000);
 
     if (this.infoStore.videoInfo.pid > 0) {
       console.log("INSIDE PID: ");
@@ -168,42 +182,5 @@ export class OverviewComponent implements OnInit, AfterViewInit {
           console.log("RESPONDED: ", res);
         });
     }
-
-    setTimeout(() => {
-      this.smartTv.addOrChangeElems(
-        [
-          {
-            name: "playBtn",
-            elements: this.playBtn,
-            listDirections: [
-              {
-                moveToNewListOn: {
-                  direction: "left",
-                },
-                newFocusList: "sideBar",
-              },
-            ],
-          },
-          {
-            name: "sideBar",
-            elements: this.sideBar.homepageList,
-            wrap: false,
-            listDirections: [
-              {
-                moveToNewListOn: {
-                  direction: "right",
-                },
-                newFocusList: "playBtn",
-              },
-            ],
-          },
-        ],
-        {
-          listToStartWith: "playBtn",
-          indexOfStart: 0,
-          delay: 500,
-        }
-      );
-    }, 500);
   }
 }
