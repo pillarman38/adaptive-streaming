@@ -15,6 +15,7 @@ router.post("/movies", (req, res) => {
   models.getAllMovies(
     {
       pid: req.body["pid"],
+      offset: req.body["offset"],
     },
     (err, results) => {
       if (err) {
@@ -24,6 +25,17 @@ router.post("/movies", (req, res) => {
       }
     }
   );
+});
+
+router.get("/updatemovies", (req, res) => {
+  console.log("body", req.body);
+  models.updateMovies((err, results) => {
+    if (err) {
+      res.send(err);
+    } else {
+      res.send(results);
+    }
+  });
 });
 
 router.post("/selectedShow", (req, res) => {
@@ -218,6 +230,16 @@ router.get("/eplist", (req, res) => {
 
 router.post("/season", (req, res) => {
   tv.getSpecificSeason(req.body, (err, results) => {
+    if (err) {
+      res.send(err);
+    } else {
+      res.send(results);
+    }
+  });
+});
+
+router.post("/transmux", (req, res) => {
+  models.changeTransmuxStatus(req.body, (err, results) => {
     if (err) {
       res.send(err);
     } else {

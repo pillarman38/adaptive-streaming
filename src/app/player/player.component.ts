@@ -37,6 +37,9 @@ export class PlayerComponent implements OnInit {
   currentTime: number = 0;
   event: any;
   show: boolean = false;
+  paused: boolean = false;
+  subtitle: Boolean = false;
+  subtitleUrl: string = "";
 
   @ViewChild("videoContainer") videoContainer!: ElementRef;
   @ViewChild("seekBar") seekBar!: ElementRef;
@@ -50,6 +53,9 @@ export class PlayerComponent implements OnInit {
 
     const ind = this.smartTv.smartTv?.navigate(event);
     console.log("THI IND: ", ind);
+    if (event.code === "Space") {
+      this.playPause();
+    }
   }
 
   constructor(
@@ -58,6 +64,25 @@ export class PlayerComponent implements OnInit {
     private sanitizer: DomSanitizer,
     private smartTv: SmartTvLibSingletonService
   ) {}
+
+  playPause() {
+    this.videoElem.nativeElement.paused
+      ? this.videoElem.nativeElement.play()
+      : this.videoElem.nativeElement.pause();
+    if (this.videoElem.nativeElement.paused) {
+      this.paused = true;
+    } else {
+      this.paused = false;
+    }
+  }
+
+  skipButtons(skipBy: number) {
+    this.paused = true;
+    this.videoElem.nativeElement.pause();
+    this.currentTime = skipBy;
+    this.infoStore.videoInfo.seekTime = this.currentTime;
+    this.getVideo();
+  }
 
   seekBarClick($event: any) {
     var totalWidth = 1920;
@@ -79,10 +104,7 @@ export class PlayerComponent implements OnInit {
 
   getNextEp() {
     this.http
-      .post(
-        `http://192.168.0.154:4012/api/mov/nextep`,
-        this.infoStore.videoInfo
-      )
+      .post(`http://192.168.1.6:5012/api/mov/nextep`, this.infoStore.videoInfo)
       .subscribe((res: any) => {
         console.log("NEXT EP: ", res);
         this.infoStore.videoInfo = res[0];
@@ -108,6 +130,10 @@ export class PlayerComponent implements OnInit {
       console.log("A MOVIE");
       this.show = false;
     }
+    this.subtitle = this.infoStore.videoInfo.srtUrl ? true : false;
+    if (this.infoStore.videoInfo.srtUrl) {
+      this.subtitleUrl = this.infoStore.videoInfo.srtUrl;
+    }
 
     if (this?.event?.pid) {
       this.infoStore.videoInfo.pid = this.event.pid;
@@ -115,7 +141,7 @@ export class PlayerComponent implements OnInit {
 
     this.http
       .post(
-        "http://192.168.0.154:4012/api/mov/pullVideo",
+        "http://192.168.1.6:5012/api/mov/pullVideo",
         this.infoStore.videoInfo
       )
       .subscribe((event: any) => {
@@ -134,7 +160,7 @@ export class PlayerComponent implements OnInit {
           this.currentTime += 0.25;
           const percentComplete =
             (this.currentTime / this.infoStore.videoInfo.duration) * 100;
-          console.log("TIMEUPDATE", Math.floor(this.currentTime));
+          // console.log("TIMEUPDATE", Math.floor(this.currentTime));
 
           this.seekBar.nativeElement.style.width = `${percentComplete}%`;
         });
@@ -143,12 +169,19 @@ export class PlayerComponent implements OnInit {
       });
   }
 
+  toggleSubtitle() {
+    console.log("TOGGLE SUBTITLE", this.subtitle);
+
+    this.subtitle = !this.subtitle;
+  }
+
   ngOnInit(): void {
     console.log(this.infoStore);
     // this.location = this.infoStore.videoInfo.location
     this.infoStore.videoInfo.browser = "Safari";
+    this.smartTv.changeVisibility(false);
 
-    // this.getVideo();
+    this.getVideo();
 
     setTimeout(() => {
       setTimeout(() => {

@@ -4,6 +4,7 @@ import {
   OnInit,
   QueryList,
   ViewChildren,
+  HostListener,
 } from "@angular/core";
 import { Router } from "@angular/router";
 import { InfoStoreService } from "../info-store.service";
@@ -23,6 +24,13 @@ export class SideBarComponent implements OnInit {
   ) {}
 
   @ViewChildren("homepageList") homepageList!: QueryList<ElementRef>;
+  // @HostListener("window:keydown", ["$event"])
+  // async onKeyDown(event: KeyboardEvent) {
+  //   console.log("EVENT: ", event);
+
+  //   // const ind = this.smartTv.smartTv?.navigate(event);
+  //   console.log("THI IND SIDE BAAR: ");
+  // }
 
   onHover(e: number) {
     this.infoStore.onSideBarHover(e);

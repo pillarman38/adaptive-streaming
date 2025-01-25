@@ -76,3 +76,13 @@
     position: absolute;
     margin-top: 70px;
 }
+
+#subtitleIconPlacer {
+    width: 64px;
+    height: 64px;
+    margin: 20px;
+}
+
+#subtitleBtn {
+    width: 100%;
+}

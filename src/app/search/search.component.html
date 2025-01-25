@@ -1,10 +1,129 @@
-<!-- <app-side-bar></app-side-bar> -->
-<div id="searchArea">
-    <input type="text" id="searchBar" (keypress)="onKeyPress($event)">
-</div>
-<div id="results">
-    <div *ngFor="let res of results">
+<div id="wrapper" #wrapper>
+  <!-- <app-side-bar></app-side-bar> -->
+  <div id="searchArea">
+      <input type="text" id="searchBar" [(ngModel)]="inputField">
+  </div>
+
+  <!-- <div id="results">
+      <div *ngFor="let res of results">
+          <p>{{res.title}}</p>
+          <img src="http://192.168.1.6:5012{{res.posterUrl}}">
+      </div>
+  </div> -->
+  <div id="list">
+  <div class="boxes" #boxes boxes *ngFor="let res of results; index as i" (mouseover)="onHover(i)" (click)="selectedMedia()">
+      <img src="http://192.168.1.6:5012{{res.posterUrl}}" class="posterArt">
+      <div class="titleCards">
         <p>{{res.title}}</p>
-        <img src="{{res.coverArt}}">
+      </div>
     </div>
+  </div>
+
+  <div *ngIf="!shiftKeyPressed">
+    <div id="keyboard">
+      <div class="row">
+        <button class="key" (click)="onButtonClick($event)">1</button>
+        <button class="key" (click)="onButtonClick($event)">2</button>
+        <button class="key" (click)="onButtonClick($event)">3</button>
+        <button class="key" (click)="onButtonClick($event)">4</button>
+        <button class="key" (click)="onButtonClick($event)">5</button>
+        <button class="key" (click)="onButtonClick($event)">6</button>
+        <button class="key" (click)="onButtonClick($event)">7</button>
+        <button class="key" (click)="onButtonClick($event)">8</button>
+        <button class="key" (click)="onButtonClick($event)">9</button>
+        <button class="key" (click)="onButtonClick($event)">0</button>
+      </div>
+      <div class="row">
+        <button class="key" (click)="onButtonClick($event)">q</button>
+        <button class="key" (click)="onButtonClick($event)">w</button>
+        <button class="key" (click)="onButtonClick($event)">e</button>
+        <button class="key" (click)="onButtonClick($event)">r</button>
+        <button class="key" (click)="onButtonClick($event)">t</button>
+        <button class="key" (click)="onButtonClick($event)">y</button>
+        <button class="key" (click)="onButtonClick($event)">u</button>
+        <button class="key" (click)="onButtonClick($event)">i</button>
+        <button class="key" (click)="onButtonClick($event)">o</button>
+        <button class="key" (click)="onButtonClick($event)">p</button>
+      </div>
+      <div class="row">
+        <button class="key" (click)="onButtonClick($event)">a</button>
+        <button class="key" (click)="onButtonClick($event)">s</button>
+        <button class="key" (click)="onButtonClick($event)">d</button>
+        <button class="key" (click)="onButtonClick($event)">f</button>
+        <button class="key" (click)="onButtonClick($event)">g</button>
+        <button class="key" (click)="onButtonClick($event)">h</button>
+        <button class="key" (click)="onButtonClick($event)">j</button>
+        <button class="key" (click)="onButtonClick($event)">k</button>
+        <button class="key" (click)="onButtonClick($event)">l</button>
+      </div>
+      <div class="row">
+        <button class="key" (click)="onButtonClick($event)">z</button>
+        <button class="key" (click)="onButtonClick($event)">x</button>
+        <button class="key" (click)="onButtonClick($event)">c</button>
+        <button class="key" (click)="onButtonClick($event)">v</button>
+        <button class="key" (click)="onButtonClick($event)">b</button>
+        <button class="key" (click)="onButtonClick($event)">n</button>
+        <button class="key" (click)="onButtonClick($event)">m</button>
+        <button class="key" (click)="onButtonClick($event)">backspace</button>
+      </div>
+      <div class="row">
+        <button class="key" (click)="onButtonClick($event)">shift</button>
+        <button class="key" (click)="onButtonClick($event)">space</button>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="shiftKeyPressed">
+    <div id="keyboard">
+      <div class="row">
+        <button class="key" (click)="onButtonClick($event)">!</button>
+        <button class="key" (click)="onButtonClick($event)">@</button>
+        <button class="key" (click)="onButtonClick($event)">#</button>
+        <button class="key" (click)="onButtonClick($event)">$</button>
+        <button class="key" (click)="onButtonClick($event)">%</button>
+        <button class="key" (click)="onButtonClick($event)">^</button>
+        <button class="key" (click)="onButtonClick($event)">&</button>
+        <button class="key" (click)="onButtonClick($event)">*</button>
+        <button class="key" (click)="onButtonClick($event)">(</button>
+        <button class="key" (click)="onButtonClick($event)">)</button>
+      </div>
+      <div class="row">
+        <button class="key" (click)="onButtonClick($event)">Q</button>
+        <button class="key" (click)="onButtonClick($event)">W</button>
+        <button class="key" (click)="onButtonClick($event)">E</button>
+        <button class="key" (click)="onButtonClick($event)">R</button>
+        <button class="key" (click)="onButtonClick($event)">T</button>
+        <button class="key" (click)="onButtonClick($event)">Y</button>
+        <button class="key" (click)="onButtonClick($event)">U</button>
+        <button class="key" (click)="onButtonClick($event)">I</button>
+        <button class="key" (click)="onButtonClick($event)">O</button>
+        <button class="key" (click)="onButtonClick($event)">P</button>
+      </div>
+      <div class="row">
+        <button class="key" (click)="onButtonClick($event)">A</button>
+        <button class="key" (click)="onButtonClick($event)">S</button>
+        <button class="key" (click)="onButtonClick($event)">D</button>
+        <button class="key" (click)="onButtonClick($event)">F</button>
+        <button class="key" (click)="onButtonClick($event)">G</button>
+        <button class="key" (click)="onButtonClick($event)">H</button>
+        <button class="key" (click)="onButtonClick($event)">J</button>
+        <button class="key" (click)="onButtonClick($event)">K</button>
+        <button class="key" (click)="onButtonClick($event)">L</button>
+      </div>
+      <div class="row">
+        <button class="key" (click)="onButtonClick($event)">Z</button>
+        <button class="key" (click)="onButtonClick($event)">X</button>
+        <button class="key" (click)="onButtonClick($event)">C</button>
+        <button class="key" (click)="onButtonClick($event)">V</button>
+        <button class="key" (click)="onButtonClick($event)">B</button>
+        <button class="key" (click)="onButtonClick($event)">N</button>
+        <button class="key" (click)="onButtonClick($event)">M</button>
+        <button class="key" (click)="onButtonClick($event)">backspace</button>
+      </div>
+      <div class="row">
+        <button class="key" (click)="onButtonClick($event)" id="shiftKeyPressed">shift</button>
+        <button class="key" (click)="onButtonClick($event)">space</button>
+      </div>
+    </div>
+  </div>
 </div>

@@ -4,9 +4,6 @@
 </div>
 
 <div id="wrapper" #wrapper>
-  <!-- <div id="searchWrap">
-    <app-search></app-search>
-  </div> -->
   <div id="info">
     <p id="titleStyling">{{currentBox.title}}</p>
     <div id="overview">
@@ -27,7 +24,7 @@
       <p>Dts HD 5.1</p>
     </div>
 
-    <div *ngIf="currentBox.audio === 'eac3'"class="bubbles">
+    <div *ngIf="currentBox.audio === 'truehd'"class="bubbles">
       <p>Dolby Atmos</p>
     </div>
 
@@ -36,11 +33,11 @@
     </div>
   </div>
 
-  <div id="list">
+  <div id="list" #list>
     <div class="boxes" #boxes boxes *ngFor="let movie of movies; index as i" (mouseover)="onHover(i, 'movies')" (click)="selectMovie()">
-      <img src="{{movie.posterUrl}}" class="coverArt">
+      <img src="{{movie.posterUrl}}" class="posterArt">
       <div class="titleCards">
-        <p>{{movie.title}}</p>
+        <p>{{i}}: {{movie.title}}</p>
       </div>
     </div>
   </div>

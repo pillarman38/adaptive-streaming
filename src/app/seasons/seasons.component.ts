@@ -30,8 +30,7 @@ export class SeasonsComponent implements OnInit {
   eps: Array<movieInfo> = [];
   index: number = 0;
   currentBox: movieInfo = this.infoStore.videoInfo;
-
-  @ViewChildren("boxes") boxes!: QueryList<ElementRef>;
+  @ViewChildren("boxes") boxes!: QueryList<ElementRef<any>>;
   @ViewChildren("seasons") seasonsElements!: QueryList<ElementRef>;
   @ViewChild(SideBarComponent) sideBar!: SideBarComponent;
 
@@ -74,6 +73,35 @@ export class SeasonsComponent implements OnInit {
     ) {
       this.smartTv.smartTv?.switchList("seasons", 0);
     }
+
+    if (ind?.currentListName === "episodes" && ind?.borderReached === "") {
+      this.infoStore.checkBorderOverflow(ind);
+    }
+
+    if (ind?.currentListName === "seasons" && ind?.borderReached === "") {
+      this.infoStore.checkBorderOverflow(ind);
+    }
+
+    if (ind && ind.currentListName === "seasons") {
+      console.log("SELECTED SEASON: ", ind);
+
+      this.selectedSeason = ind.currentIndex;
+      this.updateEpisodes();
+    }
+
+    if (event.code === "Enter" && ind?.currentListName === "sideBar") {
+      switch (ind?.currentIndex) {
+        case 0:
+          this.router.navigateByUrl("/search");
+          break;
+        case 1:
+          this.router.navigateByUrl("/videoSelection");
+          break;
+        case 2:
+          this.router.navigateByUrl("/tv");
+          break;
+      }
+    }
   }
 
   constructor(
@@ -82,22 +110,16 @@ export class SeasonsComponent implements OnInit {
     private router: Router,
     private seasonService: SeaseonChangesService,
     private smartTv: SmartTvLibSingletonService
-  ) {
-    // this.smartTv = new SmartTvComponent();
-  }
+  ) {}
 
   onHover(e: number, listName: string) {
-    if (listName === "episodes") {
-      // const ind = this.smartTv.findAndSetIndex(e, "episodes");
-      // this.index = ind.index;
+    const ind = this.smartTv.smartTv?.findAndSetIndex(e, listName);
+    if (ind?.currentListName === "episodes") {
       console.log("EPISODE: ", this.index, this.eps[this.index]);
       this.infoStore.videoInfo = this.eps[this.index];
     }
-    if (listName === "seasons") {
-      // this.smartTv.findAndSetIndex(e, "seasons");
-    }
-    if (listName === "sideBar") {
-      // this.smartTv.findAndSetIndex(e, "sideBar");
+    if (ind?.currentListName === "seasons") {
+      this.smartTv.smartTv?.findAndSetIndex(e, "seasons");
     }
   }
 
@@ -105,41 +127,34 @@ export class SeasonsComponent implements OnInit {
     this.router.navigateByUrl("/player");
   }
 
-  selectSeason(i: number) {
-    this.selectedSeason = i;
-    this.seasonService.newSelectedseason(this.selectedSeason);
+  trackBySeasons = (index: number, season: any) => {
+    this.updateEpisodes();
+    return index;
+  };
+
+  updateEpisodes() {
+    this.eps = this.seasons[this.selectedSeason].episodes;
+
+    this.smartTv.smartTv?.updateList({
+      listName: "episodes",
+      startingIndex: 0,
+      listElements: this.boxes,
+    });
   }
 
   ngOnInit(): void {
+    console.log("INFOO: ", this.infoStore.showInfo);
+
+    this.smartTv.changeVisibility(true);
     this.infoStore.catchSideBarHover().subscribe((e: number) => {
       this.onHover(e, "sideBar");
-    });
-
-    this.seasonService.getNewSelectedSeason().subscribe((res) => {
-      console.log("NEW SEASON: ", res);
-
-      this.selectedSeason = res;
-
-      this.smartTv.smartTv?.removeList("episodes");
-      setTimeout(() => {
-        this.smartTv.smartTv?.addCurrentList({
-          listName: "episodes",
-          startingIndex: 0,
-          listElements: this.boxes,
-        });
-      }, 1000);
-
-      this.eps = this.seasons[res].episodes;
-      this.index = 0;
-      this.currentBox = res[this.index];
-      // this.smartTv.currentBox = 0;
     });
 
     if (this.infoStore.videoInfo.pid > 0) {
       console.log("INSIDE PID: ");
 
       this.http
-        .post(`http://192.168.0.154:4012/api/mov/pidkill`, {
+        .post(`http://192.168.1.6:5012/api/mov/pidkill`, {
           pid: this.infoStore.videoInfo.pid,
         })
         .subscribe((res) => {
@@ -148,12 +163,10 @@ export class SeasonsComponent implements OnInit {
     }
 
     this.http
-      .post(`http://192.168.0.154:4012/api/mov/seasons`, {
+      .post(`http://192.168.1.6:5012/api/mov/seasons`, {
         show: this.infoStore.showInfo.title,
       })
       .subscribe((res: any) => {
-        console.log("SEASONS: ", res);
-
         this.seasons = res;
         this.eps = this.seasons[0].episodes;
         this.currentBox = res[this.index];

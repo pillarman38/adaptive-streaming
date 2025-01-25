@@ -40,6 +40,7 @@
     height: 150px;
     position: absolute;
     z-index: -1;
+    border-radius: 5px;
 }
 .elementBorder {
     border: 5px solid green;
@@ -60,6 +61,7 @@
     position: absolute;
     margin-top: 100px;
     padding: 0px 0px 2px 5px;
+    border-bottom-left-radius: 5px;
 }
 #backgroundPlacer{
     width: 100vw;

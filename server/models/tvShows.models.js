@@ -1,29 +1,12 @@
 let pool = require("../../config/connections");
 let fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
-let codecGetter = require("./codec-determine");
 const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
 const ffprobePath = require("@ffprobe-installer/ffprobe").path;
-
+const { getFilesRecursively } = require("./fileGrabber");
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
-let chokidar = require("chokidar");
-var showPlayer = false;
-var fetch = require("node-fetch");
-var downloader = require("./downloader");
-const cp = require("child_process");
-const path = require("path");
-const Downloader = require("./downloader");
-var arrOfObj = [];
-var newArr = [];
-var url = "";
-var i = 0;
-var fileLocation = "";
-var newSrc;
-
-var arr = [];
-var killProcess = false;
-var ffstream = ffmpeg();
+const showInfoGrabber = require("./showInfoGrabber");
 
 async function queryForEps(season, show) {
   return new Promise(function (resolve, reject) {
@@ -41,282 +24,217 @@ let tv = {
     fs.readdir("J:/Shows", async (err, res) => {
       pool.query(`SELECT * FROM tv`, async (error, dbRes) => {
         var i = 0;
-
+        dbRes = dbRes.map((itm) => {
+          itm.backdropPhotoUrl = `http://192.168.1.6:5012${itm.backdropPhotoUrl}`;
+          itm.posterPhotoUrl = `http://192.168.1.6:5012${itm.posterUrl}`;
+          itm.coverArt = `http://192.168.1.6:5012${itm.coverArt}`;
+          return itm;
+        });
         let titlesOnly = dbRes.map((itm) => itm.title);
         let showsToAdd = res.filter((itm) => {
           return !titlesOnly.includes(itm);
         });
 
-        async function showIterator() {
-          let showInfo = await fetch(
-            `https://api.themoviedb.org/3/search/tv?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${showsToAdd[i]}`
+        // async function showIterator() {
+        let showInfo = await showInfoGrabber();
+
+        if (showsToAdd.length > 0) {
+          let showSeasonsInfo = await fs.promises.readdir(
+            `J:/Shows/${showsToAdd[i]}`
           );
-          showInfo = await showInfo.json();
-          let showSeasonsInfo;
-          if (showsToAdd.length > 0) {
-            let showSeasonsInfo = await fs.promises.readdir(
-              `J:/Shows/${showsToAdd[i]}`
-            );
-            let castinfo;
-            if (showInfo.results.length > 0) {
-              let cast = await fetch(
-                `https://api.themoviedb.org/3/tv/${showInfo.results[0].id}/credits?api_key=490cd30bbbd167dd3eb65511a8bf2328&language=en-US&append_to_response=episode_groups`
-              );
-              castinfo = await cast.json();
-              castinfo = castinfo.cast.map((castmember) => {
-                return {
-                  name: castmember.name,
-                  picture: `https://image.tmdb.org/t/p/original/${castmember.profile_path}`,
-                };
-              });
-            }
+          let castinfo;
 
-            let showId = showInfo.results[0] ? showInfo.results[0].id : "";
-            let numberOfSeasons = showSeasonsInfo.length || 1;
+          let showId = showInfo.results[0] ? showInfo.results[0].id : "";
+          let numberOfSeasons = showSeasonsInfo.length || 1;
 
-            const downloader = new Downloader();
-            const tvPoster = await downloader.getPoster(
-              showsToAdd[i],
-              showInfo,
-              "tv"
-            );
-            const tvCoverArt = await downloader.getCoverArt(
-              showsToAdd[i],
-              showInfo.results[0],
-              "tv"
-            );
-            let backgroundPoster = await downloader.getBackgroundPoster(
-              showsToAdd[i],
-              showInfo,
-              "tv"
-            );
-            let episodesInfo = [];
-            let numOfEpInSeason = 0;
+          // const downloader = new Downloader();
+          // const tvPoster = await downloader.getPoster(
+          //   showsToAdd[i],
+          //   showInfo,
+          //   "tv"
+          // );
+          // const tvCoverArt = await downloader.getCoverArt(
+          //   showsToAdd[i],
+          //   showInfo.results[0],
+          //   "tv"
+          // );
 
-            let files = [];
+          let episodesInfo = [];
+          let files = [];
 
-            const getFilesRecursively = (directory) => {
-              const filesInDirectory = fs.readdirSync(directory);
-              for (const file of filesInDirectory) {
-                const absolute = path.join(directory, file);
-                if (fs.statSync(absolute).isDirectory()) {
-                  getFilesRecursively(absolute);
-                } else {
-                  files.push(absolute.replace(/\\/g, "/"));
-                }
-              }
-            };
+          getFilesRecursively(`J:/Shows/${showsToAdd[i]}`);
 
-            getFilesRecursively(`J:/Shows/${showsToAdd[i]}`);
+          let audioArr = [];
+          var resolution = "1920x1080";
+          let language = "en";
 
-            let audio;
-            let audioArr = [];
-            var audiocounter = -1;
-            var resolution = "1920x1080";
-            let language = "en";
+          let showInfoToSave = {
+            title: showsToAdd[i],
+            backdropPhotoUrl: tvPoster ? tvPoster : "/assets/four0four.gif",
+            numberOfSeasons,
+            overview: showInfo.results[0] ? showInfo.results[0].overview : "",
+            coverArt: tvCoverArt ? tvCoverArt : "/assets/four0four.gif",
+            cast: castinfo ? JSON.stringify(castinfo) : JSON.stringify(""),
+            audio: audioArr[0].codec_name,
+            resolution,
+            language,
+            epTotal: files.length,
+            posterUrl: tvPoster,
+          };
 
-            await new Promise((resolve) => {
-              ffmpeg.ffprobe(`${files[0]}`, function (err, metaData) {
-                if (err) {
-                  console.log(err);
-                }
-                language = metaData["streams"][0]["tags"]["language"];
-                resolution = `${metaData.streams[0].coded_width}x${metaData.streams[0].coded_height}`;
-                audioArr = metaData.streams.filter((data) => {
-                  if (data.codec_type === "audio") {
-                    {
-                      return data;
-                    }
+          pool.query(`INSERT INTO tv SET ?`, showInfoToSave, (err, res) => {
+            console.log(err, res);
+          });
+
+          let l = 1;
+          async function seasonIterator() {
+            pool.query(
+              `SELECT * FROM seasons WHERE title = '${showsToAdd[i]}'`,
+              async (er, re) => {
+                console.log(er, re);
+
+                if (l > re.length || re === undefined) {
+                  let seasonReq;
+                  let seasonResp;
+
+                  if (showId) {
+                    // seasonReq = await fetch(
+                    //   `https://api.themoviedb.org/3/tv/${showId}/season/${l}?api_key=490cd30bbbd167dd3eb65511a8bf2328`
+                    // );
+                    // seasonResp = await seasonReq.json();
                   }
-                });
-                resolve();
-              });
-            });
+                  let files = [];
+                  // function throughDirectory(Directory) {
+                  //   fs.readdirSync(Directory).forEach((File) => {
+                  //     const absolute = path.join(Directory, File);
+                  //     if (fs.statSync(absolute).isDirectory())
+                  //       return throughDirectory(absolute);
+                  //     else return files.push(absolute);
+                  //   });
+                  // }
+                  // throughDirectory(`J:/Shows/${showsToAdd[i]}`);
+                  // const numOfEpsInSeason = files.filter((filePath) => {
+                  //   const filesParsed = filePath.split("\\");
+                  //   let seasonNumGrab = parseInt(filesParsed[3].split(" ")[1]);
+                  //   if (seasonNumGrab !== l) {
+                  //     return false;
+                  //   } else {
+                  //     return true;
+                  //   }
+                  // });
 
-            let showInfoToSave = {
-              title: showsToAdd[i],
-              backdropPhotoUrl: tvPoster
-                ? tvPoster
-                : "/assets/images/four0four.gif",
-              numberOfSeasons,
-              overview: showInfo.results[0] ? showInfo.results[0].overview : "",
-              coverArt: tvCoverArt
-                ? tvCoverArt
-                : "/assets/images/four0four.gif",
-              cast: castinfo ? JSON.stringify(castinfo) : JSON.stringify(""),
-              audio: audioArr[0].codec_name,
-              resolution,
-              language,
-              epTotal: files.length,
-              backgroundPoster,
-            };
+                  let seasonInfoObj;
 
-            pool.query(`INSERT INTO tv SET ?`, showInfoToSave, (err, res) => {
-              console.log(err, res);
-            });
-
-            let l = 1;
-            async function seasonIterator() {
-              pool.query(
-                `SELECT * FROM seasons WHERE title = '${showsToAdd[i]}'`,
-                async (er, re) => {
-                  console.log(er, re);
-
-                  if (l > re.length || re === undefined) {
-                    let seasonReq;
-                    let seasonResp;
-
-                    if (showId) {
-                      seasonReq = await fetch(
-                        `https://api.themoviedb.org/3/tv/${showId}/season/${l}?api_key=490cd30bbbd167dd3eb65511a8bf2328`
-                      );
-                      seasonResp = await seasonReq.json();
-                    }
-                    let files = [];
-                    function throughDirectory(Directory) {
-                      fs.readdirSync(Directory).forEach((File) => {
-                        const absolute = path.join(Directory, File);
-                        if (fs.statSync(absolute).isDirectory())
-                          return throughDirectory(absolute);
-                        else return files.push(absolute);
-                      });
-                    }
-                    throughDirectory(`J:/Shows/${showsToAdd[i]}`);
-                    const numOfEpsInSeason = files.filter((filePath) => {
-                      const filesParsed = filePath.split("\\");
-                      let seasonNumGrab = parseInt(
-                        filesParsed[3].split(" ")[1]
-                      );
-                      if (seasonNumGrab !== l) {
-                        return false;
-                      } else {
-                        return true;
-                      }
-                    });
-
-                    let seasonInfoObj;
-
-                    if (
-                      seasonResp &&
-                      seasonResp.status_message !==
-                        "The resource you requested could not be found."
-                    ) {
-                      episodesInfo = [...episodesInfo, ...seasonResp.episodes];
-                    } else {
-                      seasonInfoObj = {
-                        title: showsToAdd[i],
-                        season_number: l,
-                        numOfEpInSeason: numOfEpsInSeason.length,
-                        // poster: '/assets/images/four0four.gif'
-                      };
-                    }
-                    let seasonArt;
-
+                  if (
+                    seasonResp &&
+                    seasonResp.status_message !==
+                      "The resource you requested could not be found."
+                  ) {
+                    episodesInfo = [...episodesInfo, ...seasonResp.episodes];
+                  } else {
                     seasonInfoObj = {
                       title: showsToAdd[i],
                       season_number: l,
-                      numOfEpsInSeason: numOfEpsInSeason.length,
-                      // poster: seasonArt,
+                      numOfEpInSeason: numOfEpsInSeason.length,
                     };
+                  }
 
-                    async function saver() {
-                      return await pool.query(
-                        `INSERT INTO seasons SET ?`,
-                        seasonInfoObj,
-                        async (err, resp) => {
-                          for (var e = 0; e < numOfEpsInSeason.length; e++) {
-                            let duration;
-                            await new Promise((resolve) => {
-                              ffmpeg.ffprobe(
-                                `${files[e]}`,
-                                function (err, metaData) {
-                                  duration = Math.floor(
-                                    metaData.format.duration
-                                  );
-                                  resolve();
-                                }
+                  seasonInfoObj = {
+                    title: showsToAdd[i],
+                    season_number: l,
+                    numOfEpsInSeason: numOfEpsInSeason.length,
+                  };
+                  async function saver() {
+                    return await pool.query(
+                      `INSERT INTO seasons SET ?`,
+                      seasonInfoObj,
+                      async (err, resp) => {
+                        for (var e = 0; e < numOfEpsInSeason.length; e++) {
+                          // let duration;
+                          // await new Promise((resolve) => {
+                          //   ffmpeg.ffprobe(
+                          //     `${files[e]}`,
+                          //     function (err, metaData) {
+                          //       duration = Math.floor(metaData.format.duration);
+                          //       resolve();
+                          //     }
+                          //   );
+                          // });
+
+                          const epInfoGrab = episodesInfo.filter((episode) => {
+                            if (
+                              e + 1 === episode.episode_number &&
+                              l === episode.season_number
+                            ) {
+                              return episode;
+                            }
+                          })[0];
+                          const epCoverArt = await downloader.getEPCoverArt(
+                            epInfoGrab,
+                            showsToAdd[i]
+                          );
+
+                          let epInfo = {
+                            title: showsToAdd[i],
+                            epTitle: epInfoGrab
+                              ? epInfoGrab.name
+                                  .replace(/[^\w\s\!\?]/g, "")
+                                  .replace("?", "")
+                              : `${showsToAdd[i]} EP ${e}`,
+                            filePath: numOfEpsInSeason[e],
+                            overview: epInfoGrab ? epInfoGrab.overview : "",
+                            backdropPhotoUrl: epCoverArt,
+                            epNumber: e + 1,
+                            location: `${files[e]
+                              .replace(".mkv", "")
+                              .replace(new RegExp(" ", "g"), "%20")}.m3u8`,
+                            season: l,
+                            resolution: resolution,
+                            seekTime: 0,
+                            duration,
+                          };
+
+                          await pool.query(
+                            `INSERT INTO episodes SET ?`,
+                            epInfo,
+                            async (err, res) => {
+                              console.log(
+                                "EP VS SEASON: ",
+                                e,
+                                numOfEpsInSeason.length,
+                                l,
+                                numberOfSeasons
                               );
-                            });
-
-                            const epInfoGrab = episodesInfo.filter(
-                              (episode) => {
-                                if (
-                                  e + 1 === episode.episode_number &&
-                                  l === episode.season_number
-                                ) {
-                                  return episode;
-                                }
-                              }
-                            )[0];
-                            const epCoverArt = await downloader.getEPCoverArt(
-                              epInfoGrab,
-                              showsToAdd[i]
-                            );
-                            const substitueEpName =
-                              numOfEpsInSeason[e].split("/");
-
-                            let epInfo = {
-                              title: showsToAdd[i],
-                              epTitle: epInfoGrab
-                                ? epInfoGrab.name
-                                    .replace(/[^\w\s\!\?]/g, "")
-                                    .replace("?", "")
-                                : `${showsToAdd[i]} EP ${e}`,
-                              filePath: numOfEpsInSeason[e],
-                              overview: epInfoGrab ? epInfoGrab.overview : "",
-                              backdropPhotoUrl: epCoverArt,
-                              // backgroundPoster,
-                              epNumber: e + 1,
-                              location: `/plexTemp/${files[e]
-                                .replace(".mkv", "")
-                                .replace(new RegExp(" ", "g"), "%20")}.m3u8`,
-                              season: l,
-                              resolution: resolution,
-                              seekTime: 0,
-                              duration,
-                            };
-
-                            await pool.query(
-                              `INSERT INTO episodes SET ?`,
-                              epInfo,
-                              async (err, res) => {
-                                console.log(
-                                  "EP VS SEASON: ",
-                                  e,
-                                  numOfEpsInSeason.length,
-                                  l,
-                                  numberOfSeasons
-                                );
-                                if (e === numOfEpsInSeason.length) {
-                                  if (l < numberOfSeasons) {
-                                    l += 1;
-                                    await seasonIterator();
+                              if (e === numOfEpsInSeason.length) {
+                                if (l < numberOfSeasons) {
+                                  l += 1;
+                                  await seasonIterator();
+                                } else {
+                                  if (i + 1 !== showsToAdd.length) {
+                                    i += 1;
+                                    await showIterator();
                                   } else {
-                                    if (i + 1 !== showsToAdd.length) {
-                                      i += 1;
-                                      await showIterator();
-                                    } else {
-                                      callback(err, dbRes);
-                                    }
+                                    callback(err, dbRes);
                                   }
                                 }
                               }
-                            );
-                          }
+                            }
+                          );
                         }
-                      );
-                    }
-                    await saver();
+                      }
+                    );
                   }
+                  await saver();
                 }
-              );
-            }
-            await seasonIterator();
-            let episodeInfoToSave = [];
-          } else {
-            callback(err, dbRes);
+              }
+            );
           }
+          await seasonIterator();
+          let episodeInfoToSave = [];
+        } else {
+          callback(err, dbRes);
         }
+        // }
         showIterator();
       });
     });
@@ -359,7 +277,7 @@ let tv = {
                 seasonNum: seasons[i].season_number,
                 poster: seasons[i]
                   ? seasons[i].poster
-                  : "/assets/images/four0four.gif",
+                  : "/assets/four0four.gif",
               };
               seasonsList.push(seasonObj);
 
@@ -394,7 +312,10 @@ let tv = {
         console.log(er, re);
         for (let i = 0; i < re.length; i++) {
           const eps = await queryForEps(re[i].season_number, show.show);
-
+          eps.res = eps.res.map((episode) => {
+            episode.backdropPhotoUrl = `http://192.168.1.6:5012/${episode.backdropPhotoUrl}`;
+            return episode;
+          });
           if (eps.res) {
             re[i].episodes = eps.res;
           }

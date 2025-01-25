@@ -1,7 +1,6 @@
 var fetch = require("node-fetch");
 const { spawn, execSync } = require("child_process");
 let fs = require("fs");
-const e = require("express");
 
 class Downloader {
   async getCoverArt(notIncludedFileName, tmdbInfo, type) {
@@ -44,7 +43,7 @@ class Downloader {
     }
 
     if (type === "movie") {
-      const files = await fs.readdirSync(`F:/MovieCoverArt`);
+      const files = await fs.readdirSync(`I:/MovieCoverArt`);
       if (
         !files.includes(notIncludedFileName + ".jpg") &&
         tmdbInfo.results[0]
@@ -54,7 +53,7 @@ class Downloader {
           `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0].poster_path}`
         );
         const fileStreamPosters = await fs.createWriteStream(
-          `F:/MovieCoverArt/${notIncludedFileName}.jpg`
+          `I:/MovieCoverArt/${notIncludedFileName}.jpg`
         );
 
         let contentEncoding = coverArt.headers.get("content-encoding");
@@ -112,7 +111,7 @@ class Downloader {
         });
       });
     } else {
-      return "/assets/images/four0four.gif";
+      return "/assets/four0four.gif";
     }
   }
 
@@ -148,16 +147,16 @@ class Downloader {
   //         })
   //       })
   //     } else {
-  //       return '/assets/images/four0four.gif'
+  //       return '/assets/four0four.gif'
   //     }
   //   } else {
-  //     return '/assets/images/four0four.gif'
+  //     return '/assets/four0four.gif'
   //   }
   // }
 
   async getTrailer(notIncluded, data) {
     try {
-      let newTitles = data.results.filter((titles) => {
+      let newTitles = data.results.filter(async (titles) => {
         if (titles.original_title === notIncluded) {
           return titles;
         }
@@ -167,7 +166,7 @@ class Downloader {
           `https://api.themoviedb.org/3/movie/${newTitles[0].id}/videos?api_key=490cd30bbbd167dd3eb65511a8bf2328&language=en-US`
         );
         var resJson = await results.json();
-        resJson = resJson.results.filter((video) => {
+        resJson = resJson.results.filter(async (video) => {
           if (
             video.type === "Trailer" ||
             (video.type === "Teaser" &&
@@ -178,8 +177,20 @@ class Downloader {
             return video;
           }
         });
+
         if (resJson.length > 0) {
-          return resJson[0].key;
+          const existingTrailers = await fs.readdirSync("I:/Trailers/");
+          if (!existingTrailers.includes(`${notIncluded}.mp4`)) {
+            const url = `https://www.youtube.com/watch?v=${resJson[0].key}`;
+            await execSync(
+              `I:/Trailers/yt-dlp.exe ${url} --remux-video mp4 -o "I:/Trailers/${notIncluded}.mp4"`
+            );
+          }
+
+          return `http://192.168.1.6:5012/Trailers/${notIncluded}.mp4`.replace(
+            / /g,
+            "%20"
+          );
         } else {
           return "";
         }
@@ -187,6 +198,7 @@ class Downloader {
       return "";
     } catch (err) {
       console.log(err);
+      return "";
     }
   }
 
@@ -278,7 +290,7 @@ class Downloader {
               "%20"
             )}.jpg`;
           } catch (err) {
-            return "/assets/images/four0four.gif";
+            return "/assets/four0four.gif";
           }
         }
       }
@@ -327,7 +339,7 @@ class Downloader {
               "%20"
             )}.jpg`;
           } catch (err) {
-            return "/assets/images/four0four.gif";
+            return "/assets/four0four.gif";
           }
         }
       }
@@ -336,39 +348,43 @@ class Downloader {
 
   async getBackgroundPoster(notIncluded, data, type) {
     try {
-      const image = await fetch(
-        `https://api.themoviedb.org/3/${type}/${data.results[0].id}/images?api_key=490cd30bbbd167dd3eb65511a8bf2328`
-      );
-      const imageJSON = await image.json();
-      const posters = fs.readdirSync("F:/BackgroundImages/");
-      if (!posters.includes(`${notIncluded}.jpg`)) {
-        if (imageJSON.backdrops) {
-          if (imageJSON.backdrops.length > 0) {
-            var downloadUrl = `https://www.themoviedb.org/t/p/original${imageJSON.backdrops[0].file_path}`;
-            var downloadPosterFile = await fetch(downloadUrl);
-            const fileStreamPosters = await fs.createWriteStream(
-              `F:/BackgroundImages/${notIncluded}.jpg`
-            );
-            new Promise((resolve, reject) => {
-              downloadPosterFile.body.pipe(fileStreamPosters);
-              downloadPosterFile.body.on("error", reject);
-              fileStreamPosters.on("finish", resolve);
-            });
-            return `/BackgroundImages/${notIncluded.replace(
-              new RegExp(" ", "g"),
-              "%20"
-            )}.jpg`;
+      if (data.results.length > 0) {
+        const image = await fetch(
+          `https://api.themoviedb.org/3/${type}/${data.results[0].id}/images?api_key=490cd30bbbd167dd3eb65511a8bf2328`
+        );
+        const imageJSON = await image.json();
+        const posters = fs.readdirSync("F:/BackgroundImages/");
+        if (!posters.includes(`${notIncluded}.jpg`)) {
+          if (imageJSON.backdrops) {
+            if (imageJSON.backdrops.length > 0) {
+              var downloadUrl = `https://www.themoviedb.org/t/p/original${imageJSON.backdrops[0].file_path}`;
+              var downloadPosterFile = await fetch(downloadUrl);
+              const fileStreamPosters = await fs.createWriteStream(
+                `F:/BackgroundImages/${notIncluded}.jpg`
+              );
+              new Promise((resolve, reject) => {
+                downloadPosterFile.body.pipe(fileStreamPosters);
+                downloadPosterFile.body.on("error", reject);
+                fileStreamPosters.on("finish", resolve);
+              });
+              return `/BackgroundImages/${notIncluded.replace(
+                new RegExp(" ", "g"),
+                "%20"
+              )}.jpg`;
+            } else {
+              return "";
+            }
           } else {
             return "";
           }
         } else {
-          return "";
+          return `/BackgroundImages/${notIncluded.replace(
+            new RegExp(" ", "g"),
+            "%20"
+          )}.jpg`;
         }
       } else {
-        return `/BackgroundImages/${notIncluded.replace(
-          new RegExp(" ", "g"),
-          "%20"
-        )}.jpg`;
+        return "";
       }
     } catch (err) {
       console.log(err);
@@ -376,80 +392,65 @@ class Downloader {
     }
   }
 
-  async getSubtitleSrts(notIncluded, data, access, metaData) {
-    if (data.results[0]) {
-      var filteredRgh = [];
-      var date = new Date(data.results[0].release_date).getFullYear();
-      let subtitleSearch = await fetch(
-        `https://api.opensubtitles.com/api/v1/subtitles?query=${notIncluded.replace(
-          new RegExp(" ", "g"),
-          "%20"
-        )}%20(${date})`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "Api-Key": "yjiZSEgVBCJ2Uv5qMjWkherTHWd45BnR",
-            Authorization: access.token,
-          },
+  async getSubtitleVtt(notIncluded, data, access, metaData) {
+    const alreadyStoredVtt = fs.readdirSync("I:/subtitles");
+    if (!alreadyStoredVtt.includes(`${notIncluded}.vtt`)) {
+      const subtitlesFilter = metaData.streams.filter((stream, index) => {
+        if (
+          stream.codec_type === "subtitle" &&
+          stream.tags.language === "eng"
+        ) {
+          return { ...stream, index: index };
         }
-      );
-      try {
-        var rgh = await subtitleSearch.json();
-      } catch (err) {
-        console.log(err);
-      }
-      if (rgh !== undefined) {
-        filteredRgh = rgh.data
-          .filter((sub) => {
-            if (
-              sub.attributes.language === "en" &&
-              sub.attributes.feature_details.title === notIncluded
-            ) {
-              return sub;
-            }
-          })
-          .sort((a, b) => {
-            return b.attributes.download_count - a.attributes.download_count;
-          });
-      }
+      });
 
+      const firstSubtitle = subtitlesFilter[0];
       try {
-        let srtFiles = fs.readdirSync("F:/Subtitles");
-        var toCheck = notIncluded + ".srt";
-        if (!srtFiles.includes(toCheck)) {
-          if (filteredRgh.length > 0) {
-            var downloadSubFileReq = await fetch(
-              `https://api.opensubtitles.com/api/v1/download?file_id=${filteredRgh[0].attributes.files[0].file_id}`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Api-Key": "yjiZSEgVBCJ2Uv5qMjWkherTHWd45BnR",
-                  Authorization: access.token,
-                },
-              }
+        let result = "";
+        if (firstSubtitle) {
+          result = await new Promise((resolve, reject) => {
+            console.log(
+              "getting subtitles for ",
+              notIncluded,
+              " at index ",
+              firstSubtitle.index
             );
-            var filetodownload = await downloadSubFileReq.json();
+            const pythonProcess = spawn(
+              "C:/Users/Connor/Desktop/projects/adaptive-streaming/server/models/pgsripper.exe",
+              [notIncluded, firstSubtitle.index]
+            );
 
-            if (filetodownload.link !== undefined) {
-              var downloadSubFile = await fetch(filetodownload.link);
-              const fileStream = await fs.createWriteStream(
-                `F:/Subtitles/${notIncluded}.srt`
-              );
-              new Promise((resolve, reject) => {
-                downloadSubFile.body.pipe(fileStream);
-                downloadSubFile.body.on("error", reject);
-                fileStream.on("finish", resolve);
-              });
-              return `/Subtitles/${notIncluded}.srt`;
-            }
-          }
-        } else {
-          return `/Subtitles/${notIncluded}.srt`;
+            pythonProcess.stdout.on("data", (data) => {
+              result += data.toString();
+            });
+
+            pythonProcess.stderr.on("data", (data) => {
+              console.error(`stderr: ${data}`);
+            });
+
+            pythonProcess.on("close", (code) => {
+              if (code !== 0) {
+                reject(`Python process exited with code ${code}`);
+              } else {
+                resolve(result);
+              }
+            });
+          });
         }
-      } catch (err) {
-        console.log(err);
+
+        return `http://192.168.1.6:5012/subtitles/${notIncluded.replaceAll(
+          " ",
+          "%20"
+        )}.vtt`;
+      } catch (error) {
+        console.error("Error executing the process:", error);
+        return null;
       }
+    } else {
+      return `http://192.168.1.6:5012/subtitles/${notIncluded.replaceAll(
+        " ",
+        "%20"
+      )}.vtt`;
     }
   }
 }

@@ -12,6 +12,7 @@ import { SideBarComponent } from "./side-bar/side-bar.component";
 import { TvComponent } from "./tv/tv.component";
 import { SeasonsComponent } from "./seasons/seasons.component";
 import { SmartTvComponent, SmartTvModule } from "smart-tv";
+import { FormsModule } from "@angular/forms";
 
 @NgModule({
   declarations: [
@@ -26,6 +27,7 @@ import { SmartTvComponent, SmartTvModule } from "smart-tv";
     SeasonsComponent,
   ],
   imports: [
+    FormsModule,
     BrowserModule,
     AppRoutingModule,
     HttpClientModule,

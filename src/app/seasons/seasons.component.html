@@ -1,8 +1,7 @@
 <!-- <app-side-bar></app-side-bar> -->
 <div id="wrapper" #wrapper>
     <div id="seasonsWrapper">
-      <div id="seasonSelection"></div>
-      <div class="seasons" *ngFor="let season of seasons; index as i" (click)="selectSeason(i)" (mouseover)="onHover(i, 'seasons')" #seasons>
+      <div class="seasons" *ngFor="let season of seasons; index as i" (mouseover)="onHover(i, 'seasons')" #seasons>
         <div class="textAlign">
           <p>Season {{season.season_number}}</p>
             <!-- <p>Season {{}}</p> -->
@@ -14,7 +13,7 @@
     </div>
 
     <div id="list">
-      <div class="boxes" #boxes *ngFor="let ep of eps; index as e" (mouseover)="onHover(e, 'episodes')" (click)="playEp()">
+      <div class="boxes" #boxes *ngFor="let ep of eps; index as e; trackBy: trackBySeasons" (mouseover)="onHover(e, 'episodes')" (click)="playEp()">
         <img src="{{ep.backdropPhotoUrl}}" class="coverArt">
         <div class="titleCards">
           <p>{{ep.epTitle}}</p>

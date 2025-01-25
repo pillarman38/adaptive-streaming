@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { spawn, execSync } = require("child_process");
+const { execSync } = require("child_process");
 let pool = require("../../config/connections");
 const ffmpeg = require("fluent-ffmpeg");
 const ffprobePath = require("@ffprobe-installer/ffprobe").path;
@@ -41,14 +41,14 @@ class BonusFeatures {
                     title: movie,
                     resolution: `${metaData.streams[0].coded_width}x${metaData.streams[0].coded_height}`,
                     seekTime: 0,
-                    location: `http://192.168.0.154:4012/plexTemp/${featuresForMovie[
+                    location: `http://192.168.1.6:5012/plexTemp/${featuresForMovie[
                       i
                     ]
                       .replace(new RegExp(" ", "g"), "%20")
                       .replace(new RegExp("'", "g"), "")}`,
                     filePath: `I:/bonusFeatures/${movie}/${featuresForMovie[i]}`,
                     featureTitle: featuresForMovie[i],
-                    posterUrl: `http://192.168.0.154:4012/bonusFeatures/thumbnails/${featuresForMovie[
+                    posterUrl: `http://192.168.1.6:5012/bonusFeatures/thumbnails/${featuresForMovie[
                       i
                     ]
                       .replace(new RegExp(" ", "g"), "%20")

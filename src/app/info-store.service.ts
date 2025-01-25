@@ -34,6 +34,7 @@ export interface movieInfo {
   backdropPhotoUrl?: string;
   type: string;
   nextEp?: movieInfo;
+  transmuxToPixie: number;
 }
 
 export interface showInfo {
@@ -51,6 +52,10 @@ export interface showInfo {
   backgroundPoster?: string;
 }
 
+export interface searchRes {
+  title: string;
+  posterUrl: string;
+}
 // export interface episodes {
 //   id: number;
 //   epTitle: string;
@@ -75,11 +80,6 @@ export interface seasonInfo {
   episodes: Array<movieInfo>;
 }
 
-export interface results {
-  title: string;
-  coverArt: string;
-}
-
 @Injectable({
   providedIn: "root",
 })
@@ -94,6 +94,10 @@ export class InfoStoreService {
 
   catchSideBarHover() {
     return this.sideBarHover.asObservable();
+  }
+
+  checkBorderOverflow(ind: any) {
+    ind.item.element.nativeElement.scrollIntoView({ behavior: "smooth" });
   }
 
   videoInfo: movieInfo = {
@@ -126,6 +130,7 @@ export class InfoStoreService {
     backgroundPoster: "",
     backdropPhotoUrl: "",
     type: "movie",
+    transmuxToPixie: 0,
   };
 
   showInfo: showInfo = {

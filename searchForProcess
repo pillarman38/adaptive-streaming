@@ -1,0 +1,18 @@
+const { exec } = require("child_process");
+
+// PowerShell command to search for MySQL processes
+const command = `powershell -Command "Get-Process | Where-Object { $_.Name -like '*mysql*' }"`;
+
+// Execute the command
+exec(command, (error, stdout, stderr) => {
+  if (error) {
+    console.error(`Error executing command: ${error.message}`);
+    return;
+  }
+  if (stderr) {
+    console.error(`Standard error: ${stderr}`);
+    return;
+  }
+  // Print the command output
+  console.log(`Processes found:\n${stdout}`);
+});

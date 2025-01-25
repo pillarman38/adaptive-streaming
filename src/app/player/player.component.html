@@ -1,12 +1,12 @@
-<!-- <video controls width="640" height="568">
-    <source [src]="location" type="application/x-mpegURL">
-</video> -->
-
-<!-- <iframe src="{{location}}"></iframe> -->
-
-<!-- <video id="video"><source src="http://192.168.0.154:4012/plexTemp/12 Angry Men.m3u8" type="application/x-mpegURL"></video> -->
 <div id="videoContainer" #videoContainer>
-    <video id="video" #videoElem></video>
+    <!-- <div id="subtitleIconPlacer">
+        <img src="http://192.168.1.6:5012/assets/subtitles.png" id="subtitleBtn" (click)="toggleSubtitle()">
+    </div>
+     -->
+    <video id="video" #videoElem (click)="playPause()">
+        <track *ngIf="subtitle" [src]="subtitleUrl" kind="subtitles" srclang="en" label="English">
+    </video>
+
     <div id="controls">
         <div id="seekSpace" (click)="seekBarClick($event)">
             <div id="seekBar" #seekBar></div>
@@ -17,13 +17,22 @@
                 <p>Skip Intro</p>
             </div>
         </div>
+
         <div id="centerBtns">
-            <img src="http://192.168.0.154:4012/assets/skipBack.png" class="skipButtons" #controlBtns>
-            <img src="http://192.168.0.154:4012/assets/left.png" class="skipButtons" #controlBtns>
-            <img src="http://192.168.0.154:4012/assets/play.png" class="playPauseBtn" #controlBtns>
-            <img src="http://192.168.0.154:4012/assets/right.png" class="skipButtons" #controlBtns>
-            <img src="http://192.168.0.154:4012/assets/skipForward.png" class="skipButtons" #controlBtns>
+            <img src="http://192.168.1.6:5012/assets/skipBack.png" class="skipButtons" #controlBtns (click)="skipButtons(-30)">
+            <img src="http://192.168.1.6:5012/assets/left.png" class="skipButtons" #controlBtns (click)="skipButtons(-15)">
+            
+            <div *ngIf ="paused">
+                <img src="http://192.168.1.6:5012/assets/play.png" class="playPauseBtn" #controlBtns (click)="playPause()">
+            </div>
+            <div *ngIf ="!paused">
+                <img src="http://192.168.1.6:5012/assets/pause.png" class="playPauseBtn" #controlBtns (click)="playPause()">
+            </div>
+            
+            <img src="http://192.168.1.6:5012/assets/right.png" class="skipButtons" #controlBtns (click)="skipButtons(+15)">
+            <img src="http://192.168.1.6:5012/assets/skipForward.png" class="skipButtons" #controlBtns (click)="skipButtons(+30)">
         </div>
+
         <div *ngIf="show">
             <div class="nextEpisode" #controls (click)="getNextEp()">
                 <p>Next Episode</p>

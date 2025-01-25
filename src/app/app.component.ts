@@ -8,6 +8,7 @@ import { SmartTvLibSingletonService } from "./smart-tv-lib-singleton.service";
   styleUrls: ["./app.component.css"],
 })
 export class AppComponent implements OnInit {
+  visibility = true;
   constructor(
     private router: Router,
     private smartTv: SmartTvLibSingletonService
@@ -16,6 +17,9 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.smartTv.sideBarVisibility.subscribe((visibility) => {
+      this.visibility = visibility;
+    });
     this.router.navigateByUrl("/videoSelection");
   }
 }

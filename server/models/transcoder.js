@@ -8,21 +8,8 @@ const rimraf = require("rimraf");
 const path = require("path");
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
-let chokidar = require("chokidar");
-var showPlayer = false;
-var fetch = require("node-fetch");
-var srtParser = require("./srtParser");
 
-const cp = require("child_process");
 const { spawn } = require("child_process");
-const { async } = require("rxjs/internal/scheduler/async");
-
-var exec = require("child_process").exec;
-
-var arr = [];
-var killProcess = false;
-var ffstream = ffmpeg();
-var exec = require("child_process").exec;
 
 const transcoder = {
   pidKiller: (pid, callback) => {
@@ -97,8 +84,6 @@ const transcoder = {
 
           if (movieTitle["browser"] == "Safari") {
             var processId = 0;
-
-            var arr = [];
             var h = Math.floor(movieTitle["seekTime"] / 3600);
             var m = Math.floor((movieTitle["seekTime"] % 3600) / 60);
             var s = Math.floor((movieTitle["seekTime"] % 3600) % 60);
@@ -109,7 +94,6 @@ const transcoder = {
             }
 
             srtFilePath = movieTitle["srtLocation"];
-            var parsedVttTrack = new srtParser();
 
             if (movieTitle["resolution"] == "720x480") {
               var newJob = function () {
@@ -294,12 +278,12 @@ const transcoder = {
                   duration: movieTitle["duration"],
                   fileformat: movieTitle["fileformat"],
                   location:
-                    "http://192.168.0.154:4012/plexTemp/" +
+                    "http://192.168.1.6:5012/plexTemp/" +
                     movieTitle["title"] +
                     ".m3u8".replace(new RegExp(" ", "g"), "%20"),
-                  // location: 'http://192.168.0.154:4012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
+                  // location: 'http://192.168.1.6:5012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
                   title: movieTitle["title"],
-                  subtitleFile: `http://192.168.0.154:4012/modifiedVtts/${movieTitle["title"]}.vtt`,
+                  subtitleFile: `http://192.168.1.6:5012/modifiedVtts/${movieTitle["title"]}.vtt`,
                 };
                 callback(null, movieReturner);
                 return;
@@ -318,14 +302,9 @@ const transcoder = {
               s = 0;
             }
 
-            // var parsedVttTrack = new srtParser();
             var srtFilePath = movieTitle["srtLocation"];
             var processId = 0;
-            // await parsedVttTrack.parser(
-            //   srtFilePath,
-            //   movieTitle["seekTime"],
-            //   movieTitle["title"]
-            // );
+
             var newJob = function () {
               // if(movieTitle['subtitles'] != -1) {
               var newProc = spawn("F:/ffmpeg", [
@@ -383,7 +362,7 @@ const transcoder = {
                 duration: movieTitle["duration"],
                 fileformat: movieTitle["fileformat"],
                 location:
-                  "http://192.168.0.154:4012/plexTemp/" +
+                  "http://192.168.1.6:5012/plexTemp/" +
                   movieTitle["title"] +
                   ".m3u8".replace(new RegExp(" ", "g"), "%20"),
                 title: movieTitle["title"],
@@ -400,9 +379,9 @@ const transcoder = {
             duration: movieTitle["duration"],
             fileformat: movieTitle["fileformat"],
             location: movieTitle.location,
-            // location: 'http://192.168.0.154:4012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
+            // location: 'http://192.168.1.6:5012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
             title: movieTitle["title"],
-            subtitleFile: `http://192.168.0.154:4012/modifiedVtts/${movieTitle["title"]}.vtt`,
+            subtitleFile: `http://192.168.1.6:5012/modifiedVtts/${movieTitle["title"]}.vtt`,
           };
           callback(null, movieReturner);
         }

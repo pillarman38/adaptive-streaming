@@ -4,6 +4,7 @@
     height: 100%;
     margin-left: 50px;
 }
+
 #list {
     height: 50%;
     width: 100vw;;
@@ -20,6 +21,7 @@
     margin: 10px;
     display: inline-block;
 }
+
 #info {
     margin-left: 50px;
     width: 500px;
@@ -27,6 +29,7 @@
     color: #fff;
     margin-top: 100px;
 }
+
 #overview {
     width: 500px;
     height: 100px;
@@ -35,15 +38,19 @@
     overflow: hidden;
     /* border-image: linear-gradient(to right, rgba(0, 0, 0, 1), red, rgba(0, 0, 0, 1)) 1; */
 }
-.coverArt {
+
+.posterArt {
     width: 233px;
     height: 150px;
     position: absolute;
     z-index: -1;
+    border-radius: 5px;
 }
+
 .elementBorder {
-    border: 5px solid green;
+    border: 5px solid white;
 }
+
 .bubbles{
     float: left;
     padding: 0px 10px;
@@ -52,6 +59,7 @@
     border-radius: 5px;
     margin-top: 10px;
 }
+
 .titleCards {
     width: 150px;
     height: 50px;
@@ -60,7 +68,9 @@
     position: absolute;
     margin-top: 100px;
     padding: 0px 0px 2px 5px;
+    border-bottom-left-radius: 5px;
 }
+
 #backgroundPlacer{
     width: 100vw;
     height: 100vh;
@@ -89,6 +99,7 @@
     border-image: linear-gradient(to right,rgb(0 0 0 / 0%),red,rgb(0 0 0 / 0%)) 1;
     margin-top: 10px;
 }
+
 ::-webkit-scrollbar {
     display: none;
 }

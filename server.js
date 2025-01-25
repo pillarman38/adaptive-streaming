@@ -2,13 +2,13 @@ require("./config/config");
 require("./server/models/pixie");
 const express = require("express");
 const app = express();
-const port = 4012;
+const port = 5012;
 let cors = require("cors");
 let bparser = require("body-parser");
 
 app.use(bparser.urlencoded({ extended: true }));
 app.use(bparser.json());
-
+app.use(express.static("C:/Users/Connor/Desktop/DVConverter"));
 app.use(express.static(__dirname + "/dist"));
 app.use(express.static("F:/"));
 app.use(express.static("D:/"));

@@ -42,6 +42,7 @@ export class OverviewComponent implements OnInit, AfterViewInit {
   coverArt = "";
   currentBox: movieInfo = this.infoStore.videoInfo;
   index = 0;
+  transmuxToPixie: boolean = false;
 
   constructor(
     private infoStore: InfoStoreService,
@@ -122,14 +123,14 @@ export class OverviewComponent implements OnInit, AfterViewInit {
       new RegExp(" ", "g"),
       "%20"
     );
-    const iframeHtml = `<iframe id="youtubeFrame" style="width: 100%; height: 100%;"
-    src="https://www.youtube.com/embed/${this.trailer}?autoplay=1&controls=0&rel=0&fs=0&modestbranding=1&showinfo=0&fs=0" frameborder="0">
-    </iframe>`;
-    const divElement = this.renderer.createElement("div");
-    divElement.id = "iframeHolder";
-    this.renderer.setProperty(divElement, "innerHTML", iframeHtml);
+    // const iframeHtml = `<iframe id="youtubeFrame" style="width: 100%; height: 100%;"
+    // src="https://www.youtube.com/embed/${this.trailer}?autoplay=1&controls=0&rel=0&fs=0&modestbranding=1&showinfo=0&fs=0" frameborder="0">
+    // </iframe>`;
+    // const divElement = this.renderer.createElement("div");
+    // divElement.id = "iframeHolder";
+    // this.renderer.setProperty(divElement, "innerHTML", iframeHtml);
     // Append the div (with iframe) to the container
-    this.renderer.appendChild(this.iframePlacer.nativeElement, divElement);
+    // this.renderer.appendChild(this.iframePlacer.nativeElement, divElement);
     setTimeout(() => {
       // coverArt.style.opacity = "0"
       // coverArt.style.transition = "opacity 2.0s"
@@ -150,11 +151,31 @@ export class OverviewComponent implements OnInit, AfterViewInit {
     //   this.smartTv.findAndSetIndex(e, "sideBar");
     // }
   }
+
+  changeTransmuxStatus(status: number) {
+    this.infoStore.videoInfo.transmuxToPixie = status;
+    this.http
+      .post(
+        `http://192.168.1.6:5012/api/mov/transmux`,
+        this.infoStore.videoInfo
+      )
+      .subscribe((res: any) => {
+        this.transmuxToPixie = res;
+      });
+  }
+
   ngOnInit(): void {
+    console.log("INFOO: ", this.infoStore.videoInfo);
+    if (this.infoStore.videoInfo.transmuxToPixie === 0) {
+      this.transmuxToPixie = false;
+    } else {
+      this.transmuxToPixie = true;
+    }
     this.plot = this.infoStore.videoInfo.overview;
     this.cast = JSON.parse(this.infoStore.videoInfo.cast);
     this.coverArt = this.infoStore.videoInfo.coverArt;
     console.log("PID: ", this.infoStore.videoInfo.pid);
+    this.smartTv.changeVisibility(true);
 
     setTimeout(() => {
       console.log(
@@ -175,7 +196,7 @@ export class OverviewComponent implements OnInit, AfterViewInit {
       console.log("INSIDE PID: ");
 
       this.http
-        .post(`http://192.168.0.154:4012/api/mov/pidkill`, {
+        .post(`http://192.168.1.6:5012/api/mov/pidkill`, {
           pid: this.infoStore.videoInfo.pid,
         })
         .subscribe((res) => {

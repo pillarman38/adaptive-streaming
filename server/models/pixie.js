@@ -16,14 +16,13 @@ let wss = new WebSocketServer({
 console.log("WSS: ");
 
 let clients = [];
-// let message;
 
 wss.on("connection", function (connection) {
   console.log(new Date() + " Connection accepted.");
   clients.push(connection);
   // connection.send("Connection recieved!");
   connection.on("message", async function (message) {
-    console.log("message: ", message);
+    // console.log("message: ", message);
     message = JSON.parse(message);
     if (message.type === "Downloading") {
       clients.forEach((client) => {
@@ -32,11 +31,11 @@ wss.on("connection", function (connection) {
     }
 
     if (message) {
-      console.log("CLIENTS LENGTH: ", clients.length);
+      // console.log("CLIENTS LENGTH: ", clients.length);
 
       try {
         // message = message;
-        console.log(message);
+        // console.log(message);
       } catch (err) {
         console.log(err);
         message = {};
@@ -48,12 +47,9 @@ wss.on("connection", function (connection) {
         backendClient = connection;
       }
 
-      if (message.type === "movie") {
+      if (message.type === "movie" && message.transmuxToPixie === 0) {
         let moviesList = await fs.readdirSync("I:/Videos");
-        // let movie = `I:/Videos/${message.title}.mkv`;
-        // if (dvMovies.includes(`${message.title}.mkv`)) {
-        //   movie = `I:/Videos/${message.title}.mp4`;
-        // }
+
         let movie = moviesList.find((element) =>
           element.includes(message.title)
         );
@@ -119,6 +115,120 @@ wss.on("connection", function (connection) {
                 "yuv420p",
                 "-b:v",
                 "4000k",
+                "-movflags",
+                "+faststart",
+                `I:/toPixie/${message.title}.mp4`,
+              ];
+            }
+
+            let newProc = spawn("F:/ffmpeg", command);
+            newProc.on("error", function (err) {
+              console.log("ls error", err);
+            });
+
+            newProc.stdout.on("data", function (data) {
+              console.log("stdout: " + data);
+            });
+
+            newProc.stderr.on("data", function (data) {
+              console.log("DATA: ", String(data));
+              if (metadata) {
+                function secondsToDhms(hms) {
+                  let a = hms.split(":");
+                  let seconds = +a[0] * 60 * 60 + +a[1] * 60 + +a[2];
+                  return seconds;
+                }
+
+                let stringData = String(data);
+                let parser = stringData.split("=");
+
+                if (parser[5]) {
+                  let totalDuration = metadata["format"]["duration"];
+                  // let totalDuration = 5;
+                  let currentTranscodedTime = parser[5].split(" ")[0];
+                  let seconds = secondsToDhms(currentTranscodedTime);
+                  if (seconds) {
+                    let predictedPercentage = parseInt(
+                      String(Math.abs((seconds / totalDuration) * 100)).split(
+                        "."
+                      )[0]
+                    );
+
+                    if (clients) {
+                      clients.forEach((client) => {
+                        console.log(
+                          "Predicted percentage: ",
+                          predictedPercentage
+                        );
+                        client.send(
+                          JSON.stringify({
+                            syncStatus: "Syncing",
+                            title: message.title,
+                            percentage: predictedPercentage,
+                            type: "movie",
+                          })
+                        );
+                      });
+                    }
+                  }
+                }
+              }
+            });
+            newProc.on("close", function (code) {
+              console.log("closing...");
+              clients.forEach((client) => {
+                client.send(
+                  JSON.stringify({
+                    type: "Syncing",
+                    title: message.title,
+                    percentage: 100,
+                    type: "movie",
+                  })
+                );
+              });
+              message = undefined;
+            });
+          };
+          newJob();
+        });
+      }
+      if (message.type === "movie" && message.transmuxToPixie === 1) {
+        let moviesList = await fs.readdirSync("I:/Videos");
+
+        let movie = moviesList.find((element) =>
+          element.includes(message.title)
+        );
+        movie = `I:/Videos/${movie}`;
+
+        ffmpeg.ffprobe(`${movie}`, (e, metadata) => {
+          let newJob = async () => {
+            console.log("firing!!!!");
+            let files = await fs.readdirSync("I:/toPixie");
+
+            const toPixieDirlength = await fs.readdirSync(`I:/toPixie/`);
+
+            if (toPixieDirlength.length > 0) {
+              for (const file of toPixieDirlength) {
+                await fs.unlinkSync(`I:/toPixie/${file}`);
+              }
+            }
+
+            let command = [];
+            if (metadata.streams[0].codec_name === "hevc") {
+              command = [
+                "-y",
+                // "-t",
+                // "30",
+                "-i",
+                `${movie}`,
+                "-c:v",
+                "copy",
+                "-c:a",
+                "eac3",
+                "-ac",
+                "6",
+                "-tag:v",
+                "hvc1",
                 "-movflags",
                 "+faststart",
                 `I:/toPixie/${message.title}.mp4`,

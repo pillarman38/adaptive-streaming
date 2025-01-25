@@ -41,14 +41,39 @@ export class TvComponent implements OnInit {
     if (ind?.borderReached === "left edge") {
       this.smartTv.smartTv?.switchList("sideBar", 0);
     }
+
     if (
       ind?.borderReached === "right edge" &&
       ind?.currentListName === "sideBar"
     ) {
       this.smartTv.smartTv?.switchList("tv", 0);
     }
+
     if (ind?.borderReached === "right edge" && ind?.currentListName === "tv") {
       this.smartTv.smartTv?.wrapRight();
+    }
+
+    if (ind?.currentListName === "tv") {
+      this.infoStore.checkBorderOverflow(ind);
+      await this.updateCurrentBox();
+    }
+
+    if (event.code === "Enter" && ind?.currentListName === "tv") {
+      this.selectShow();
+    }
+
+    if (event.code === "Enter" && ind?.currentListName === "sideBar") {
+      switch (ind?.currentIndex) {
+        case 0:
+          this.router.navigateByUrl("/search");
+          break;
+        case 1:
+          this.router.navigateByUrl("/videoSelection");
+          break;
+        case 2:
+          this.router.navigateByUrl("/tv");
+          break;
+      }
     }
   }
 
@@ -63,18 +88,28 @@ export class TvComponent implements OnInit {
     private infoStore: InfoStoreService,
     private smartTv: SmartTvLibSingletonService
   ) {}
-  onHover(e: number, listName: string) {
-    if (listName === "tv") {
-      // const ind = this.smartTv.findAndSetIndex(e, "tv");
-      // this.index = ind.index;
-    }
-    if (listName === "sideBar") {
-      // this.smartTv.findAndSetIndex(e, "sideBar");
+
+  async updateCurrentBox() {
+    this.currentBox = this.shows[this.index];
+    this.image.nativeElement.style.opacity = "0";
+    await this.delay(1000);
+
+    this.poster = this.currentBox.backdropPhotoUrl;
+    this.delay(1000);
+    this.image.nativeElement.style.opacity = "1";
+  }
+
+  async onHover(e: number, listName: string) {
+    const ind = this.smartTv.smartTv?.findAndSetIndex(e, listName);
+    console.log("IND TV: ", ind);
+
+    if (ind?.currentListName === "tv") {
+      this.index = e;
+      await this.updateCurrentBox();
     }
   }
 
   selectShow() {
-    console.log(this.index, this.shows[this.index]);
     this.infoStore.showInfo = this.shows[this.index];
     console.log("SELECTED SHOW: ", this.shows[this.index], this.index);
 
@@ -89,23 +124,22 @@ export class TvComponent implements OnInit {
     this.image.nativeElement.style.opacity = "1";
   }
 
-  // ngAfterViewInit() {
-  //   this.smartTv.currentBox = 0;
-  // }
-
   ngOnInit(): void {
     this.infoStore.catchSideBarHover().subscribe((e: number) => {
       this.onHover(e, "sideBar");
     });
 
     this.http
-      .post(`http://192.168.0.154:4012/api/mov/tv`, { pid: 0 })
+      .post(`http://192.168.1.6:5012/api/mov/tv`, { pid: 0 })
       .subscribe((res: any) => {
         console.log("RES: ", res, this.boxes);
 
         this.shows = res;
         this.currentBox = res[this.index];
-        this.poster = this.currentBox.backgroundPoster;
+        console.log("CURRENT BOX: ", this.currentBox);
+
+        this.poster = this.currentBox.backdropPhotoUrl;
+        // this.updateCurrentBox();
         setTimeout(() => {
           this.smartTv.smartTv?.addCurrentList({
             startingList: true,
