@@ -290,6 +290,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
   }
 
   async ngOnDestroy(): Promise<void> {
+    // Restore sidebar visibility when leaving the player
+    this.smartTv.changeVisibility(true);
     if (this.useExoPlayer) {
       await this.exoPlayerService.release();
     }

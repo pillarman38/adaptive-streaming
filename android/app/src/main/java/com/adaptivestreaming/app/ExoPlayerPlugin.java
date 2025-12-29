@@ -28,12 +28,12 @@ public class ExoPlayerPlugin extends Plugin {
     public void initialize(PluginCall call) {
         try {
             String containerId = call.getString("containerId", "videoContainer");
-            
+
             getActivity().runOnUiThread(() -> {
                 try {
                     // Get the root view of the activity
                     ViewGroup rootView = (ViewGroup) getActivity().findViewById(android.R.id.content);
-                    
+
                     // Create a container for ExoPlayer that will overlay the WebView
                     containerView = new FrameLayout(getContext());
                     containerView.setLayoutParams(new ViewGroup.LayoutParams(
@@ -41,7 +41,7 @@ public class ExoPlayerPlugin extends Plugin {
                         ViewGroup.LayoutParams.MATCH_PARENT
                     ));
                     containerView.setTag(containerId);
-                    
+
                     // Add container to root view (will overlay WebView)
                     rootView.addView(containerView);
 
@@ -50,11 +50,11 @@ public class ExoPlayerPlugin extends Plugin {
                     playerView = new PlayerView(getContext());
                     playerView.setPlayer(exoPlayer);
                     playerView.setUseController(false);
-                    
-                    containerView.addView(playerView, new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    ));
+
+                     containerView.addView(playerView, new FrameLayout.LayoutParams(
+                         FrameLayout.LayoutParams.MATCH_PARENT,
+                         FrameLayout.LayoutParams.MATCH_PARENT
+                     ));
 
                     // Initialize handler for time updates
                     timeUpdateHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -229,17 +229,17 @@ public class ExoPlayerPlugin extends Plugin {
             // If that fails, try getting it from the method name or call data
             eventName = call.getString("eventName");
         }
-        
+
         if (eventName == null) {
             call.reject("Event name is required");
             return;
         }
-        
+
         if ("timeupdate".equals(eventName)) {
             // Store the call for time updates
             timeUpdateCall = call;
             call.setKeepAlive(true);
-            
+
             // Start periodic updates
             if (timeUpdateHandler != null && exoPlayer != null) {
                 timeUpdateRunnable = new Runnable() {

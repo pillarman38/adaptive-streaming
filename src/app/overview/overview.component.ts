@@ -191,6 +191,7 @@ export class OverviewComponent implements OnInit, AfterViewInit {
     this.cast = JSON.parse(this.infoStore.videoInfo.cast);
     this.coverArt = this.infoStore.videoInfo.coverArt;
     console.log("PID: ", this.infoStore.videoInfo.pid);
+    // Show sidebar on overview page (player will hide it when navigating to player)
     this.smartTv.changeVisibility(true);
 
     setTimeout(() => {
