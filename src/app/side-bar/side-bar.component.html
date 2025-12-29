@@ -1,15 +1,25 @@
 <div id="sideBar">
     <div id="alignSelection">
+        <div class="button" (click)="scanLibrary()" #homepageList (mouseover)="onHover(0)">
+            <img *ngIf="!isScanning" src="assets/refresh.png" class="menuItem">
+            <div *ngIf="isScanning" class="menuItem loading-container">
+                <div class="loading-spinner"></div>
+                <div class="progress-text" *ngIf="scanTotal > 0">
+                    {{ scanProgress }}/{{ scanTotal }}
+                </div>
+            </div>
+        </div>
+
         <div class="button" (click)="navigateTo('search')" #homepageList (mouseover)="onHover(0)">
-            <img src="http://192.168.1.6:5012/assets/search.png"class="menuItem">
+            <img src="assets/search.png" class="menuItem">
         </div>
 
         <div class="button" (click)="navigateTo('videoSelection')" #homepageList (mouseover)="onHover(1)">
-            <img src="http://192.168.1.6:5012/assets/film-reel.png" class="menuItem">
+            <img src="assets/film-reel.png" class="menuItem">
         </div>
 
         <div class="button" (click)="navigateTo('tv')" #homepageList (mouseover)="onHover(2)">
-            <img src="http://192.168.1.6:5012/assets/tv-show.png" class="menuItem">
+            <img src="assets/tv-show.png" class="menuItem">
         </div>
     </div>
 </div>

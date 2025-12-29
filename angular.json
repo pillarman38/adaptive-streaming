@@ -26,6 +26,11 @@
               "src/icon.png",
               "src/favicon.ico",
               "src/assets",
+              {
+                "glob": "server-config.json",
+                "input": ".",
+                "output": "/assets"
+              },
               "src/manifest.webmanifest",
               "src/manifest.webmanifest",
               "src/manifest.webmanifest"

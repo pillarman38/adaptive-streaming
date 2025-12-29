@@ -7,18 +7,18 @@
         </video>
     </div>
     <div id="info" #info (mouseover)="hover()" (mouseout)="hoverOut()">
-        <img src="{{coverArt}}" id="coverArt">
+        <img [src]="coverArt | safeUrl" id="coverArt">
         <div id="playBtnContainer" #playBtnContainer>
-            <img id="playBtn" src="http://192.168.1.6:5012/assets/playVideo.png" #playBtn (click)="playMovie()">
+            <img id="playBtn" src="assets/playVideo.png" #playBtn (click)="playMovie()">
         </div>
 
         <p id="transferTxt">Transmux Pixie transfer</p>
 
         <div *ngIf="!transmuxToPixie">
-            <img src="http://192.168.1.6:5012/assets/check.png" class="transferIcons" (click)="changeTransmuxStatus(0)">
+            <img src="assets/check.png" class="transferIcons" (click)="changeTransmuxStatus(0)">
         </div>
         <div *ngIf="transmuxToPixie">
-            <img src="http://192.168.1.6:5012/assets/copy.png" class="transferIcons" (click)="changeTransmuxStatus(1)">
+            <img src="assets/copy.png" class="transferIcons" (click)="changeTransmuxStatus(1)">
         </div>
         <p id="plot">{{plot}}</p>
     </div>
@@ -32,7 +32,7 @@
         <div id="nav" #nav>
             <div *ngFor="let castMember of cast" class="castMemberInfo">
                 <div class="castMemberImageContainer">
-                    <img src="{{castMember.picture}}" class="castMemberPic">
+                    <img [src]="castMember.picture | safeUrl" class="castMemberPic">
                 </div>
 
                 <div class="castMemberNameContainer">

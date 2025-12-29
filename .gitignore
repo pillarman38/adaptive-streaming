@@ -46,3 +46,6 @@ testem.log
 Thumbs.db
 .angular
 .vscode
+
+# Server config with IP address (keep out of git)
+server-config.json

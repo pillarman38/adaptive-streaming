@@ -9,11 +9,15 @@ import {
   ViewChildren,
   HostListener,
   ElementRef,
+  OnDestroy,
 } from "@angular/core";
 import { InfoStoreService } from "../info-store.service";
 import { HttpClient } from "@angular/common/http";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
+import { PlatformService } from "../services/platform.service";
+import { ExoPlayerService } from "../services/exoplayer.service";
+import { ApiConfigService } from "../services/api-config.service";
 
 @Pipe({
   name: "safeHtml",
@@ -31,7 +35,7 @@ export class SafeHtmlPipe implements PipeTransform {
   templateUrl: "./player.component.html",
   styleUrls: ["./player.component.css"],
 })
-export class PlayerComponent implements OnInit {
+export class PlayerComponent implements OnInit, OnDestroy {
   location: SafeResourceUrl = "";
   index: number = 0;
   currentTime: number = 0;
@@ -40,6 +44,8 @@ export class PlayerComponent implements OnInit {
   paused: boolean = false;
   subtitle: Boolean = false;
   subtitleUrl: string = "";
+  isAndroid: boolean = false;
+  useExoPlayer: boolean = false;
 
   @ViewChild("videoContainer") videoContainer!: ElementRef;
   @ViewChild("seekBar") seekBar!: ElementRef;
@@ -51,66 +57,107 @@ export class PlayerComponent implements OnInit {
   async onKeyDown(event: KeyboardEvent) {
     console.log("EVENT: ", event);
 
-    const ind = this.smartTv.smartTv?.navigate(event);
-    console.log("THI IND: ", ind);
+    // Only handle navigation if controls are the current active list
+    // For spacebar, always handle it regardless of list
     if (event.code === "Space") {
       this.playPause();
+      return;
     }
+
+    // Only navigate if there's an active list (controls might not be registered)
+    if (!this.smartTv.smartTv || !this.smartTv.smartTv.currentListName) {
+      return;
+    }
+
+    const ind = this.smartTv.smartTv?.navigate(event);
+    console.log("THI IND: ", ind);
   }
 
   constructor(
     private infoStore: InfoStoreService,
     private http: HttpClient,
     private sanitizer: DomSanitizer,
-    private smartTv: SmartTvLibSingletonService
-  ) {}
+    private smartTv: SmartTvLibSingletonService,
+    private platformService: PlatformService,
+    private exoPlayerService: ExoPlayerService,
+    private apiConfig: ApiConfigService,
+  ) {
+    this.isAndroid = this.platformService.isAndroid();
+    this.useExoPlayer = this.isAndroid;
+  }
 
-  playPause() {
-    this.videoElem.nativeElement.paused
-      ? this.videoElem.nativeElement.play()
-      : this.videoElem.nativeElement.pause();
-    if (this.videoElem.nativeElement.paused) {
-      this.paused = true;
+  async playPause() {
+    if (this.useExoPlayer) {
+      if (this.paused) {
+        await this.exoPlayerService.play();
+        this.paused = false;
+      } else {
+        await this.exoPlayerService.pause();
+        this.paused = true;
+      }
     } else {
-      this.paused = false;
+      this.videoElem.nativeElement.paused
+        ? this.videoElem.nativeElement.play()
+        : this.videoElem.nativeElement.pause();
+      if (this.videoElem.nativeElement.paused) {
+        this.paused = true;
+      } else {
+        this.paused = false;
+      }
     }
   }
 
-  skipButtons(skipBy: number) {
-    this.paused = true;
-    this.videoElem.nativeElement.pause();
-    this.currentTime = skipBy;
-    this.infoStore.videoInfo.seekTime = this.currentTime;
-    this.getVideo();
+  async skipButtons(skipBy: number) {
+    if (this.useExoPlayer) {
+      const currentPos = await this.exoPlayerService.getCurrentPosition();
+      const newTime = Math.max(0, currentPos + skipBy);
+      await this.exoPlayerService.seekTo(newTime);
+      this.currentTime = newTime;
+    } else {
+      const currentPos = this.videoElem.nativeElement.currentTime;
+      const newTime = Math.max(0, currentPos + skipBy);
+      this.videoElem.nativeElement.currentTime = newTime;
+      this.currentTime = newTime;
+    }
   }
 
-  seekBarClick($event: any) {
+  async seekBarClick($event: any) {
     var totalWidth = 1920;
     var percentage = $event.pageX / totalWidth;
     this.currentTime = Math.floor(
       this.infoStore.videoInfo.duration * percentage
     );
-    this.videoElem.nativeElement.pause();
     console.log("CURRENTTIME: ", this.currentTime);
 
-    this.infoStore.videoInfo.seekTime = this.currentTime;
-    console.log("EVVENT: ", this.event, this.currentTime);
-    if (this.event.fileformat === "dvhe" || this.event.fileformat === "dvh1") {
-      this.videoElem.nativeElement.currentTime = this.currentTime;
+    if (this.useExoPlayer) {
+      await this.exoPlayerService.pause();
+      await this.exoPlayerService.seekTo(this.currentTime);
+      this.paused = true;
     } else {
-      this.getVideo();
+      this.videoElem.nativeElement.pause();
+      this.infoStore.videoInfo.seekTime = this.currentTime;
+      console.log("EVVENT: ", this.event, this.currentTime);
+      if (this.event.fileformat === "dvhe" || this.event.fileformat === "dvh1") {
+        this.videoElem.nativeElement.currentTime = this.currentTime;
+      } else {
+        this.getVideo();
+      }
     }
   }
 
-  getNextEp() {
+  async getNextEp() {
     this.http
-      .post(`http://192.168.1.6:5012/api/mov/nextep`, this.infoStore.videoInfo)
-      .subscribe((res: any) => {
+      .post(`${this.apiConfig.getBaseUrl()}/api/mov/nextep`, this.infoStore.videoInfo)
+      .subscribe(async (res: any) => {
         console.log("NEXT EP: ", res);
         this.infoStore.videoInfo = res[0];
         this.infoStore.videoInfo.seekTime = 0;
         this.infoStore.videoInfo.browser = "Safari";
-        this.videoElem.nativeElement.pause();
+        if (this.useExoPlayer) {
+          await this.exoPlayerService.pause();
+        } else {
+          this.videoElem.nativeElement.pause();
+        }
         this.getVideo();
       });
   }
@@ -132,40 +179,71 @@ export class PlayerComponent implements OnInit {
     }
     this.subtitle = this.infoStore.videoInfo.srtUrl ? true : false;
     if (this.infoStore.videoInfo.srtUrl) {
-      this.subtitleUrl = this.infoStore.videoInfo.srtUrl;
+      this.subtitleUrl = this.apiConfig.transformUrl(this.infoStore.videoInfo.srtUrl);
     }
 
     if (this?.event?.pid) {
       this.infoStore.videoInfo.pid = this.event.pid;
     }
 
+    // Add device name to videoInfo for transcoder
+    const videoInfoWithDevice = {
+      ...this.infoStore.videoInfo,
+      device: this.platformService.getDeviceName()
+    };
+
     this.http
       .post(
-        "http://192.168.1.6:5012/api/mov/pullVideo",
-        this.infoStore.videoInfo
+        `${this.apiConfig.getBaseUrl()}/api/mov/pullVideo`,
+        videoInfoWithDevice
       )
-      .subscribe((event: any) => {
+      .subscribe(async (event: any) => {
         this.event = event;
         console.log("EVENT: ", this.event);
         this.infoStore.videoInfo.pid = this.event.pid;
 
-        this.videoElem.nativeElement.src = this.event.location.replace(
+        let videoUrl = this.event.location.replace(
           new RegExp(" ", "g"),
           "%20"
         );
-        // this.videoElem.nativeElement.src =
-        //   "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4";
+        // Transform URL to use IP address on Android
+        videoUrl = this.apiConfig.transformUrl(videoUrl);
 
-        this.videoElem.nativeElement.addEventListener("timeupdate", () => {
-          this.currentTime += 0.25;
-          const percentComplete =
-            (this.currentTime / this.infoStore.videoInfo.duration) * 100;
-          // console.log("TIMEUPDATE", Math.floor(this.currentTime));
+        if (this.useExoPlayer) {
+          // Use ExoPlayer for Android
+          await this.exoPlayerService.loadVideo(
+            videoUrl,
+            this.subtitle ? this.subtitleUrl : undefined
+          );
+          await this.exoPlayerService.play();
+          this.paused = false;
 
-          this.seekBar.nativeElement.style.width = `${percentComplete}%`;
-        });
-        this.videoElem.nativeElement.load();
-        this.videoElem.nativeElement.play();
+          // Set up time update listener for ExoPlayer
+          await this.exoPlayerService.addTimeUpdateListener((currentTime: number) => {
+            this.currentTime = currentTime;
+            const percentComplete =
+              (this.currentTime / this.infoStore.videoInfo.duration) * 100;
+            this.seekBar.nativeElement.style.width = `${percentComplete}%`;
+          });
+        } else {
+          // Use HTML5 video for web browsers
+          console.log("VIDEO URL: ", videoUrl);
+          
+          this.videoElem.nativeElement.src = videoUrl;
+          // this.videoElem.nativeElement.src =
+          //   "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4";
+
+          this.videoElem.nativeElement.addEventListener("timeupdate", () => {
+            this.currentTime = this.videoElem.nativeElement.currentTime;
+            const percentComplete =
+              (this.currentTime / this.infoStore.videoInfo.duration) * 100;
+            // console.log("TIMEUPDATE", Math.floor(this.currentTime));
+
+            this.seekBar.nativeElement.style.width = `${percentComplete}%`;
+          });
+          this.videoElem.nativeElement.load();
+          this.videoElem.nativeElement.play();
+        }
       });
   }
 
@@ -175,11 +253,27 @@ export class PlayerComponent implements OnInit {
     this.subtitle = !this.subtitle;
   }
 
-  ngOnInit(): void {
-    console.log(this.infoStore);
+  async ngOnInit(): Promise<void> {
+    console.log("INFO STORE: ", this.infoStore.videoInfo);
     // this.location = this.infoStore.videoInfo.location
     this.infoStore.videoInfo.browser = "Safari";
     this.smartTv.changeVisibility(false);
+
+    // Initialize ExoPlayer on Android
+    if (this.useExoPlayer) {
+      try {
+        const initialized = await this.exoPlayerService.initialize("videoContainer");
+        if (!initialized) {
+          console.warn("ExoPlayer initialization failed, falling back to HTML5 video");
+          this.useExoPlayer = false;
+        }
+      } catch (error) {
+        console.error("Error initializing ExoPlayer:", error);
+        console.error("Error details:", error instanceof Error ? error.message : String(error));
+        // Fall back to HTML5 video if ExoPlayer fails
+        this.useExoPlayer = false;
+      }
+    }
 
     this.getVideo();
 
@@ -193,5 +287,11 @@ export class PlayerComponent implements OnInit {
         });
       }, 500);
     });
+  }
+
+  async ngOnDestroy(): Promise<void> {
+    if (this.useExoPlayer) {
+      await this.exoPlayerService.release();
+    }
   }
 }

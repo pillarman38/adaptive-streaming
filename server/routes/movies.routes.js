@@ -9,6 +9,7 @@ let tv = require("../models/tvShows.models");
 let pixie = require("../models/pixie");
 const BonusFeatures = require("../models/bonusFeatures");
 let { search } = require("../models/search");
+const urlTransformer = require("../utils/url-transformer");
 
 router.post("/movies", (req, res) => {
   console.log("body", req.body);
@@ -27,7 +28,7 @@ router.post("/movies", (req, res) => {
   );
 });
 
-router.get("/updatemovies", (req, res) => {
+router.get("/scanLibrary", (req, res) => {
   console.log("body", req.body);
   models.updateMovies((err, results) => {
     if (err) {
@@ -36,6 +37,11 @@ router.get("/updatemovies", (req, res) => {
       res.send(results);
     }
   });
+});
+
+router.get("/scanProgress", (req, res) => {
+  const progress = models.getScanProgress();
+  res.send(progress);
 });
 
 router.post("/selectedShow", (req, res) => {
@@ -246,6 +252,16 @@ router.post("/transmux", (req, res) => {
       res.send(results);
     }
   });
+});
+
+router.get("/server-config", (req, res) => {
+  const config = urlTransformer.getConfig();
+  // Only return the config if it has a serverIp (for security, don't expose if not configured)
+  if (config && config.serverIp) {
+    res.json({ serverIp: config.serverIp, serverPort: config.serverPort || "5012" });
+  } else {
+    res.json({ serverIp: null, serverPort: "5012" });
+  }
 });
 
 module.exports = router;

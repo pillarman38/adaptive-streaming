@@ -1,9 +1,9 @@
 <div id="videoContainer" #videoContainer>
     <!-- <div id="subtitleIconPlacer">
-        <img src="http://192.168.1.6:5012/assets/subtitles.png" id="subtitleBtn" (click)="toggleSubtitle()">
+        <img src="assets/subtitles.png" id="subtitleBtn" (click)="toggleSubtitle()">
     </div>
      -->
-    <video id="video" #videoElem (click)="playPause()">
+    <video *ngIf="!useExoPlayer" id="video" #videoElem (click)="playPause()">
         <track *ngIf="subtitle" [src]="subtitleUrl" kind="subtitles" srclang="en" label="English">
     </video>
 
@@ -19,18 +19,18 @@
         </div>
 
         <div id="centerBtns">
-            <img src="http://192.168.1.6:5012/assets/skipBack.png" class="skipButtons" #controlBtns (click)="skipButtons(-30)">
-            <img src="http://192.168.1.6:5012/assets/left.png" class="skipButtons" #controlBtns (click)="skipButtons(-15)">
+            <img src="assets/skipBack.png" class="skipButtons" #controlBtns (click)="skipButtons(-30)">
+            <img src="assets/left.png" class="skipButtons" #controlBtns (click)="skipButtons(-15)">
             
             <div *ngIf ="paused">
-                <img src="http://192.168.1.6:5012/assets/play.png" class="playPauseBtn" #controlBtns (click)="playPause()">
+                <img src="assets/play.png" class="playPauseBtn" #controlBtns (click)="playPause()">
             </div>
             <div *ngIf ="!paused">
-                <img src="http://192.168.1.6:5012/assets/pause.png" class="playPauseBtn" #controlBtns (click)="playPause()">
+                <img src="assets/pause.png" class="playPauseBtn" #controlBtns (click)="playPause()">
             </div>
             
-            <img src="http://192.168.1.6:5012/assets/right.png" class="skipButtons" #controlBtns (click)="skipButtons(+15)">
-            <img src="http://192.168.1.6:5012/assets/skipForward.png" class="skipButtons" #controlBtns (click)="skipButtons(+30)">
+            <img src="assets/right.png" class="skipButtons" #controlBtns (click)="skipButtons(+15)">
+            <img src="assets/skipForward.png" class="skipButtons" #controlBtns (click)="skipButtons(+30)">
         </div>
 
         <div *ngIf="show">

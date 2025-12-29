@@ -8,15 +8,18 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 var fetch = require("node-fetch");
 const Downloader = require("./downloader");
 const BonusFeatures = require("./bonusFeatures");
+const urlTransformer = require("../utils/url-transformer");
 var arrOfObj = [];
 var ffstream = ffmpeg();
-const os = require("os");
 
-const localIP = os
-  .networkInterfaces()
-  ["Wi-Fi"].filter((itm) => itm.family === "IPv4")[0].address;
 
-console.log("Local IP address:", localIP);
+// Global scan progress tracking
+let scanProgress = {
+  isScanning: false,
+  current: 0,
+  total: 0,
+  currentFile: ""
+};
 
 async function updateMoviesInDB() {
   setTimeout(function () {
@@ -26,20 +29,11 @@ async function updateMoviesInDB() {
   }, 1000);
   arrOfObj = [];
 
-  // let loginOpenSubtitles = await fetch(
-  //   `https://api.opensubtitles.com/api/v1/infos/user`,
-  //   {
-  //     method: "POST",
-  //     headers: {
-  //       "Content-Type": "application/json",
-  //       "Api-Key": "yjiZSEgVBCJ2Uv5qMjWkherTHWd45BnR",
-  //     },
-  //     body: JSON.stringify({
-  //       username: "pillarman38",
-  //       password: "Goodkid38!!**()",
-  //     }),
-  //   }
-  // );
+  // Reset scan progress
+  scanProgress.isScanning = true;
+  scanProgress.current = 0;
+  scanProgress.total = 0;
+  scanProgress.currentFile = "";
 
   // var loginSuccess = true;
   let loginRes;
@@ -49,7 +43,7 @@ async function updateMoviesInDB() {
     loginSuccess = false;
   }
 
-  fs.readdir("I:/Videos/", async (err, files) => {
+  fs.readdir("/media/connorwoodford/F898C32498C2DFEC/Videos", async (err, files) => {
     var arr = [];
     var selection = await files;
 
@@ -63,11 +57,18 @@ async function updateMoviesInDB() {
         }
       });
 
+      // Set total files to scan
+      scanProgress.total = notIncluded.length;
+      scanProgress.current = 0;
+
       var l = 0;
       var openSubsApiLoginBearerToken = "";
 
       async function iterate() {
         if (notIncluded.length > 0) {
+          // Update progress
+          scanProgress.current = l;
+          scanProgress.currentFile = notIncluded[l];
           var fileName = notIncluded[l];
           let fileNameNoExt = fileName.replace(".mp4", "").replace(".mkv", "");
           var firstObj = {
@@ -79,7 +80,7 @@ async function updateMoviesInDB() {
           };
 
           await ffmpeg.ffprobe(
-            `I:/Videos/${fileName}`,
+            `/media/connorwoodford/F898C32498C2DFEC/Videos/${fileName}`,
             async function (err, metaData) {
               let dolbyVision = false;
               let write = "";
@@ -93,46 +94,95 @@ async function updateMoviesInDB() {
               var fileExt = metaData.format.filename.split(".").pop();
               let location = "";
 
-              if (fileExt === "mp4") {
-                location = `/Videos/${fileNameNoExt.replace(
-                  new RegExp(" ", "g"),
-                  "%20"
-                )}.${fileExt}`;
-              }
+              // if (fileExt === "mp4") {
+              //   location = `/Videos/${fileNameNoExt.replace(
+              //     new RegExp(" ", "g"),
+              //     "%20"
+              //   )}.${fileExt}`;
+              // }
 
               if (fileExt === "mkv") {
-                fileExt = "m3u8";
-                location = `/plexTemp/${fileNameNoExt.replace(
-                  new RegExp(" ", "g"),
-                  "&%20"
-                )}.${fileExt}`;
+                // Check for Dolby Vision in the video stream
+                const videoStream = metaData.streams[0];
+                
+                // Check codec_tag_string for Dolby Vision indicators (dvhe, dvh1, etc.)
+                if (videoStream.codec_tag_string) {
+                  const codecTag = videoStream.codec_tag_string.toLowerCase();
+                  if (codecTag.includes('dvhe') || codecTag.includes('dvh1') || codecTag.includes('dovi')) {
+                    dolbyVision = true;
+                  }
+                }
+
+                // Check codec_tag_string for Dolby Vision indicators (dvhe, dvh1, etc.)
+                if (videoStream.dv_profile) {
+                  // const codecTag = videoStream.codec_tag_string.toLowerCase();
+                  // if (codecTag.includes('dvhe') || codecTag.includes('dvh1') || codecTag.includes('dovi')) {
+                  dolbyVision = true;
+                  // }
+                }
+                
+                // Check stream tags for Dolby Vision metadata
+                if (!dolbyVision && videoStream.tags) {
+                  const tags = videoStream.tags;
+                  const tagKeys = Object.keys(tags).map(k => k.toLowerCase());
+                  const tagValues = Object.values(tags).map(v => String(v).toLowerCase());
+                  
+                  if (tagKeys.some(k => k.includes('dovi') || k.includes('dolby')) ||
+                      tagValues.some(v => v.includes('dovi') || v.includes('dolby'))) {
+                    dolbyVision = true;
+                  }
+                }
+                
+                // Check profile for Dolby Vision (e.g., dvhe.08.06)
+                if (!dolbyVision && videoStream.profile) {
+                  const profile = String(videoStream.profile).toLowerCase();
+                  if (profile.includes('dvhe') || profile.includes('dvh1') || profile.includes('dovi')) {
+                    dolbyVision = true;
+                  }
+                }
+                
+                if (dolbyVision) {
+                  // Dolby Vision detected - point to MKV file directly
+                  location = `/media/connorwoodford/F898C32498C2DFEC/Videos/${fileNameNoExt.replace(
+                    new RegExp(" ", "g"),
+                    "%20"
+                  )}.mkv`;
+                  console.log(`Dolby Vision detected in ${fileName} - using MKV file directly`);
+                } else {
+                  // No Dolby Vision - point to transcoded m3u8
+                  fileExt = "m3u8";
+                  location = `/plexTemp/${fileNameNoExt.replace(
+                    new RegExp(" ", "g"),
+                    "&%20"
+                  )}.${fileExt}`;
+                }
               }
 
               var subTarr = [];
               var audio;
               var subcounter = -1;
 
-              if (metaData !== undefined) {
-                if (fileExt === "mp4") {
-                  await ffmpeg.ffprobe(
-                    `F:/ConvertedDVMKVs/${fileNameNoExt}.mkv`,
-                    async function (err, metaDataFromConverted) {
-                      audio = {
-                        codecName:
-                          metaDataFromConverted?.streams[1].codec_name ?? "",
-                        channels:
-                          metaDataFromConverted?.streams[1].channels ?? 6,
-                      };
-                    }
-                  );
-                } else {
-                  console.log("mkv");
+              // if (metaData !== undefined) {
+              //   if (fileExt === "mp4") {
+              //     await ffmpeg.ffprobe(
+              //       `F:/ConvertedDVMKVs/${fileNameNoExt}.mkv`,
+              //       async function (err, metaDataFromConverted) {
+              //         audio = {
+              //           codecName:
+              //             metaDataFromConverted?.streams[1].codec_name ?? "",
+              //           channels:
+              //             metaDataFromConverted?.streams[1].channels ?? 6,
+              //         };
+              //       }
+              //     );
+              //   } else {
+              //     console.log("mkv");
                   audio = {
                     codecName: metaData.streams[1].codec_name,
                     channels: metaData.streams[1].channels,
                   };
-                }
-              }
+              //   }
+              // }
 
               const downloader = new Downloader();
               const bonusFeatures = new BonusFeatures();
@@ -150,19 +200,19 @@ async function updateMoviesInDB() {
                 data,
                 "movie"
               );
-              let backgroundPoster = await downloader.getBackgroundPoster(
+              let posterUrl = await downloader.getBackgroundPoster(
                 fileNameNoExt,
                 data,
                 "movie"
               );
               let subtitleSrts = "";
               // if (loginSuccess === true && loginRes) {
-              subtitleSrts = await downloader.getSubtitleVtt(
-                fileNameNoExt,
-                data,
-                loginRes,
-                metaData
-              );
+              // subtitleSrts = await downloader.getSubtitleVtt(
+              //   fileNameNoExt,
+              //   data,
+              //   loginRes,
+              //   metaData
+              // );
               // }
 
               let parsedCastList = await downloader.getCastList(
@@ -188,9 +238,9 @@ async function updateMoviesInDB() {
               if (metaData.streams[0].codec_tag_string && fileExt !== "mp4") {
                 fileformat = metaData.streams[0].codec_tag_string;
               }
-              if (fileExt === "mp4") {
-                fileformat = "dvh1";
-              }
+              // if (fileExt === "mp4") {
+              //   fileformat = "dvh1";
+              // }
 
               if (metaData) {
                 var metaDataObj = {
@@ -208,7 +258,7 @@ async function updateMoviesInDB() {
                   duration: metaData["format"]["duration"],
                   resolution,
                   channels: audio.channels ? audio.channels : undefined,
-                  fileformat,
+                  dolbyVision,
                   originalLang:
                     data["results"] === undefined ||
                     data["results"].length === 0
@@ -226,7 +276,7 @@ async function updateMoviesInDB() {
                   trailerUrl,
                   srtUrl: subtitleSrts || "",
                   bonusFeatures: bf,
-                  backgroundPoster,
+                  posterUrl,
                   vbr: mbpsWithfixedDecimal,
                   transmuxToPixie: false,
                 };
@@ -249,6 +299,11 @@ async function updateMoviesInDB() {
                 });
 
                 if (l + 1 === notIncluded.length) {
+                  // Scan complete - reset progress
+                  scanProgress.isScanning = false;
+                  scanProgress.current = scanProgress.total;
+                  scanProgress.currentFile = "";
+                  
                   pool.query(
                     `SELECT * FROM movies ORDER BY title ASC`,
                     (err, resp) => {
@@ -265,27 +320,32 @@ async function updateMoviesInDB() {
             }
           );
         } else {
+          // No new files to scan - reset progress
+          scanProgress.isScanning = false;
+          scanProgress.current = 0;
+          scanProgress.total = 0;
+          scanProgress.currentFile = "";
+          
           res.map((movie) => {
             movie.subtitles = JSON.parse(movie.subtitles);
             return movie;
           });
-          pool.query(`SELECT * from pickupwhereleftoff`, (e, r) => {
-            res.map((movie, i) => {
-              let hi = r.find((mo) => mo.titleOrEpisode === movie.title);
+          // pool.query(`SELECT * from pickupwhereleftoff`, (e, r) => {
+          //   res.map((movie, i) => {
+          //     let hi = r.find((mo) => mo.titleOrEpisode === movie.title);
 
-              movie.posterUrl = `http://${localIP}:5012${movie.posterUrl}`;
-              movie.backgroundPoster = `http://${localIP}:5012${movie.backgroundPoster}`;
-              movie.location = `http://${localIP}:5012${movie.location}`;
-              movie.coverArt = `http://${localIP}:5012${movie.coverArt}`;
+          //     movie.posterUrl = urlTransformer.transformUrl(`http://pixable.local:5012${movie.posterUrl}`);
+          //     movie.location = urlTransformer.transformUrl(`http://pixable.local:5012${movie.location}`);
+          //     movie.coverArt = urlTransformer.transformUrl(`http://pixable.local:5012${movie.coverArt}`);
 
-              if (hi) {
-                res[i].seekTime = hi ? hi.time : 0;
-                res[i].resumePressed = true;
-              }
-              return movie;
-            });
-            callback(err, res);
-          });
+          //     if (hi) {
+          //       res[i].seekTime = hi ? hi.time : 0;
+          //       res[i].resumePressed = true;
+          //     }
+          //     return movie;
+          //   });
+          //   callback(err, res);
+          // });
         }
       }
       iterate();
@@ -296,6 +356,9 @@ async function updateMoviesInDB() {
 let routeFunctions = {
   updateMovies: (callback) => {
     updateMoviesInDB();
+  },
+  getScanProgress: () => {
+    return scanProgress;
   },
   resumeOrNot: (title, callback) => {
     pool.query(
@@ -516,7 +579,7 @@ let routeFunctions = {
       (err, res) => {
         res.map(
           (movie) =>
-            (movie.posterUrl = `http://192.168.1.6:5012${movie.posterUrl}`)
+            (movie.posterUrl = urlTransformer.transformUrl(`http://pixable.local:5012${movie.posterUrl}`))
         );
         if (res.length > 0) {
           callback(err, res);

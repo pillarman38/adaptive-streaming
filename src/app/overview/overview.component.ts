@@ -60,15 +60,31 @@ export class OverviewComponent implements OnInit, AfterViewInit {
   @ViewChild("castList") castList!: ElementRef;
   @ViewChild("info") info!: ElementRef;
   @ViewChildren("playBtn") playBtn!: QueryList<ElementRef>;
-  // @ViewChild(SideBarComponent) sideBar!: SideBarComponent;
+  @ViewChild(SideBarComponent) sideBar!: SideBarComponent;
   @ViewChild(SideBarComponent) sideBarComponent!: SideBarComponent;
 
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
     console.log("EVENT: ", event);
 
+    // Only handle navigation if playBtn or sideBar is the current active list
+    if (!this.smartTv.smartTv || 
+        (this.smartTv.smartTv.currentListName !== "playBtn" && 
+         this.smartTv.smartTv.currentListName !== "sideBar")) {
+      return;
+    }
+
     const ind = this.smartTv.smartTv?.navigate(event);
     console.log("THI IND: ", ind);
+
+    const isEnterKey = event.code === "Enter" || 
+    event.code === "NumpadEnter" || 
+    event.key === "Enter" ||
+    event.keyCode === 13;
+
+    if (isEnterKey) {
+      this.playMovie();
+    }
 
     if (
       ind?.borderReached === "right edge" &&
@@ -144,19 +160,19 @@ export class OverviewComponent implements OnInit, AfterViewInit {
   onHover(e: number, listName: string) {
     console.log("EVVVENMT: ", e);
     if (listName === "movies") {
-      // const ind = this.smartTv.findAndSetIndex(e, "movies");
-      // this.index = ind.index;
+      const ind = this.smartTv.smartTv?.findAndSetIndex(e, "movies");
+      this.index = ind.index;
     }
-    // if (listName === "sideBar") {
-    //   this.smartTv.findAndSetIndex(e, "sideBar");
-    // }
+    if (listName === "sideBar") {
+      this.smartTv.smartTv?.findAndSetIndex(e, "sideBar");
+    }
   }
 
   changeTransmuxStatus(status: number) {
     this.infoStore.videoInfo.transmuxToPixie = status;
     this.http
       .post(
-        `http://192.168.1.6:5012/api/mov/transmux`,
+        `http://pixable.local:5012/api/mov/transmux`,
         this.infoStore.videoInfo
       )
       .subscribe((res: any) => {
@@ -178,11 +194,11 @@ export class OverviewComponent implements OnInit, AfterViewInit {
     this.smartTv.changeVisibility(true);
 
     setTimeout(() => {
-      console.log(
-        "SIDEBAR: ",
-        this.sideBarComponent,
-        this.smartTv.smartTv?.listsArr
-      );
+      // console.log(
+      //   "SIDEBAR: ",
+      //   this.sideBarComponent,
+      //   this.smartTv.smartTv?.listsArr
+      // );
 
       this.smartTv.smartTv?.addCurrentList({
         startingList: true,
@@ -190,13 +206,15 @@ export class OverviewComponent implements OnInit, AfterViewInit {
         startingIndex: 0,
         listElements: this.playBtn,
       });
+      this.smartTv.smartTv?.setCurrentIndex(0);
+      // Removed unsafe assignment to an optional property (currentIndex)
     }, 1000);
 
     if (this.infoStore.videoInfo.pid > 0) {
       console.log("INSIDE PID: ");
 
       this.http
-        .post(`http://192.168.1.6:5012/api/mov/pidkill`, {
+        .post(`http://pixable.local:5012/api/mov/pidkill`, {
           pid: this.infoStore.videoInfo.pid,
         })
         .subscribe((res) => {

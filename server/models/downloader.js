@@ -1,6 +1,7 @@
 var fetch = require("node-fetch");
 const { spawn, execSync } = require("child_process");
 let fs = require("fs");
+const urlTransformer = require("../utils/url-transformer");
 
 class Downloader {
   async getCoverArt(notIncludedFileName, tmdbInfo, type) {
@@ -43,7 +44,7 @@ class Downloader {
     }
 
     if (type === "movie") {
-      const files = await fs.readdirSync(`I:/MovieCoverArt`);
+      const files = await fs.readdirSync(`/media/connorwoodford/F898C32498C2DFEC/MovieCoverArt`);
       if (
         !files.includes(notIncludedFileName + ".jpg") &&
         tmdbInfo.results[0]
@@ -53,7 +54,7 @@ class Downloader {
           `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0].poster_path}`
         );
         const fileStreamPosters = await fs.createWriteStream(
-          `I:/MovieCoverArt/${notIncludedFileName}.jpg`
+          `/media/connorwoodford/F898C32498C2DFEC/MovieCoverArt/${notIncludedFileName}.jpg`
         );
 
         let contentEncoding = coverArt.headers.get("content-encoding");
@@ -179,18 +180,18 @@ class Downloader {
         });
 
         if (resJson.length > 0) {
-          const existingTrailers = await fs.readdirSync("I:/Trailers/");
+          const existingTrailers = await fs.readdirSync("/media/connorwoodford/F898C32498C2DFEC/Trailers/");
           if (!existingTrailers.includes(`${notIncluded}.mp4`)) {
             const url = `https://www.youtube.com/watch?v=${resJson[0].key}`;
-            await execSync(
-              `I:/Trailers/yt-dlp.exe ${url} --remux-video mp4 -o "I:/Trailers/${notIncluded}.mp4"`
-            );
+            // await execSync(
+            //   `I:/Trailers/yt-dlp.exe ${url} --remux-video mp4 -o "I:/Trailers/${notIncluded}.mp4"`
+            // );
           }
 
-          return `http://192.168.1.6:5012/Trailers/${notIncluded}.mp4`.replace(
+          return urlTransformer.transformUrl(urlTransformer.transformUrl(`http://pixable.local:5012/Trailers/${notIncluded}.mp4`).replace(
             / /g,
             "%20"
-          );
+          ));
         } else {
           return "";
         }
@@ -248,14 +249,14 @@ class Downloader {
   async getPoster(notIncluded, data, type) {
     let posters;
     if (type === "movies") {
-      posters = fs.readdirSync("F:/MoviePosters");
+      posters = fs.readdirSync("/media/connorwoodford/F898C32498C2DFEC/MoviePosters");
       let toCheck = +".jpg";
       if (!posters.includes(toCheck)) {
         let idGetter = undefined;
         var poster = "";
         try {
           idGetter = execSync(
-            `F:/MKVToolNix/mkvmerge -i "I:/Videos/${notIncluded}.mkv"`
+            `mkvmerge -i "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv"`
           )
             .toString()
             .split("\n")
@@ -264,9 +265,9 @@ class Downloader {
             .replace(":", "");
 
           let id = parseInt(idGetter);
-          const command = `F:/MKVToolNix/mkvextract "I:/Videos/${notIncluded}.mkv" attachments "${id}:F:/MoviePosters/${notIncluded}.jpg"`;
+          const command = `mkvextract "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/media/connorwoodford/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg"`;
           const extraction = await execSync(
-            `F:/MKVToolNix/mkvextract "I:/Videos/${notIncluded}.mkv" attachments "${id}:F:/MoviePosters/${notIncluded}.jpg"`
+            `mkvextract "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/media/connorwoodford/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg"`
           );
           return `/MoviePosters/${notIncluded.replace(
             new RegExp(" ", "g"),
@@ -277,7 +278,7 @@ class Downloader {
             var downloadUrl = `https://www.themoviedb.org/t/p/w533_and_h300_bestv2${data.results[0].backdrop_path}`;
             var downloadPosterFile = await fetch(downloadUrl);
             const fileStreamPosters = await fs.createWriteStream(
-              `F:/MoviePosters/${notIncluded}.jpg`
+              `/media/connorwoodford/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg`
             );
             new Promise((resolve, reject) => {
               downloadPosterFile.body.pipe(fileStreamPosters);
@@ -285,7 +286,7 @@ class Downloader {
               fileStreamPosters.on("finish", resolve);
             });
 
-            return `/MoviePosters/${notIncluded.replace(
+            return `/media/connorwoodford/F898C32498C2DFEC/MoviePosters/${notIncluded.replace(
               new RegExp(" ", "g"),
               "%20"
             )}.jpg`;
@@ -304,7 +305,7 @@ class Downloader {
         var poster = "";
         try {
           idGetter = await execSync(
-            `F:/MKVToolNix/mkvmerge -i "I:/Videos/${notIncluded}.mkv"`
+            `F:/MKVToolNix/mkvmerge -i "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv"`
           )
             .toString()
             .split("\n")
@@ -313,9 +314,9 @@ class Downloader {
             .replace(":", "");
 
           let id = parseInt(idGetter);
-          const command = `F:/MKVToolNix/mkvextract "I:/Videos/${notIncluded}.mkv" attachments "${id}:J:/tvPosters/${notIncluded}.jpg"`;
+          const command = `mkvextract "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:J:/tvPosters/${notIncluded}.jpg"`;
           const extraction = await execSync(
-            `F:/MKVToolNix/mkvextract "I:/Videos/${notIncluded}.mkv" attachments "${id}:J:/tvPosters/${notIncluded}.jpg"`
+            `mkvextract "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:J:/tvPosters/${notIncluded}.jpg"`
           );
           return `/tvPosters/${notIncluded.replace(
             new RegExp(" ", "g"),
@@ -353,14 +354,14 @@ class Downloader {
           `https://api.themoviedb.org/3/${type}/${data.results[0].id}/images?api_key=490cd30bbbd167dd3eb65511a8bf2328`
         );
         const imageJSON = await image.json();
-        const posters = fs.readdirSync("F:/BackgroundImages/");
+        const posters = fs.readdirSync("/media/connorwoodford/F898C32498C2DFEC/BackgroundImages/");
         if (!posters.includes(`${notIncluded}.jpg`)) {
           if (imageJSON.backdrops) {
             if (imageJSON.backdrops.length > 0) {
               var downloadUrl = `https://www.themoviedb.org/t/p/original${imageJSON.backdrops[0].file_path}`;
               var downloadPosterFile = await fetch(downloadUrl);
               const fileStreamPosters = await fs.createWriteStream(
-                `F:/BackgroundImages/${notIncluded}.jpg`
+                `/media/connorwoodford/F898C32498C2DFEC/BackgroundImages/${notIncluded}.jpg`
               );
               new Promise((resolve, reject) => {
                 downloadPosterFile.body.pipe(fileStreamPosters);
@@ -393,7 +394,7 @@ class Downloader {
   }
 
   async getSubtitleVtt(notIncluded, data, access, metaData) {
-    const alreadyStoredVtt = fs.readdirSync("I:/subtitles");
+    const alreadyStoredVtt = fs.readdirSync("/media/connorwoodford/F898C32498C2DFEC/subtitles");
     if (!alreadyStoredVtt.includes(`${notIncluded}.vtt`)) {
       const subtitlesFilter = metaData.streams.filter((stream, index) => {
         if (
@@ -416,41 +417,131 @@ class Downloader {
               firstSubtitle.index
             );
             const pythonProcess = spawn(
-              "C:/Users/Connor/Desktop/projects/adaptive-streaming/server/models/pgsripper.exe",
-              [notIncluded, firstSubtitle.index]
+              "python3",
+              ["/home/connorwoodford/Desktop/Projects/adaptive-streaming/server/models/pgs_to_vtt_simple.py", notIncluded, firstSubtitle.index]
             );
 
             pythonProcess.stdout.on("data", (data) => {
               result += data.toString();
             });
 
+            let progressBar = {
+              total: 0,
+              current: 0,
+              stage: "starting"
+            };
+
+            const updateProgressBar = () => {
+              const width = 40;
+              let percentage = 0;
+              let bar = "";
+              
+              if (progressBar.total > 0) {
+                percentage = Math.min(100, Math.round((progressBar.current / progressBar.total) * 100));
+                const filled = Math.round((width * percentage) / 100);
+                const empty = width - filled;
+                bar = "█".repeat(filled) + "░".repeat(empty);
+              } else {
+                // Indeterminate progress - show animated bar
+                const animChars = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
+                const animIndex = Math.floor(Date.now() / 200) % animChars.length;
+                bar = animChars[animIndex].repeat(width);
+                percentage = 0;
+              }
+              
+              const stageNames = {
+                "starting": "Starting",
+                "collecting": "Collecting subtitles",
+                "ripping": "Ripping subtitles",
+                "converting": "Converting to VTT",
+                "complete": "Complete"
+              };
+              
+              const stageName = stageNames[progressBar.stage] || progressBar.stage;
+              const countText = progressBar.total > 0 
+                ? `${progressBar.current}/${progressBar.total}`
+                : "processing...";
+              process.stdout.write(
+                `\r[Subtitle: ${notIncluded}] ${stageName} [${bar}] ${percentage}% (${countText})`
+              );
+            };
+
             pythonProcess.stderr.on("data", (data) => {
-              console.error(`stderr: ${data}`);
+              // Output progress messages in real-time
+              const message = data.toString().trim();
+              if (message) {
+                // Parse progress updates (format: PROGRESS:key:value or PROGRESS:key:value:key2:value2)
+                if (message.startsWith("PROGRESS:")) {
+                  const content = message.substring(9);
+                  const parts = content.split(":");
+                  
+                  for (let i = 0; i < parts.length; i += 2) {
+                    const key = parts[i];
+                    const value = parts[i + 1];
+                    
+                    if (key === "total") {
+                      progressBar.total = parseInt(value) || 0;
+                    } else if (key === "current") {
+                      progressBar.current = parseInt(value) || 0;
+                    } else if (key === "stage") {
+                      progressBar.stage = value;
+                    } else if (key === "complete") {
+                      progressBar.current = progressBar.total;
+                      progressBar.stage = "complete";
+                    } else if (key === "heartbeat") {
+                      // Heartbeat message - just update the display to show it's still working
+                      // Don't change stage, just refresh the progress bar
+                      updateProgressBar();
+                    }
+                  }
+                  updateProgressBar();
+                } else {
+                  // Regular message - show on new line
+                  process.stdout.write(`\n[Subtitle: ${notIncluded}] ${message}\n`);
+                  // Redraw progress bar
+                  if (progressBar.total > 0) {
+                    updateProgressBar();
+                  }
+                }
+              }
             });
 
             pythonProcess.on("close", (code) => {
+              // Clear progress bar and move to new line
+              if (progressBar.total > 0) {
+                process.stdout.write(`\n`);
+              }
+              
               if (code !== 0) {
                 reject(`Python process exited with code ${code}`);
               } else {
+                // Write the VTT content to file
+                const vttPath = `/media/connorwoodford/F898C32498C2DFEC/subtitles/${notIncluded}.vtt`;
+                try {
+                  fs.writeFileSync(vttPath, result, "utf8");
+                  console.log(`[Subtitle: ${notIncluded}] VTT file written to: ${vttPath}`);
+                } catch (err) {
+                  console.error(`Error writing VTT file: ${err}`);
+                }
                 resolve(result);
               }
             });
           });
         }
 
-        return `http://192.168.1.6:5012/subtitles/${notIncluded.replaceAll(
+        return urlTransformer.transformUrl(`http://pixable.local:5012/subtitles/${notIncluded.replaceAll(
           " ",
           "%20"
-        )}.vtt`;
+        )}.vtt`);
       } catch (error) {
         console.error("Error executing the process:", error);
         return null;
       }
     } else {
-      return `http://192.168.1.6:5012/subtitles/${notIncluded.replaceAll(
+      return urlTransformer.transformUrl(`http://pixable.local:5012/subtitles/${notIncluded.replaceAll(
         " ",
         "%20"
-      )}.vtt`;
+      )}.vtt`);
     }
   }
 }

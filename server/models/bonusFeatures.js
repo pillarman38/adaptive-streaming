@@ -3,6 +3,7 @@ const { execSync } = require("child_process");
 let pool = require("../../config/connections");
 const ffmpeg = require("fluent-ffmpeg");
 const ffprobePath = require("@ffprobe-installer/ffprobe").path;
+const urlTransformer = require("../utils/url-transformer");
 ffmpeg.setFfprobePath(ffprobePath);
 
 class BonusFeatures {
@@ -18,10 +19,10 @@ class BonusFeatures {
           try {
             return await new Promise(async (resolve, reject) => {
               ffmpeg.ffprobe(
-                `I:/bonusFeatures/${movie}/${featuresForMovie[i]}`,
+                `/media/connorwoodford/F898C32498C2DFEC/bonusFeatures/${movie}/${featuresForMovie[i]}`,
                 async function (err, metaData) {
                   const id = execSync(
-                    `I:/MKVToolNix/mkvmerge -i "I:/bonusFeatures/${movie}/${featuresForMovie[i]}"`
+                    `mkvmerge -i "/media/connorwoodford/F898C32498C2DFEC/bonusFeatures/${movie}/${featuresForMovie[i]}"`
                   )
                     .toString()
                     .split("\n")
@@ -30,9 +31,9 @@ class BonusFeatures {
                     .replace(":", "");
 
                   await execSync(
-                    `I:/MKVToolNix/mkvextract "I:/bonusFeatures/${movie}/${
+                    `mkvextract "/media/connorwoodford/F898C32498C2DFEC/bonusFeatures/${movie}/${
                       featuresForMovie[i]
-                    }" attachments "${id}:I:/bonusFeatures/thumbnails/${featuresForMovie[
+                    }" attachments "${id}:/media/connorwoodford/F898C32498C2DFEC/bonusFeatures/thumbnails/${featuresForMovie[
                       i
                     ].replace("mkv", "")}.jpg"`
                   );
@@ -41,18 +42,18 @@ class BonusFeatures {
                     title: movie,
                     resolution: `${metaData.streams[0].coded_width}x${metaData.streams[0].coded_height}`,
                     seekTime: 0,
-                    location: `http://192.168.1.6:5012/plexTemp/${featuresForMovie[
+                    location: urlTransformer.transformUrl(`http://pixable.local:5012/plexTemp/${featuresForMovie[
                       i
                     ]
                       .replace(new RegExp(" ", "g"), "%20")
-                      .replace(new RegExp("'", "g"), "")}`,
-                    filePath: `I:/bonusFeatures/${movie}/${featuresForMovie[i]}`,
+                      .replace(new RegExp("'", "g"), "")}`),
+                    filePath: `/media/connorwoodford/F898C32498C2DFEC/bonusFeatures/${movie}/${featuresForMovie[i]}`,
                     featureTitle: featuresForMovie[i],
-                    posterUrl: `http://192.168.1.6:5012/bonusFeatures/thumbnails/${featuresForMovie[
+                    posterUrl: urlTransformer.transformUrl(`http://pixable.local:5012/bonusFeatures/thumbnails/${featuresForMovie[
                       i
                     ]
                       .replace(new RegExp(" ", "g"), "%20")
-                      .replace(new RegExp("'", "g"), "")}`,
+                      .replace(new RegExp("'", "g"), "")}`),
                   };
 
                   pool.query(

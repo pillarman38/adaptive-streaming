@@ -4,6 +4,7 @@ const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
 const ffprobePath = require("@ffprobe-installer/ffprobe").path;
 const { getFilesRecursively } = require("./fileGrabber");
+const urlTransformer = require("../utils/url-transformer");
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
 const showInfoGrabber = require("./showInfoGrabber");
@@ -25,9 +26,9 @@ let tv = {
       pool.query(`SELECT * FROM tv`, async (error, dbRes) => {
         var i = 0;
         dbRes = dbRes.map((itm) => {
-          itm.backdropPhotoUrl = `http://192.168.1.6:5012${itm.backdropPhotoUrl}`;
-          itm.posterPhotoUrl = `http://192.168.1.6:5012${itm.posterUrl}`;
-          itm.coverArt = `http://192.168.1.6:5012${itm.coverArt}`;
+          itm.backdropPhotoUrl = urlTransformer.transformUrl(`http://pixable.local:5012${itm.backdropPhotoUrl}`);
+          itm.posterPhotoUrl = urlTransformer.transformUrl(`http://pixable.local:5012${itm.posterUrl}`);
+          itm.coverArt = urlTransformer.transformUrl(`http://pixable.local:5012${itm.coverArt}`);
           return itm;
         });
         let titlesOnly = dbRes.map((itm) => itm.title);
@@ -313,7 +314,7 @@ let tv = {
         for (let i = 0; i < re.length; i++) {
           const eps = await queryForEps(re[i].season_number, show.show);
           eps.res = eps.res.map((episode) => {
-            episode.backdropPhotoUrl = `http://192.168.1.6:5012/${episode.backdropPhotoUrl}`;
+            episode.backdropPhotoUrl = urlTransformer.transformUrl(`http://pixable.local:5012/${episode.backdropPhotoUrl}`);
             return episode;
           });
           if (eps.res) {

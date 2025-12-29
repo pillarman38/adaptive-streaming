@@ -1,6 +1,8 @@
 import { Component, OnInit } from "@angular/core";
 import { Router } from "@angular/router";
-import { SmartTvLibSingletonService } from "./smart-tv-lib-singleton.service";
+import { ApiConfigService } from "./services/api-config.service";
+import { LoggerService } from "./services/logger.service";
+// import { SmartTvLibSingletonService } from "./smart-tv-lib-singleton.service";
 
 @Component({
   selector: "app-root",
@@ -11,15 +13,21 @@ export class AppComponent implements OnInit {
   visibility = true;
   constructor(
     private router: Router,
-    private smartTv: SmartTvLibSingletonService
+    private apiConfig: ApiConfigService,
+    private logger: LoggerService
+    // private smartTv: SmartTvLibSingletonService
   ) {
-    smartTv.create();
+    // Initialize logger early - this will override console methods on native platforms
+    // smartTv.create();
   }
 
-  ngOnInit(): void {
-    this.smartTv.sideBarVisibility.subscribe((visibility) => {
-      this.visibility = visibility;
-    });
+  async ngOnInit(): Promise<void> {
+    // Ensure server config is loaded before navigating
+    await this.apiConfig.ensureConfigLoaded();
+    
+    // this.smartTv.sideBarVisibility.subscribe((visibility) => {
+    //   this.visibility = visibility;
+    // });
     this.router.navigateByUrl("/videoSelection");
   }
 }

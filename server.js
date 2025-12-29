@@ -8,12 +8,14 @@ let bparser = require("body-parser");
 
 app.use(bparser.urlencoded({ extended: true }));
 app.use(bparser.json());
-app.use(express.static("C:/Users/Connor/Desktop/DVConverter"));
+app.use(express.static("/media/connorwoodford/F898C32498C2DFEC"));
 app.use(express.static(__dirname + "/dist"));
-app.use(express.static("F:/"));
-app.use(express.static("D:/"));
-app.use(express.static("I:/"));
-app.use(express.static("J:/"));
+// Serve server-config.json from repo root
+app.use(express.static(__dirname));
+// app.use(express.static("F:/"));
+// app.use(express.static("D:/"));
+// app.use(express.static("I:/"));
+// app.use(express.static("J:/"));
 
 app.use(cors());
 

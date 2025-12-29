@@ -11,7 +11,7 @@ import {
 import { HttpClient } from "@angular/common/http";
 import { Router } from "@angular/router";
 import { InfoStoreService, showInfo } from "../info-store.service";
-import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
+// import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 import { SideBarComponent } from "../side-bar/side-bar.component";
 
 @Component({
@@ -34,59 +34,60 @@ export class TvComponent implements OnInit {
 
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
-    const ind = this.smartTv.smartTv?.navigate(event);
-    console.log("THI IND: ", ind);
-    this.index = ind?.currentIndex || 0;
 
-    if (ind?.borderReached === "left edge") {
-      this.smartTv.smartTv?.switchList("sideBar", 0);
-    }
+    // const ind = this.smartTv.smartTv?.navigate(event);
+    // console.log("THI IND: ", ind);
+    // this.index = ind?.currentIndex || 0;
 
-    if (
-      ind?.borderReached === "right edge" &&
-      ind?.currentListName === "sideBar"
-    ) {
-      this.smartTv.smartTv?.switchList("tv", 0);
-    }
+    // if (ind?.borderReached === "left edge") {
+      // this.smartTv.smartTv?.switchList("sideBar", 0);
+    // }
 
-    if (ind?.borderReached === "right edge" && ind?.currentListName === "tv") {
-      this.smartTv.smartTv?.wrapRight();
-    }
+    // if (
+    //   ind?.borderReached === "right edge" &&
+    //   ind?.currentListName === "sideBar"
+    // ) {
+    //   this.smartTv.smartTv?.switchList("tv", 0);
+    // }
 
-    if (ind?.currentListName === "tv") {
-      this.infoStore.checkBorderOverflow(ind);
-      await this.updateCurrentBox();
-    }
+    // if (ind?.borderReached === "right edge" && ind?.currentListName === "tv") {
+    //   this.smartTv.smartTv?.wrapRight();
+    // }
 
-    if (event.code === "Enter" && ind?.currentListName === "tv") {
-      this.selectShow();
-    }
+    // if (ind?.currentListName === "tv") {
+    //   this.infoStore.checkBorderOverflow(ind);
+    //   await this.updateCurrentBox();
+    // }
 
-    if (event.code === "Enter" && ind?.currentListName === "sideBar") {
-      switch (ind?.currentIndex) {
-        case 0:
-          this.router.navigateByUrl("/search");
-          break;
-        case 1:
-          this.router.navigateByUrl("/videoSelection");
-          break;
-        case 2:
-          this.router.navigateByUrl("/tv");
-          break;
-      }
-    }
+    // if (event.code === "Enter" && ind?.currentListName === "tv") {
+    //   this.selectShow();
+    // }
+
+    // if (event.code === "Enter" && ind?.currentListName === "sideBar") {
+    //   switch (ind?.currentIndex) {
+    //     case 0:
+    //       this.router.navigateByUrl("/search");
+    //       break;
+    //     case 1:
+    //       this.router.navigateByUrl("/videoSelection");
+    //       break;
+    //     case 2:
+    //       this.router.navigateByUrl("/tv");
+    //       break;
+    //   }
+    // }
   }
 
   @HostListener("window:resize", ["$event"])
   onResize(event: any) {
     console.log(event.target.innerWidth);
-    this.smartTv.smartTv?.windowResize();
+    // this.smartTv.smartTv?.windowResize();
   }
   constructor(
     private http: HttpClient,
     private router: Router,
     private infoStore: InfoStoreService,
-    private smartTv: SmartTvLibSingletonService
+    // private smartTv: SmartTvLibSingletonService
   ) {}
 
   async updateCurrentBox() {
@@ -100,13 +101,13 @@ export class TvComponent implements OnInit {
   }
 
   async onHover(e: number, listName: string) {
-    const ind = this.smartTv.smartTv?.findAndSetIndex(e, listName);
-    console.log("IND TV: ", ind);
+    // const ind = this.smartTv.smartTv?.findAndSetIndex(e, listName);
+    // console.log("IND TV: ", ind);
 
-    if (ind?.currentListName === "tv") {
-      this.index = e;
-      await this.updateCurrentBox();
-    }
+    // if (ind?.currentListName === "tv") {
+    //   this.index = e;
+    //   await this.updateCurrentBox();
+    // }
   }
 
   selectShow() {
@@ -130,7 +131,7 @@ export class TvComponent implements OnInit {
     });
 
     this.http
-      .post(`http://192.168.1.6:5012/api/mov/tv`, { pid: 0 })
+      .post(`http://pixable.local:5012/api/mov/tv`, { pid: 0 })
       .subscribe((res: any) => {
         console.log("RES: ", res, this.boxes);
 
@@ -140,14 +141,14 @@ export class TvComponent implements OnInit {
 
         this.poster = this.currentBox.backdropPhotoUrl;
         // this.updateCurrentBox();
-        setTimeout(() => {
-          this.smartTv.smartTv?.addCurrentList({
-            startingList: true,
-            listName: "tv",
-            startingIndex: 0,
-            listElements: this.boxes,
-          });
-        }, 1000);
+        // setTimeout(() => {
+        //   this.smartTv.smartTv?.addCurrentList({
+        //     startingList: true,
+        //     listName: "tv",
+        //     startingIndex: 0,
+        //     listElements: this.boxes,
+        //   });
+        // }, 1000);
       });
   }
 }

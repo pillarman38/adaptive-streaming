@@ -1,6 +1,6 @@
 <!-- <app-side-bar></app-side-bar> -->
-<div *ngIf="currentBox.backgroundPoster" id="backgroundPlacer" #backgroundPlacer>
-  <img src="{{poster}}" id="backgroundImg" (load)="onImageLoad()" #image>
+<div *ngIf="currentBox.posterUrl" id="backgroundPlacer" #backgroundPlacer>
+  <img [src]="poster | safeUrl" id="backgroundImg" (load)="onImageLoad()" #image>
 </div>
 
 <div id="wrapper" #wrapper>
@@ -24,18 +24,18 @@
       <p>Dts HD 5.1</p>
     </div>
 
-    <div *ngIf="currentBox.audio === 'truehd'"class="bubbles">
+    <div *ngIf="currentBox.audio === 'truehd' && isAndroid"class="bubbles">
       <p>Dolby Atmos</p>
     </div>
 
-    <div *ngIf="currentBox.fileformat === 'dvh1'"class="bubbles">
+    <div *ngIf="currentBox.dolbyVision === 1 && isAndroid"class="bubbles">
       <p>Dolby Vision</p>
     </div>
   </div>
 
   <div id="list" #list>
     <div class="boxes" #boxes boxes *ngFor="let movie of movies; index as i" (mouseover)="onHover(i, 'movies')" (click)="selectMovie()">
-      <img src="{{movie.posterUrl}}" class="posterArt">
+      <img [src]="movie.posterUrl | safeUrl" class="posterArt">
       <div class="titleCards">
         <p>{{i}}: {{movie.title}}</p>
       </div>

@@ -6,6 +6,7 @@ const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
 const ffprobePath = require("@ffprobe-installer/ffprobe").path;
 const rimraf = require("rimraf");
 const path = require("path");
+const urlTransformer = require("../utils/url-transformer");
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
 
@@ -18,11 +19,11 @@ const transcoder = {
     }
     if (pid["pid"] !== 0) {
       try {
-        fs.readdir("I:/plexTemp", (err, files) => {
+        fs.readdir("/media/connorwoodford/F898C32498C2DFEC", (err, files) => {
           if (err) throw err;
           if (files.length > 0) {
             for (const file of files) {
-              fs.unlink(path.join("I:/plexTemp", file), (err) => {
+              fs.unlink(path.join("/media/connorwoodford/F898C32498C2DFEC", file), (err) => {
                 if (err) throw err;
               });
             }
@@ -51,6 +52,47 @@ const transcoder = {
   },
   startConverting: async (movieTitle, callback) => {
     var fileExt = movieTitle.filePath.split(".").pop();
+    
+    // Check if device is Nvidia Shield and file is MKV - skip transcoding
+    if (movieTitle.device === 'nvidia-shield' && fileExt.toLowerCase() === 'mkv') {
+      console.log('Nvidia Shield detected with MKV file - skipping transcoding, returning original file');
+      
+      // Convert file path to URL
+      // filePath is like: /media/connorwoodford/F898C32498C2DFEC/Videos/movie.mkv
+      // express.static serves from /media/connorwoodford/F898C32498C2DFEC, so URL is /Videos/movie.mkv
+      const basePath = '/media/connorwoodford/F898C32498C2DFEC';
+      let videoUrl;
+      
+      if (movieTitle.filePath.startsWith(basePath)) {
+        // Extract relative path from basePath
+        videoUrl = movieTitle.filePath.substring(basePath.length);
+      } else {
+        // Fallback: try to extract just the filename and assume it's in Videos/
+        const fileName = movieTitle.filePath.split('/').pop();
+        videoUrl = `/Videos/${fileName}`;
+      }
+      
+      // Replace spaces with %20 for URL encoding
+      videoUrl = videoUrl.replace(new RegExp(" ", "g"), "%20");
+      
+      var movieReturner = {
+        browser: movieTitle["browser"] || "Android",
+        pid: 0, // No transcoding process
+        duration: movieTitle["duration"],
+        fileformat: movieTitle["fileformat"] || "mkv",
+        location: urlTransformer.transformUrl(
+          `http://pixable.local:5012${videoUrl}`
+        ),
+        title: movieTitle["title"],
+        subtitleFile: movieTitle["srtLocation"] 
+          ? urlTransformer.transformUrl(`http://pixable.local:5012/modifiedVtts/${movieTitle["title"]}.vtt`)
+          : undefined,
+      };
+      
+      callback(null, movieReturner);
+      return;
+    }
+    
     pool.query(
       `DELETE FROM pickupwhereleftoff WHERE titleOrEpisode = '${movieTitle.title}'`,
       async (error, resp) => {
@@ -69,19 +111,6 @@ const transcoder = {
           s = 0;
         }
 
-        if (fileExt !== "mp4") {
-          if (movieTitle["pid"] === 0 || movieTitle["pid"] === undefined) {
-            console.log("nothing to kill");
-          }
-          if (movieTitle["pid"] !== 0 && movieTitle["pid"] !== undefined) {
-            try {
-              process.kill(movieTitle["pid"]);
-            } catch (err) {
-              movieTitle["pid"] = 0;
-              console.log(movieTitle["pid"]);
-            }
-          }
-
           if (movieTitle["browser"] == "Safari") {
             var processId = 0;
             var h = Math.floor(movieTitle["seekTime"] / 3600);
@@ -97,7 +126,7 @@ const transcoder = {
 
             if (movieTitle["resolution"] == "720x480") {
               var newJob = function () {
-                var newProc = spawn("F:/ffmpeg", [
+                var newProc = spawn("ffmpeg", [
                   "-ss",
                   `${h}:${m}:${s}`,
                   "-i",
@@ -120,7 +149,7 @@ const transcoder = {
                   "0",
                   "-f",
                   "hls",
-                  `I:/plexTemp/${movieTitle["title"].replace(".mkv", "")}.m3u8`,
+                  `/media/connorwoodford/F898C32498C2DFEC/plexTemp/${movieTitle["title"].replace(".mkv", "")}.m3u8`,
                 ]);
                 newProc.on("error", function (err) {
                   console.log("ls error", err);
@@ -144,7 +173,7 @@ const transcoder = {
 
             if (movieTitle["resolution"] == "1920x1080") {
               var newJob = async function () {
-                var newProc = spawn("F:/ffmpeg", [
+                var newProc = spawn("ffmpeg", [
                   "-ss",
                   `${h}:${m}:${s}`,
                   "-y",
@@ -153,7 +182,7 @@ const transcoder = {
                   // '-fflags', '+genpts',
                   "-i",
                   `${movieTitle["filePath"]}`,
-                  // '-i', 'F:/AlitaBattleAngel20191080pUHD2BDeng.srt',
+                  // '-i', 'AlitaBattleAngel20191080pUHD2BDeng.srt',
                   // '-ss', `${h}:${m}:${s}`,
                   // '-t', '00:30:00',
                   // '-map', '0',
@@ -182,7 +211,7 @@ const transcoder = {
                   "-f",
                   "hls",
                   // '-hls_segment_type','mpegts',
-                  `I:/plexTemp/${movieTitle["title"]}.m3u8`,
+                  `/media/connorwoodford/F898C32498C2DFEC/plexTemp/${movieTitle["title"]}.m3u8`,
                 ]);
                 newProc.on("error", function (err) {
                   console.log("ls error", err);
@@ -214,7 +243,7 @@ const transcoder = {
                   // '-probesize', '10M',
                   "-i",
                   `${movieTitle["filePath"]}`,
-                  // '-i', 'F:/AlitaBattleAngel20191080pUHD2BDeng.srt',
+                  // '-i', 'AlitaBattleAngel20191080pUHD2BDeng.srt',
                   // '-ss', `${h}:${m}:${s}`,
                   // '-t', '00:30:00',
                   // '-map', '0',
@@ -245,7 +274,7 @@ const transcoder = {
                   "hls",
                   "-hls_segment_type",
                   "mpegts",
-                  `I:/plexTemp/${movieTitle["title"]}.m3u8`,
+                  `/media/connorwoodford/F898C32498C2DFEC/plexTemp/${movieTitle["title"]}.m3u8`,
                 ]);
                 newProc.on("error", function (err) {
                   console.log("ls error", err);
@@ -267,9 +296,9 @@ const transcoder = {
               newJob();
             }
 
-            var watcher = fs.watch("I:/plexTemp/", (event, filename) => {
+            var watcher = fs.watch("/media/connorwoodford/F898C32498C2DFEC/plexTemp/", (event, filename) => {
               console.log("HERE IS PID", processId);
-              if (filename == `${movieTitle["title"]}.m3u8`) {
+              if (filename == `${movieTitle["title"]}.m3u8.tmp`) {
                 watcher.close();
                 console.log("its here");
                 var movieReturner = {
@@ -277,13 +306,14 @@ const transcoder = {
                   pid: processId,
                   duration: movieTitle["duration"],
                   fileformat: movieTitle["fileformat"],
-                  location:
-                    "http://192.168.1.6:5012/plexTemp/" +
+                  location: urlTransformer.transformUrl(
+                    "http://pixable.local:5012/plexTemp/" +
                     movieTitle["title"] +
-                    ".m3u8".replace(new RegExp(" ", "g"), "%20"),
-                  // location: 'http://192.168.1.6:5012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
+                    ".m3u8".replace(new RegExp(" ", "g"), "%20")
+                  ),
+                  // location: 'http://pixable.local:5012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
                   title: movieTitle["title"],
-                  subtitleFile: `http://192.168.1.6:5012/modifiedVtts/${movieTitle["title"]}.vtt`,
+                  subtitleFile: urlTransformer.transformUrl(`http://pixable.local:5012/modifiedVtts/${movieTitle["title"]}.vtt`),
                 };
                 callback(null, movieReturner);
                 return;
@@ -292,7 +322,6 @@ const transcoder = {
           }
 
           if (movieTitle["browser"] == "Chrome") {
-            console.log("hi");
             var h = Math.floor(movieTitle["seekTime"] / 3600);
             var m = Math.floor((movieTitle["seekTime"] % 3600) / 60);
             var s = Math.floor((movieTitle["seekTime"] % 3600) % 60);
@@ -307,12 +336,12 @@ const transcoder = {
 
             var newJob = function () {
               // if(movieTitle['subtitles'] != -1) {
-              var newProc = spawn("F:/ffmpeg", [
+              var newProc = spawn("ffmpeg", [
                 "-ss",
                 `${h}:${m}:${s}`,
                 "-i",
                 `${movieTitle["filePath"]}`,
-                // '-i', 'F:/AlitaBattleAngel20191080UHD2BDeng.vtt',
+                // '-i', 'AlitaBattleAngel20191080UHD2BDeng.vtt',
                 // '-filter:v', 'scale=w=1920:h=1080',
                 "-c:v",
                 "libx264",
@@ -332,7 +361,7 @@ const transcoder = {
                 "0",
                 "-f",
                 "hls",
-                `I:/plexTemp/${movieTitle["title"]}.m3u8`,
+                `/media/connorwoodford/F898C32498C2DFEC/plexTemp/${movieTitle["title"]}.m3u8`,
               ]);
               newProc.on("error", function (err) {
                 console.log("ls error", err);
@@ -353,7 +382,7 @@ const transcoder = {
             };
             newJob();
 
-            var watcher = fs.watch("I:/plexTemp/", (event, filename) => {
+            var watcher = fs.watch("/media/connorwoodford/F898C32498C2DFEC/plexTemp/", (event, filename) => {
               watcher.close();
               console.log("its here");
               var movieReturner = {
@@ -361,30 +390,31 @@ const transcoder = {
                 pid: processId,
                 duration: movieTitle["duration"],
                 fileformat: movieTitle["fileformat"],
-                location:
-                  "http://192.168.1.6:5012/plexTemp/" +
-                  movieTitle["title"] +
-                  ".m3u8".replace(new RegExp(" ", "g"), "%20"),
-                title: movieTitle["title"],
+              location: urlTransformer.transformUrl(
+                "http://pixable.local:5012/plexTemp/" +
+                movieTitle["title"] +
+                ".m3u8".replace(new RegExp(" ", "g"), "%20")
+              ),
+              title: movieTitle["title"],
               };
               callback(null, movieReturner);
 
               return;
             });
           }
-        } else {
-          var movieReturner = {
-            browser: movieTitle["browser"],
-            pid: processId,
-            duration: movieTitle["duration"],
-            fileformat: movieTitle["fileformat"],
-            location: movieTitle.location,
-            // location: 'http://192.168.1.6:5012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
-            title: movieTitle["title"],
-            subtitleFile: `http://192.168.1.6:5012/modifiedVtts/${movieTitle["title"]}.vtt`,
-          };
-          callback(null, movieReturner);
-        }
+        // } else {
+        //   var movieReturner = {
+        //     browser: movieTitle["browser"],
+        //     pid: processId,
+        //     duration: movieTitle["duration"],
+        //     fileformat: movieTitle["fileformat"],
+        //     location: movieTitle.location,
+        //     // location: 'http://pixable.local:5012/plexTemp/master.m3u8'.replace(new RegExp(' ', 'g'), '%20'),
+        //     title: movieTitle["title"],
+        //     subtitleFile: urlTransformer.transformUrl(`http://pixable.local:5012/modifiedVtts/${movieTitle["title"]}.vtt`),
+        //   };
+        //   callback(null, movieReturner);
+        // }
       }
     );
   },

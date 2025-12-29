@@ -14,7 +14,7 @@ import {
   showInfo,
 } from "../info-store.service";
 import { HttpClient } from "@angular/common/http";
-import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
+// import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 import { Router } from "@angular/router";
 import { SeaseonChangesService } from "../seaseon-changes.service";
 import { SideBarComponent } from "../side-bar/side-bar.component";
@@ -37,71 +37,71 @@ export class SeasonsComponent implements OnInit {
   @HostListener("window:resize", ["$event"])
   onResize(event: any) {
     console.log(event.target.innerWidth);
-    this.smartTv.smartTv?.windowResize();
+    // this.smartTv.smartTv?.windowResize();
   }
 
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
     console.log("EVENT: ", event);
 
-    const ind = this.smartTv.smartTv?.navigate(event);
-    console.log("THI IND: ", ind);
-    if (
-      ind?.borderReached === "left edge" &&
-      ind?.currentListName === "seasons"
-    ) {
-      this.smartTv.smartTv?.switchList("sideBar", 0);
-    }
+    // const ind = this.smartTv.smartTv?.navigate(event);
+    // console.log("THI IND: ", ind);
+    // if (
+    //   ind?.borderReached === "left edge" &&
+    //   ind?.currentListName === "seasons"
+    // ) {
+    //   this.smartTv.smartTv?.switchList("sideBar", 0);
+    // }
 
-    if (
-      ind?.borderReached === "right edge" &&
-      ind?.currentListName === "sideBar"
-    ) {
-      this.smartTv.smartTv?.switchList("seasons", 0);
-    }
+    // if (
+    //   ind?.borderReached === "right edge" &&
+    //   ind?.currentListName === "sideBar"
+    // ) {
+    //   this.smartTv.smartTv?.switchList("seasons", 0);
+    // }
 
-    if (
-      ind?.borderReached === "right edge" &&
-      ind?.currentListName === "seasons"
-    ) {
-      this.smartTv.smartTv?.switchList("episodes", 0);
-    }
+    // if (
+    //   ind?.borderReached === "right edge" &&
+    //   ind?.currentListName === "seasons"
+    // ) {
+    //   this.smartTv.smartTv?.switchList("episodes", 0);
+    // }
 
-    if (
-      ind?.borderReached === "left edge" &&
-      ind?.currentListName === "episodes"
-    ) {
-      this.smartTv.smartTv?.switchList("seasons", 0);
-    }
+    // if (
+    //   ind?.borderReached === "left edge" &&
+    //   ind?.currentListName === "episodes"
+    // ) {
+    //   this.smartTv.smartTv?.switchList("seasons", 0);
+    // }
 
-    if (ind?.currentListName === "episodes" && ind?.borderReached === "") {
-      this.infoStore.checkBorderOverflow(ind);
-    }
+    // if (ind?.currentListName === "episodes" && ind?.borderReached === "") {
+    //   this.infoStore.checkBorderOverflow(ind);
+    // }
 
-    if (ind?.currentListName === "seasons" && ind?.borderReached === "") {
-      this.infoStore.checkBorderOverflow(ind);
-    }
+    // if (ind?.currentListName === "seasons" && ind?.borderReached === "") {
+    //   this.infoStore.checkBorderOverflow(ind);
+    // }
 
-    if (ind && ind.currentListName === "seasons") {
-      console.log("SELECTED SEASON: ", ind);
+    // if (ind && ind.currentListName === "seasons") {
+    //   console.log("SELECTED SEASON: ", ind);
 
-      this.selectedSeason = ind.currentIndex;
-      this.updateEpisodes();
-    }
+    //   this.selectedSeason = ind.currentIndex;
+    //   this.updateEpisodes();
+    // }
 
-    if (event.code === "Enter" && ind?.currentListName === "sideBar") {
-      switch (ind?.currentIndex) {
-        case 0:
-          this.router.navigateByUrl("/search");
-          break;
-        case 1:
-          this.router.navigateByUrl("/videoSelection");
-          break;
-        case 2:
-          this.router.navigateByUrl("/tv");
-          break;
-      }
-    }
+    // if (event.code === "Enter" && ind?.currentListName === "sideBar") {
+    //   switch (ind?.currentIndex) {
+    //     case 0:
+    //       this.router.navigateByUrl("/search");
+    //       break;
+    //     case 1:
+    //       this.router.navigateByUrl("/videoSelection");
+    //       break;
+    //     case 2:
+    //       this.router.navigateByUrl("/tv");
+    //       break;
+    //   }
+    // }
   }
 
   constructor(
@@ -109,18 +109,18 @@ export class SeasonsComponent implements OnInit {
     private http: HttpClient,
     private router: Router,
     private seasonService: SeaseonChangesService,
-    private smartTv: SmartTvLibSingletonService
+    // private smartTv: SmartTvLibSingletonService
   ) {}
 
   onHover(e: number, listName: string) {
-    const ind = this.smartTv.smartTv?.findAndSetIndex(e, listName);
-    if (ind?.currentListName === "episodes") {
-      console.log("EPISODE: ", this.index, this.eps[this.index]);
-      this.infoStore.videoInfo = this.eps[this.index];
-    }
-    if (ind?.currentListName === "seasons") {
-      this.smartTv.smartTv?.findAndSetIndex(e, "seasons");
-    }
+    // const ind = this.smartTv.smartTv?.findAndSetIndex(e, listName);
+    // if (ind?.currentListName === "episodes") {
+    //   console.log("EPISODE: ", this.index, this.eps[this.index]);
+    //   this.infoStore.videoInfo = this.eps[this.index];
+    // }
+    // if (ind?.currentListName === "seasons") {
+    //   this.smartTv.smartTv?.findAndSetIndex(e, "seasons");
+    // }
   }
 
   playEp() {
@@ -135,17 +135,17 @@ export class SeasonsComponent implements OnInit {
   updateEpisodes() {
     this.eps = this.seasons[this.selectedSeason].episodes;
 
-    this.smartTv.smartTv?.updateList({
-      listName: "episodes",
-      startingIndex: 0,
-      listElements: this.boxes,
-    });
+    // this.smartTv.smartTv?.updateList({
+    //   listName: "episodes",
+    //   startingIndex: 0,
+    //   listElements: this.boxes,
+    // });
   }
 
   ngOnInit(): void {
     console.log("INFOO: ", this.infoStore.showInfo);
 
-    this.smartTv.changeVisibility(true);
+    // this.smartTv.changeVisibility(true);
     this.infoStore.catchSideBarHover().subscribe((e: number) => {
       this.onHover(e, "sideBar");
     });
@@ -154,7 +154,7 @@ export class SeasonsComponent implements OnInit {
       console.log("INSIDE PID: ");
 
       this.http
-        .post(`http://192.168.1.6:5012/api/mov/pidkill`, {
+        .post(`http://pixable.local:5012/api/mov/pidkill`, {
           pid: this.infoStore.videoInfo.pid,
         })
         .subscribe((res) => {
@@ -163,7 +163,7 @@ export class SeasonsComponent implements OnInit {
     }
 
     this.http
-      .post(`http://192.168.1.6:5012/api/mov/seasons`, {
+      .post(`http://pixable.local:5012/api/mov/seasons`, {
         show: this.infoStore.showInfo.title,
       })
       .subscribe((res: any) => {
@@ -171,20 +171,20 @@ export class SeasonsComponent implements OnInit {
         this.eps = this.seasons[0].episodes;
         this.currentBox = res[this.index];
 
-        setTimeout(() => {
-          this.smartTv.smartTv?.addCurrentList({
-            startingList: true,
-            listName: "seasons",
-            startingIndex: 0,
-            listElements: this.seasonsElements,
-          });
+        // setTimeout(() => {
+        //   this.smartTv.smartTv?.addCurrentList({
+        //     startingList: true,
+        //     listName: "seasons",
+        //     startingIndex: 0,
+        //     listElements: this.seasonsElements,
+        //   });
 
-          this.smartTv.smartTv?.addCurrentList({
-            listName: "episodes",
-            startingIndex: 0,
-            listElements: this.boxes,
-          });
-        }, 1000);
+        //   this.smartTv.smartTv?.addCurrentList({
+        //     listName: "episodes",
+        //     startingIndex: 0,
+        //     listElements: this.boxes,
+        //   });
+        // }, 1000);
       });
   }
 }

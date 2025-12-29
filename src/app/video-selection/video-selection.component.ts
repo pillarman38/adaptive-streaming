@@ -13,7 +13,9 @@ import { Router } from "@angular/router";
 import { InfoStoreService, movieInfo } from "../info-store.service";
 import { DomSanitizer } from "@angular/platform-browser";
 import { SideBarComponent } from "../side-bar/side-bar.component";
+import { ApiConfigService } from "../services/api-config.service";
 import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
+import { PlatformService } from "../services/platform.service";
 
 @Component({
   selector: "app-video-selection",
@@ -27,12 +29,16 @@ export class VideoSelectionComponent implements OnInit {
   currentBox: movieInfo = this.infoStore.videoInfo;
   poster: string | undefined = "";
   offset: number = 0;
+  deviceName: string = "";
+  isAndroid: boolean = false;
 
   constructor(
     private http: HttpClient,
     private router: Router,
     private infoStore: InfoStoreService,
-    private smartTv: SmartTvLibSingletonService
+    private apiConfig: ApiConfigService,
+    private smartTv: SmartTvLibSingletonService,
+    private platformService: PlatformService
   ) {}
 
   @ViewChild("wrapper") wrapper!: ElementRef;
@@ -44,7 +50,13 @@ export class VideoSelectionComponent implements OnInit {
 
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
-    // console.log("EVENT: ", event);
+    console.log("EVENT: ", event.code);
+
+    // Only handle navigation if movies is the current active list
+    // This prevents double-processing when other components are active
+    if (!this.smartTv.smartTv || this.smartTv.smartTv.currentListName !== "movies") {
+      return;
+    }
 
     const ind = this.smartTv.smartTv?.navigate(event);
 
@@ -74,24 +86,44 @@ export class VideoSelectionComponent implements OnInit {
 
     if (ind?.currentListName === "movies") {
       // console.log("CURRENT LIST: ", ind);
-      this.infoStore.checkBorderOverflow(ind);
+      // Scroll the current item into view
+      if (this.smartTv.smartTv?.boxes && ind.currentIndex !== undefined) {
+        this.infoStore.checkBorderOverflow(this.smartTv.smartTv.boxes, ind.currentIndex);
+      }
       await this.updateCurrentBox();
     }
 
-    if (event.code === "Enter" && ind?.currentListName === "movies") {
-      this.selectMovie();
-    }
-    if (event.code === "Enter" && ind?.currentListName === "sideBar") {
-      switch (ind?.currentIndex) {
-        case 0:
-          this.router.navigateByUrl("/search");
-          break;
-        case 1:
-          this.router.navigateByUrl("/videoSelection");
-          break;
-        case 2:
-          this.router.navigateByUrl("/tv");
-          break;
+    // Handle Enter/Select button on remote
+    // Android TV remotes may send "Enter", "NumpadEnter", or keyCode 13
+    const isEnterKey = event.code === "Enter" || 
+                       event.code === "NumpadEnter" || 
+                       event.key === "Enter" ||
+                       event.keyCode === 13;
+
+    if (isEnterKey) {
+      console.log("ENTER PRESSED - currentListName:", ind?.currentListName, "currentIndex:", ind?.currentIndex);
+      
+      if (ind?.currentListName === "movies") {
+        // Update index to match the current index from navigation
+        this.index = ind.currentIndex;
+        console.log("Selecting movie at index:", this.index);
+        this.selectMovie();
+        return; // Prevent further processing
+      }
+      
+      if (ind?.currentListName === "sideBar") {
+        switch (ind?.currentIndex) {
+          case 0:
+            this.router.navigateByUrl("/search");
+            break;
+          case 1:
+            this.router.navigateByUrl("/videoSelection");
+            break;
+          case 2:
+            this.router.navigateByUrl("/tv");
+            break;
+        }
+        return; // Prevent further processing
       }
     }
   }
@@ -101,10 +133,10 @@ export class VideoSelectionComponent implements OnInit {
     this.image.nativeElement.style.opacity = "0";
     await this.delay(1000);
 
-    this.poster = this.currentBox.backgroundPoster;
+    this.poster = this.currentBox.posterUrl;
     this.delay(1000);
     this.image.nativeElement.style.opacity = "1";
-    // console.log("CURRENT MOVIE: ", this.currentBox);
+    console.log("CURRENT MOVIE: ", this.currentBox);
   }
 
   @HostListener("window:resize", ["$event"])
@@ -125,7 +157,7 @@ export class VideoSelectionComponent implements OnInit {
 
   async onHover(e: number, listName: string) {
     const ind = this.smartTv.smartTv?.findAndSetIndex(e, listName);
-    // console.log("IND MOVIE: ", ind);
+    console.log("IND MOVIE: ", ind);
 
     if (ind?.currentListName === "movies") {
       this.index = e;
@@ -143,7 +175,7 @@ export class VideoSelectionComponent implements OnInit {
     console.log("LOADING MORE ITEMS");
 
     this.http
-      .post(`http://192.168.1.6:5012/api/mov/movies`, {
+      .post(`${this.apiConfig.getBaseUrl()}/api/mov/movies`, {
         pid: 0,
         offset: this.offset,
       })
@@ -157,17 +189,17 @@ export class VideoSelectionComponent implements OnInit {
           this.offset += response.length;
           console.log("BOXES LENGTH: ", this.boxes.length);
 
-          // setTimeout(() => {
-          this.smartTv.smartTv?.updateList({
-            listName: "movies",
-            startingIndex: 0,
-            listElements: this.boxes,
-          });
-          // }, 1000);
+          setTimeout(() => {
+          // this.smartTv.smartTv?.updateList({
+          //   listName: "movies",
+          //   startingIndex: 0,
+          //   listElements: this.boxes,
+          // });
+          }, 1000);
 
           console.log("BOXES AFTER: ", this.boxes.length);
 
-          console.log("SMART TV VIDEO: ", this.smartTv.smartTv);
+          // console.log("SMART TV VIDEO: ", this.smartTv.smartTv);
         } else {
           console.log("NO MORE MOVIES");
         }
@@ -187,12 +219,21 @@ export class VideoSelectionComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.deviceName = this.platformService.getDeviceName();
+    this.isAndroid = this.platformService.isAndroid();
+    // Ensure smartTv is initialized
+    if (!this.smartTv.smartTv) {
+      this.smartTv.create();
+      console.log("Created smartTv instance");
+    }
+    
     this.infoStore.catchSideBarHover().subscribe((e: number) => {
       this.onHover(e, "sideBar");
     });
+    console.log("BASE URL: ", this.apiConfig.getBaseUrl());
 
     this.http
-      .post(`http://192.168.1.6:5012/api/mov/movies`, {
+      .post(`${this.apiConfig.getBaseUrl()}/api/mov/movies`, {
         pid: 0,
         offset: this.offset,
       })
@@ -202,17 +243,40 @@ export class VideoSelectionComponent implements OnInit {
         this.movies = res;
         this.offset += res.length;
         this.currentBox = res[this.index];
-        this.poster = this.currentBox.backgroundPoster;
+        this.poster = this.currentBox.posterUrl;
         setTimeout(() => {
-          console.log("SMART TV VIDEO: ", this.smartTv);
+          // console.log("SMART TV VIDEO: ", this.smartTv);
+          // console.log("BOXES QUERY LIST: ", this.boxes);
+          // console.log("BOXES LENGTH: ", this.boxes.length);
 
-          this.smartTv.smartTv?.addCurrentList({
-            startingList: true,
-            listName: "movies",
-            startingIndex: 0,
-            listElements: this.boxes,
-          });
+          if (this.smartTv.smartTv && this.boxes.length > 0) {
+            this.smartTv.smartTv.setInitialScale(0.5);
+            this.smartTv.smartTv.addCurrentList({
+              startingList: true,
+              listName: "movies",
+              startingIndex: 0,
+              listElements: this.boxes,
+            });
+            
+            // Wait a bit for addCurrentList to complete (it's async but doesn't return a promise)
+            setTimeout(() => {
+              this.smartTv.smartTv?.setCurrentIndex(0);
+              console.log("CURRENT INDEX AFTER SET: ", this.smartTv.smartTv?.currentIndex);
+              console.log("SMART TV STATE: ", {
+                currentIndex: this.smartTv.smartTv?.currentIndex,
+                currentListName: this.smartTv.smartTv?.currentListName,
+                boxesLength: this.smartTv.smartTv?.boxes?.length
+              });
+            }, 100);
+          } else {
+            console.warn("SmartTv or boxes not ready:", {
+              smartTv: !!this.smartTv.smartTv,
+              boxesLength: this.boxes.length
+            });
+          }
+          
         }, 1000);
+        
       });
   }
 }

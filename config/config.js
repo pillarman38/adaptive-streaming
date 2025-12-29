@@ -1,4 +1,4 @@
 process.env.host = "localhost"
-process.env.user = "root"
+process.env.user = "admin"
 process.env.password = "root"
 process.env.database = "pixable"

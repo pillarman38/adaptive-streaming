@@ -15,7 +15,6 @@ export interface movieInfo {
   filePath: string;
   fileformat: string;
   originalLang: string;
-  posterUrl: string;
   pid: number;
   resolution: string;
   seekTime: number;
@@ -30,11 +29,12 @@ export interface movieInfo {
   srtUrl: string;
   bonusFeatures: number;
   browser?: string;
-  backgroundPoster?: string;
+  posterUrl?: string;
   backdropPhotoUrl?: string;
   type: string;
   nextEp?: movieInfo;
   transmuxToPixie: number;
+  dolbyVision: number;
 }
 
 export interface showInfo {
@@ -49,7 +49,7 @@ export interface showInfo {
   resolution: string;
   language: string;
   epTotal: string;
-  backgroundPoster?: string;
+  posterUrl?: string;
 }
 
 export interface searchRes {
@@ -96,8 +96,10 @@ export class InfoStoreService {
     return this.sideBarHover.asObservable();
   }
 
-  checkBorderOverflow(ind: any) {
-    ind.item.element.nativeElement.scrollIntoView({ behavior: "smooth" });
+  checkBorderOverflow(boxes: any[], currentIndex: number) {
+    if (boxes && boxes[currentIndex] && boxes[currentIndex].element && boxes[currentIndex].element.nativeElement) {
+      boxes[currentIndex].element.nativeElement.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   }
 
   videoInfo: movieInfo = {
@@ -127,10 +129,10 @@ export class InfoStoreService {
     srtUrl: "",
     bonusFeatures: 0,
     browser: "",
-    backgroundPoster: "",
     backdropPhotoUrl: "",
     type: "movie",
     transmuxToPixie: 0,
+    dolbyVision: 0,
   };
 
   showInfo: showInfo = {
@@ -145,7 +147,7 @@ export class InfoStoreService {
     resolution: "",
     language: "",
     epTotal: "",
-    backgroundPoster: "",
+    posterUrl: "",
   };
 
   seasonInfo: seasonInfo = {
