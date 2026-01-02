@@ -8,7 +8,7 @@ let bparser = require("body-parser");
 
 app.use(bparser.urlencoded({ extended: true }));
 app.use(bparser.json());
-app.use(express.static("/media/connorwoodford/F898C32498C2DFEC"));
+app.use(express.static("/mnt/F898C32498C2DFEC"));
 app.use(express.static(__dirname + "/dist"));
 // Serve server-config.json from repo root
 app.use(express.static(__dirname));

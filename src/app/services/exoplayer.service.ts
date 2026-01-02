@@ -13,6 +13,11 @@ export interface ExoPlayerPlugin {
   release(): Promise<{ success: boolean }>;
   addListener(eventName: string, listenerFunc: (data?: any) => void): Promise<any>;
   removeAllListeners(): Promise<void>;
+  // showControls(): Promise<void>;
+  // hideControls(): Promise<void>;
+  setPaused(options: { paused: boolean }): Promise<void>;
+  setShowSkipIntro(options: { show: boolean }): Promise<void>;
+  setShowNextEpisode(options: { show: boolean }): Promise<void>;
 }
 
 const ExoPlayer = registerPlugin<ExoPlayerPlugin>('ExoPlayer', {
@@ -29,6 +34,8 @@ export class ExoPlayerService {
   constructor() {}
 
   async initialize(containerId: string): Promise<boolean> {
+    console.log("Initialize cap");
+    
     if (!Capacitor.isNativePlatform()) {
       return false;
     }
@@ -162,11 +169,38 @@ export class ExoPlayerService {
           callback(data.currentTime);
         }
       });
-      this.timeUpdateListener = listener;
+      // this.timeUpdateListener = listener;
     } catch (error) {
       console.error('Error adding time update listener:', error);
     }
   }
+
+  async addListener(eventName: string, callback: (data?: any) => void) {
+    if (!this.isInitialized) {
+      // console.warn(`[ExoPlayerService] Cannot add listener for ${eventName} — ExoPlayer not initialized`);
+      return null;
+    }
+  
+    if (!Capacitor.isNativePlatform()) {
+      // console.warn(`[ExoPlayerService] Ignoring listener for ${eventName} — not running on native platform`);
+      return null;
+    }
+  
+    try {
+      // console.log(`[ExoPlayerService] Registering listener for event: ${eventName}`);
+  
+      const listener = await ExoPlayer.addListener(eventName, data => {
+        // console.log(`[ExoPlayerService] Event received: ${eventName}`, data);
+        callback(data);
+      });
+  
+      return listener;
+    } catch (err) {
+      console.error(`[ExoPlayerService] Failed to register listener for ${eventName}`, err);
+      return null;
+    }
+  }
+  
 
   async removeTimeUpdateListener(): Promise<void> {
     if (this.timeUpdateListener) {
@@ -176,6 +210,61 @@ export class ExoPlayerService {
       } catch (error) {
         console.error('Error removing time update listener:', error);
       }
+    }
+  }
+
+  // async showControls(): Promise<void> {
+  //   if (!this.isInitialized || !Capacitor.isNativePlatform()) {
+  //     return;
+  //   }
+  //   try {
+  //     await ExoPlayer.showControls();
+  //   } catch (error) {
+  //     console.error('Error showing controls:', error);
+  //   }
+  // }
+
+  // async hideControls(): Promise<void> {
+  //   if (!this.isInitialized || !Capacitor.isNativePlatform()) {
+  //     return;
+  //   }
+  //   try {
+  //     await ExoPlayer.hideControls();
+  //   } catch (error) {
+  //     console.error('Error hiding controls:', error);
+  //   }
+  // }
+
+  async setPaused(paused: boolean): Promise<void> {
+    if (!this.isInitialized || !Capacitor.isNativePlatform()) {
+      return;
+    }
+    try {
+      await ExoPlayer.setPaused({ paused });
+    } catch (error) {
+      console.error('Error setting paused state:', error);
+    }
+  }
+
+  async setShowSkipIntro(show: boolean): Promise<void> {
+    if (!this.isInitialized || !Capacitor.isNativePlatform()) {
+      return;
+    }
+    try {
+      await ExoPlayer.setShowSkipIntro({ show });
+    } catch (error) {
+      console.error('Error setting skip intro visibility:', error);
+    }
+  }
+
+  async setShowNextEpisode(show: boolean): Promise<void> {
+    if (!this.isInitialized || !Capacitor.isNativePlatform()) {
+      return;
+    }
+    try {
+      await ExoPlayer.setShowNextEpisode({ show });
+    } catch (error) {
+      console.error('Error setting next episode visibility:', error);
     }
   }
 }

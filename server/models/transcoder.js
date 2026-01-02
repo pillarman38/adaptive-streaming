@@ -19,11 +19,11 @@ const transcoder = {
     }
     if (pid["pid"] !== 0) {
       try {
-        fs.readdir("/media/connorwoodford/F898C32498C2DFEC", (err, files) => {
+        fs.readdir("/mnt/F898C32498C2DFEC", (err, files) => {
           if (err) throw err;
           if (files.length > 0) {
             for (const file of files) {
-              fs.unlink(path.join("/media/connorwoodford/F898C32498C2DFEC", file), (err) => {
+              fs.unlink(path.join("/mnt/F898C32498C2DFEC", file), (err) => {
                 if (err) throw err;
               });
             }
@@ -31,19 +31,19 @@ const transcoder = {
         });
 
         process.kill(pid["pid"]);
-        if (pid.currentVideoTime.item.seekTime > 0) {
-          const timeSaveObj = {
-            titleOrEpisode: pid.currentVideoTime.item.title,
-            time: pid.currentVideoTime.item.seekTime,
-          };
-          pool.query(
-            `INSERT INTO pickupwhereleftoff SET ?`,
-            timeSaveObj,
-            (err, res) => {
-              console.log(err, res);
-            }
-          );
-        }
+        // if (pid.currentVideoTime.item.seekTime > 0) {
+        //   const timeSaveObj = {
+        //     titleOrEpisode: pid.currentVideoTime.item.title,
+        //     time: pid.currentVideoTime.item.seekTime,
+        //   };
+        //   pool.query(
+        //     `INSERT INTO pickupwhereleftoff SET ?`,
+        //     timeSaveObj,
+        //     (err, res) => {
+        //       console.log(err, res);
+        //     }
+        //   );
+        // }
         callback("ded");
       } catch (err) {
         callback({ error: err });
@@ -58,9 +58,9 @@ const transcoder = {
       console.log('Nvidia Shield detected with MKV file - skipping transcoding, returning original file');
       
       // Convert file path to URL
-      // filePath is like: /media/connorwoodford/F898C32498C2DFEC/Videos/movie.mkv
-      // express.static serves from /media/connorwoodford/F898C32498C2DFEC, so URL is /Videos/movie.mkv
-      const basePath = '/media/connorwoodford/F898C32498C2DFEC';
+      // filePath is like: /mnt/F898C32498C2DFEC/Videos/movie.mkv
+      // express.static serves from /mnt/F898C32498C2DFEC, so URL is /Videos/movie.mkv
+      const basePath = '/mnt/F898C32498C2DFEC';
       let videoUrl;
       
       if (movieTitle.filePath.startsWith(basePath)) {
@@ -149,7 +149,7 @@ const transcoder = {
                   "0",
                   "-f",
                   "hls",
-                  `/media/connorwoodford/F898C32498C2DFEC/plexTemp/${movieTitle["title"].replace(".mkv", "")}.m3u8`,
+                  `/mnt/F898C32498C2DFEC/plexTemp/${movieTitle["title"].replace(".mkv", "")}.m3u8`,
                 ]);
                 newProc.on("error", function (err) {
                   console.log("ls error", err);
@@ -211,7 +211,7 @@ const transcoder = {
                   "-f",
                   "hls",
                   // '-hls_segment_type','mpegts',
-                  `/media/connorwoodford/F898C32498C2DFEC/plexTemp/${movieTitle["title"]}.m3u8`,
+                  `/mnt/F898C32498C2DFEC/plexTemp/${movieTitle["title"]}.m3u8`,
                 ]);
                 newProc.on("error", function (err) {
                   console.log("ls error", err);
@@ -235,7 +235,7 @@ const transcoder = {
 
             if (movieTitle["resolution"] === "3840x2160") {
               var newJob = async function () {
-                var newProc = spawn("I:/ffmpeg", [
+                var newProc = spawn("ffmpeg", [
                   "-ss",
                   `${h}:${m}:${s}`,
                   "-y",
@@ -274,7 +274,7 @@ const transcoder = {
                   "hls",
                   "-hls_segment_type",
                   "mpegts",
-                  `/media/connorwoodford/F898C32498C2DFEC/plexTemp/${movieTitle["title"]}.m3u8`,
+                  `/mnt/F898C32498C2DFEC/plexTemp/${movieTitle["title"]}.m3u8`,
                 ]);
                 newProc.on("error", function (err) {
                   console.log("ls error", err);
@@ -296,7 +296,7 @@ const transcoder = {
               newJob();
             }
 
-            var watcher = fs.watch("/media/connorwoodford/F898C32498C2DFEC/plexTemp/", (event, filename) => {
+            var watcher = fs.watch("/mnt/F898C32498C2DFEC/plexTemp/", (event, filename) => {
               console.log("HERE IS PID", processId);
               if (filename == `${movieTitle["title"]}.m3u8.tmp`) {
                 watcher.close();
@@ -361,7 +361,7 @@ const transcoder = {
                 "0",
                 "-f",
                 "hls",
-                `/media/connorwoodford/F898C32498C2DFEC/plexTemp/${movieTitle["title"]}.m3u8`,
+                `/mnt/F898C32498C2DFEC/plexTemp/${movieTitle["title"]}.m3u8`,
               ]);
               newProc.on("error", function (err) {
                 console.log("ls error", err);
@@ -382,7 +382,7 @@ const transcoder = {
             };
             newJob();
 
-            var watcher = fs.watch("/media/connorwoodford/F898C32498C2DFEC/plexTemp/", (event, filename) => {
+            var watcher = fs.watch("/mnt/F898C32498C2DFEC/plexTemp/", (event, filename) => {
               watcher.close();
               console.log("its here");
               var movieReturner = {

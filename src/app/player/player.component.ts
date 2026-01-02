@@ -46,6 +46,10 @@ export class PlayerComponent implements OnInit, OnDestroy {
   subtitleUrl: string = "";
   isAndroid: boolean = false;
   useExoPlayer: boolean = false;
+  controlsVisible: boolean = false;
+  controlsTimeout: any = null;
+  playPauseListener: any = null;
+  timeUpdateListener: any = null;
 
   @ViewChild("videoContainer") videoContainer!: ElementRef;
   @ViewChild("seekBar") seekBar!: ElementRef;
@@ -55,22 +59,90 @@ export class PlayerComponent implements OnInit, OnDestroy {
 
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
-    console.log("EVENT: ", event);
+    console.log("EVENT: ", event.code, event.key, event.keyCode);
 
+    // Show controls when arrow keys are pressed (for Nvidia Shield remote)
+    if(event.code === "ArrowUp" || event.code === "ArrowDown" || event.code === "ArrowLeft" || event.code === "ArrowRight") {
+      if (!this.controlsVisible) {
+        // this.showControls();
+      } else {
+        // Controls already visible - reset the timeout to keep them visible during navigation
+        this.resetControlsTimeout();
+      }
+      
+      // For native Android controls, let them handle navigation
+      // Don't interfere with native focus navigation
+      if (this.useExoPlayer && this.isAndroid) {
+        // Native controls handle their own focus, just keep them visible
+        return;
+      }
+    }
+    
     // Only handle navigation if controls are the current active list
     // For spacebar, always handle it regardless of list
     if (event.code === "Space") {
-      this.playPause();
+      // this.playPause();
       return;
     }
 
     // Only navigate if there's an active list (controls might not be registered)
+    // This is for HTML controls on web, not native Android controls
     if (!this.smartTv.smartTv || !this.smartTv.smartTv.currentListName) {
       return;
     }
 
     const ind = this.smartTv.smartTv?.navigate(event);
-    console.log("THI IND: ", ind);
+    // console.log("THI IND: ", ind);
+    
+    // Reset controls timeout when navigating HTML controls
+    if (ind && !this.useExoPlayer) {
+      this.resetControlsTimeout();
+    }
+  }
+
+  // showControls() {
+  //   this.controlsVisible = true;
+    
+  //   // Show native Android controls if using ExoPlayer
+  //   if (this.useExoPlayer && this.isAndroid) {
+  //     this.exoPlayerService.showControls();
+  //   }
+    
+  //   // Clear existing timeout
+  //   if (this.controlsTimeout) {
+  //     clearTimeout(this.controlsTimeout);
+  //   }
+    
+  //   // Hide controls after 5 seconds of inactivity
+  //   this.controlsTimeout = setTimeout(() => {
+  //     this.hideControls();
+  //   }, 5000);
+  // }
+
+  hideControls() {
+    this.controlsVisible = false;
+    
+    // Hide native Android controls if using ExoPlayer
+    if (this.useExoPlayer && this.isAndroid) {
+      // this.exoPlayerService.hideControls();
+    }
+    
+    if (this.controlsTimeout) {
+      clearTimeout(this.controlsTimeout);
+      this.controlsTimeout = null;
+    }
+  }
+  
+  resetControlsTimeout() {
+    // Reset the auto-hide timer - called during navigation to keep controls visible
+    // if (this.controlsVisible) {
+    //   if (this.controlsTimeout) {
+    //     clearTimeout(this.controlsTimeout);
+    //   }
+    //   this.controlsTimeout = setTimeout(() => {
+    //     // this.hideControls();
+    //   }, 5000);
+    // }
   }
 
   constructor(
@@ -87,6 +159,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
   }
 
   async playPause() {
+    console.log("PLAY PAUSE: ", this.playPauseListener);
+    
     if (this.useExoPlayer) {
       if (this.paused) {
         await this.exoPlayerService.play();
@@ -208,7 +282,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
         );
         // Transform URL to use IP address on Android
         videoUrl = this.apiConfig.transformUrl(videoUrl);
-
+        console.log("USING EXOPLAYER: ", this.useExoPlayer);
+        
         if (this.useExoPlayer) {
           // Use ExoPlayer for Android
           await this.exoPlayerService.loadVideo(
@@ -218,13 +293,19 @@ export class PlayerComponent implements OnInit, OnDestroy {
           await this.exoPlayerService.play();
           this.paused = false;
 
+          // Set up listeners for native control events
+          console.log('=== BEFORE setupNativeControlListeners ===');
+          console.log('useExoPlayer:', this.useExoPlayer);
+          console.log('isAndroid:', this.isAndroid);
+
           // Set up time update listener for ExoPlayer
-          await this.exoPlayerService.addTimeUpdateListener((currentTime: number) => {
-            this.currentTime = currentTime;
-            const percentComplete =
-              (this.currentTime / this.infoStore.videoInfo.duration) * 100;
-            this.seekBar.nativeElement.style.width = `${percentComplete}%`;
-          });
+          // await this.exoPlayerService.addTimeUpdateListener((currentTime: number) => {
+          //   this.currentTime = currentTime;
+          //   const percentComplete =
+          //     (this.currentTime / this.infoStore.videoInfo.duration) * 100;
+          //   this.seekBar.nativeElement.style.width = `${percentComplete}%`;
+          // });
+          
         } else {
           // Use HTML5 video for web browsers
           console.log("VIDEO URL: ", videoUrl);
@@ -253,6 +334,19 @@ export class PlayerComponent implements OnInit, OnDestroy {
     this.subtitle = !this.subtitle;
   }
 
+  async controlsdSetup() {
+    // this.playPauseListener = await this.exoPlayerService.addListener('playPause', (data?: any) => {
+    //   console.log('[PlayerComponent] === playPause event received from native ===');
+    //   console.log('[PlayerComponent] playPause callback data:', data); 
+    //   this.playPause();
+    // });
+    // this.timeUpdateListener = await this.exoPlayerService.addListener('timeupdate', (data?: any) => {
+    //   // console.log('[PlayerComponent] === timeupdate event received from native ===');
+    //   // console.log('[PlayerComponent] timeupdate callback data:', data); 
+    //   this.currentTime = data.currentTime;
+    // }); 
+  }
+
   async ngOnInit(): Promise<void> {
     console.log("INFO STORE: ", this.infoStore.videoInfo);
     // this.location = this.infoStore.videoInfo.location
@@ -263,10 +357,17 @@ export class PlayerComponent implements OnInit, OnDestroy {
     if (this.useExoPlayer) {
       try {
         const initialized = await this.exoPlayerService.initialize("videoContainer");
+        
+        console.log("INITIALIZED: " , initialized);
+        
         if (!initialized) {
           console.warn("ExoPlayer initialization failed, falling back to HTML5 video");
           this.useExoPlayer = false;
-        }
+        } else {
+        console.log("=== Setting up native control listeners... ===");
+        
+        await this.controlsdSetup();
+      }
       } catch (error) {
         console.error("Error initializing ExoPlayer:", error);
         console.error("Error details:", error instanceof Error ? error.message : String(error));
@@ -292,6 +393,15 @@ export class PlayerComponent implements OnInit, OnDestroy {
   async ngOnDestroy(): Promise<void> {
     // Restore sidebar visibility when leaving the player
     this.smartTv.changeVisibility(true);
+    // Clear controls timeout
+    if (this.playPauseListener) {
+      await this.playPauseListener.remove();
+      this.playPauseListener = undefined; 
+
+    }
+    if (this.controlsTimeout) {
+      clearTimeout(this.controlsTimeout);
+    }
     if (this.useExoPlayer) {
       await this.exoPlayerService.release();
     }

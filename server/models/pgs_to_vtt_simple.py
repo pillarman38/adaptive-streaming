@@ -26,8 +26,8 @@ except ImportError:
     OCR_AVAILABLE = False
 
 # Configuration
-VIDEOS_DIR = "/media/connorwoodford/F898C32498C2DFEC/Videos"
-SUBTITLES_DIR = "/media/connorwoodford/F898C32498C2DFEC/subtitles"
+VIDEOS_DIR = "/mnt/F898C32498C2DFEC/Videos"
+SUBTITLES_DIR = "/mnt/F898C32498C2DFEC/subtitles"
 FFMPEG_PATH = shutil.which("ffmpeg") or "ffmpeg"
 FFPROBE_PATH = shutil.which("ffprobe") or "ffprobe"
 # Check if pgsrip is available

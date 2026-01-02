@@ -24,9 +24,23 @@ class Downloader {
           contentEncoding ? "x-file-size" : "content-length"
         );
 
+        // Add error handler to prevent unhandled error events
+        fileStreamPosters.on("error", (error) => {
+          console.error(`Error writing cover art file for ${notIncludedFileName}:`, error);
+          fileStreamPosters.destroy();
+        });
+
         return await new Promise(async (resolve, reject) => {
           coverArt.body.pipe(fileStreamPosters);
-          coverArt.body.on("error", reject);
+          coverArt.body.on("error", (error) => {
+            console.error(`Error downloading cover art for ${notIncludedFileName}:`, error);
+            fileStreamPosters.destroy();
+            reject(error);
+          });
+          fileStreamPosters.on("error", (error) => {
+            console.error(`Error writing cover art file for ${notIncludedFileName}:`, error);
+            reject(error);
+          });
 
           return await coverArt.body.on("data", (data) => {
             totalBytes += Buffer.byteLength(data);
@@ -44,7 +58,7 @@ class Downloader {
     }
 
     if (type === "movie") {
-      const files = await fs.readdirSync(`/media/connorwoodford/F898C32498C2DFEC/MovieCoverArt`);
+      const files = await fs.readdirSync(`/mnt/F898C32498C2DFEC/MovieCoverArt`);
       if (
         !files.includes(notIncludedFileName + ".jpg") &&
         tmdbInfo.results[0]
@@ -54,8 +68,14 @@ class Downloader {
           `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0].poster_path}`
         );
         const fileStreamPosters = await fs.createWriteStream(
-          `/media/connorwoodford/F898C32498C2DFEC/MovieCoverArt/${notIncludedFileName}.jpg`
+          `/mnt/F898C32498C2DFEC/MovieCoverArt/${notIncludedFileName}.jpg`
         );
+
+        // Add error handler to prevent unhandled error events
+        fileStreamPosters.on("error", (error) => {
+          console.error(`Error writing movie cover art file for ${notIncludedFileName}:`, error);
+          fileStreamPosters.destroy();
+        });
 
         let contentEncoding = coverArt.headers.get("content-encoding");
         let contentLength = coverArt.headers.get(
@@ -64,7 +84,15 @@ class Downloader {
 
         return await new Promise(async (resolve, reject) => {
           coverArt.body.pipe(fileStreamPosters);
-          coverArt.body.on("error", reject);
+          coverArt.body.on("error", (error) => {
+            console.error(`Error downloading movie cover art for ${notIncludedFileName}:`, error);
+            fileStreamPosters.destroy();
+            reject(error);
+          });
+          fileStreamPosters.on("error", (error) => {
+            console.error(`Error writing movie cover art file for ${notIncludedFileName}:`, error);
+            reject(error);
+          });
 
           return await coverArt.body.on("data", (data) => {
             totalBytes += Buffer.byteLength(data);
@@ -91,6 +119,12 @@ class Downloader {
         `J:/epPosters/${show}-ep${epInfo.episode_number}-s${epInfo.season_number}.jpg`
       );
 
+      // Add error handler to prevent unhandled error events
+      fileStreamPosters.on("error", (error) => {
+        console.error(`Error writing episode poster file for ${show}-ep${epInfo.episode_number}-s${epInfo.season_number}:`, error);
+        fileStreamPosters.destroy();
+      });
+
       let contentEncoding = poster.headers.get("content-encoding");
       let contentLength = poster.headers.get(
         contentEncoding ? "x-file-size" : "content-length"
@@ -99,7 +133,15 @@ class Downloader {
       let downloadCount = 0;
       return await new Promise(async (resolve, reject) => {
         poster.body.pipe(fileStreamPosters);
-        poster.body.on("error", reject);
+        poster.body.on("error", (error) => {
+          console.error(`Error downloading episode poster for ${show}-ep${epInfo.episode_number}-s${epInfo.season_number}:`, error);
+          fileStreamPosters.destroy();
+          reject(error);
+        });
+        fileStreamPosters.on("error", (error) => {
+          console.error(`Error writing episode poster file for ${show}-ep${epInfo.episode_number}-s${epInfo.season_number}:`, error);
+          reject(error);
+        });
 
         return await poster.body.on("data", (data) => {
           totalBytes += Buffer.byteLength(data);
@@ -180,7 +222,7 @@ class Downloader {
         });
 
         if (resJson.length > 0) {
-          const existingTrailers = await fs.readdirSync("/media/connorwoodford/F898C32498C2DFEC/Trailers/");
+          const existingTrailers = await fs.readdirSync("/mnt/F898C32498C2DFEC/Trailers/");
           if (!existingTrailers.includes(`${notIncluded}.mp4`)) {
             const url = `https://www.youtube.com/watch?v=${resJson[0].key}`;
             // await execSync(
@@ -249,14 +291,20 @@ class Downloader {
   async getPoster(notIncluded, data, type) {
     let posters;
     if (type === "movies") {
-      posters = fs.readdirSync("/media/connorwoodford/F898C32498C2DFEC/MoviePosters");
-      let toCheck = +".jpg";
+      try {
+        posters = fs.readdirSync("/mnt/F898C32498C2DFEC/MoviePosters");
+      } catch (err) {
+        console.error(`Error reading MoviePosters directory:`, err);
+        // If we can't read the directory, try to download the poster anyway
+        posters = [];
+      }
+      let toCheck = notIncluded + ".jpg";
       if (!posters.includes(toCheck)) {
         let idGetter = undefined;
         var poster = "";
         try {
           idGetter = execSync(
-            `mkvmerge -i "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv"`
+            `mkvmerge -i "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv"`
           )
             .toString()
             .split("\n")
@@ -265,9 +313,9 @@ class Downloader {
             .replace(":", "");
 
           let id = parseInt(idGetter);
-          const command = `mkvextract "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/media/connorwoodford/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg"`;
+          const command = `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/mnt/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg"`;
           const extraction = await execSync(
-            `mkvextract "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/media/connorwoodford/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg"`
+            `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/mnt/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg"`
           );
           return `/MoviePosters/${notIncluded.replace(
             new RegExp(" ", "g"),
@@ -275,25 +323,56 @@ class Downloader {
           )}.jpg`;
         } catch (err) {
           try {
-            var downloadUrl = `https://www.themoviedb.org/t/p/w533_and_h300_bestv2${data.results[0].backdrop_path}`;
-            var downloadPosterFile = await fetch(downloadUrl);
-            const fileStreamPosters = await fs.createWriteStream(
-              `/media/connorwoodford/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg`
-            );
-            new Promise((resolve, reject) => {
-              downloadPosterFile.body.pipe(fileStreamPosters);
-              downloadPosterFile.body.on("error", reject);
-              fileStreamPosters.on("finish", resolve);
-            });
+            if(data.results.length > 0 && data.results[0].backdrop_path) {
+              var downloadUrl = `https://www.themoviedb.org/t/p/w533_and_h300_bestv2${data.results[0].backdrop_path}`;
+              var downloadPosterFile = await fetch(downloadUrl);
+              
+              const posterPath = `/mnt/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg`;
+              let fileStreamPosters;
+              
+              try {
+                fileStreamPosters = await fs.createWriteStream(posterPath);
+              } catch (createError) {
+                console.error(`Error creating WriteStream for ${notIncluded} at ${posterPath}:`, createError);
+                throw createError;
+              }
+              
+              // Add error handler to prevent unhandled error events
+              fileStreamPosters.on("error", (error) => {
+                console.error(`Error writing poster file for ${notIncluded}:`, error);
+                fileStreamPosters.destroy();
+              });
+              
+              await new Promise((resolve, reject) => {
+                downloadPosterFile.body.pipe(fileStreamPosters);
+                downloadPosterFile.body.on("error", (error) => {
+                  console.error(`Error downloading poster for ${notIncluded}:`, error);
+                  fileStreamPosters.destroy();
+                  reject(error);
+                });
+                fileStreamPosters.on("error", (error) => {
+                  console.error(`Error writing poster file for ${notIncluded}:`, error);
+                  reject(error);
+                });
+                fileStreamPosters.on("finish", resolve);
+              });
 
-            return `/media/connorwoodford/F898C32498C2DFEC/MoviePosters/${notIncluded.replace(
-              new RegExp(" ", "g"),
-              "%20"
-            )}.jpg`;
+              return `/mnt/F898C32498C2DFEC/MoviePosters/${notIncluded.replace(
+                new RegExp(" ", "g"),
+                "%20"
+              )}.jpg`;
+            }
           } catch (err) {
+            console.error(`Failed to get poster for ${notIncluded}:`, err);
             return "/assets/four0four.gif";
           }
         }
+      } else {
+        // Poster already exists, return the path
+        return `/MoviePosters/${notIncluded.replace(
+          new RegExp(" ", "g"),
+          "%20"
+        )}.jpg`;
       }
     }
 
@@ -305,7 +384,7 @@ class Downloader {
         var poster = "";
         try {
           idGetter = await execSync(
-            `F:/MKVToolNix/mkvmerge -i "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv"`
+            `F:/MKVToolNix/mkvmerge -i "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv"`
           )
             .toString()
             .split("\n")
@@ -314,9 +393,9 @@ class Downloader {
             .replace(":", "");
 
           let id = parseInt(idGetter);
-          const command = `mkvextract "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:J:/tvPosters/${notIncluded}.jpg"`;
+          const command = `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:J:/tvPosters/${notIncluded}.jpg"`;
           const extraction = await execSync(
-            `mkvextract "/media/connorwoodford/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:J:/tvPosters/${notIncluded}.jpg"`
+            `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:J:/tvPosters/${notIncluded}.jpg"`
           );
           return `/tvPosters/${notIncluded.replace(
             new RegExp(" ", "g"),
@@ -329,9 +408,24 @@ class Downloader {
             const fileStreamPosters = await fs.createWriteStream(
               `J:/tvPosters/${notIncluded}.jpg`
             );
+            
+            // Add error handler to prevent unhandled error events
+            fileStreamPosters.on("error", (error) => {
+              console.error(`Error writing TV poster file for ${notIncluded}:`, error);
+              fileStreamPosters.destroy();
+            });
+            
             await new Promise((resolve, reject) => {
               downloadPosterFile.body.pipe(fileStreamPosters);
-              downloadPosterFile.body.on("error", reject);
+              downloadPosterFile.body.on("error", (error) => {
+                console.error(`Error downloading TV poster for ${notIncluded}:`, error);
+                fileStreamPosters.destroy();
+                reject(error);
+              });
+              fileStreamPosters.on("error", (error) => {
+                console.error(`Error writing TV poster file for ${notIncluded}:`, error);
+                reject(error);
+              });
               fileStreamPosters.on("finish", resolve);
             });
 
@@ -340,6 +434,7 @@ class Downloader {
               "%20"
             )}.jpg`;
           } catch (err) {
+            console.error(`Failed to get TV poster for ${notIncluded}:`, err);
             return "/assets/four0four.gif";
           }
         }
@@ -354,18 +449,33 @@ class Downloader {
           `https://api.themoviedb.org/3/${type}/${data.results[0].id}/images?api_key=490cd30bbbd167dd3eb65511a8bf2328`
         );
         const imageJSON = await image.json();
-        const posters = fs.readdirSync("/media/connorwoodford/F898C32498C2DFEC/BackgroundImages/");
+        const posters = fs.readdirSync("/mnt/F898C32498C2DFEC/BackgroundImages/");
         if (!posters.includes(`${notIncluded}.jpg`)) {
           if (imageJSON.backdrops) {
             if (imageJSON.backdrops.length > 0) {
               var downloadUrl = `https://www.themoviedb.org/t/p/original${imageJSON.backdrops[0].file_path}`;
               var downloadPosterFile = await fetch(downloadUrl);
               const fileStreamPosters = await fs.createWriteStream(
-                `/media/connorwoodford/F898C32498C2DFEC/BackgroundImages/${notIncluded}.jpg`
+                `/mnt/F898C32498C2DFEC/BackgroundImages/${notIncluded}.jpg`
               );
-              new Promise((resolve, reject) => {
+              
+              // Add error handler to prevent unhandled error events
+              fileStreamPosters.on("error", (error) => {
+                console.error(`Error writing background image file for ${notIncluded}:`, error);
+                fileStreamPosters.destroy();
+              });
+              
+              await new Promise((resolve, reject) => {
                 downloadPosterFile.body.pipe(fileStreamPosters);
-                downloadPosterFile.body.on("error", reject);
+                downloadPosterFile.body.on("error", (error) => {
+                  console.error(`Error downloading background image for ${notIncluded}:`, error);
+                  fileStreamPosters.destroy();
+                  reject(error);
+                });
+                fileStreamPosters.on("error", (error) => {
+                  console.error(`Error writing background image file for ${notIncluded}:`, error);
+                  reject(error);
+                });
                 fileStreamPosters.on("finish", resolve);
               });
               return `/BackgroundImages/${notIncluded.replace(
@@ -394,7 +504,7 @@ class Downloader {
   }
 
   async getSubtitleVtt(notIncluded, data, access, metaData) {
-    const alreadyStoredVtt = fs.readdirSync("/media/connorwoodford/F898C32498C2DFEC/subtitles");
+    const alreadyStoredVtt = fs.readdirSync("/mnt/F898C32498C2DFEC/subtitles");
     if (!alreadyStoredVtt.includes(`${notIncluded}.vtt`)) {
       const subtitlesFilter = metaData.streams.filter((stream, index) => {
         if (
@@ -516,7 +626,7 @@ class Downloader {
                 reject(`Python process exited with code ${code}`);
               } else {
                 // Write the VTT content to file
-                const vttPath = `/media/connorwoodford/F898C32498C2DFEC/subtitles/${notIncluded}.vtt`;
+                const vttPath = `/mnt/F898C32498C2DFEC/subtitles/${notIncluded}.vtt`;
                 try {
                   fs.writeFileSync(vttPath, result, "utf8");
                   console.log(`[Subtitle: ${notIncluded}] VTT file written to: ${vttPath}`);

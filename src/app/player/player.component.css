@@ -1,16 +1,35 @@
+#videoContainer {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+}
+
 #controls {
     width: 100%;
     height: 200px;
     border: 2px solid green;
-    position: absolute;
+    position: fixed;
     bottom: 0px;
+    left: 0px;
+    right: 0px;
     opacity: 0;
-    transition: opacity 1s;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 9999;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.6) 50%, rgba(0, 0, 0, 0.3) 100%);
+}
+
+#controls.visible {
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1000;
 }
 
 #controls:hover {
     opacity: 1;
     transition: opacity 1s;
+    pointer-events: auto;
 }
 
 #temp {

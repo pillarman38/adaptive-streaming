@@ -39,6 +39,8 @@ export class ExoPlayerWeb extends WebPlugin implements ExoPlayerPlugin {
     listenerFunc: (data?: any) => void
   ): Promise<PluginListenerHandle> {
     // Return a no-op listener handle for web
+    console.log("ADDED LISTENERS: ", eventName);
+    
     return {
       remove: async () => {
         // No-op for web
@@ -46,8 +48,24 @@ export class ExoPlayerWeb extends WebPlugin implements ExoPlayerPlugin {
     };
   }
 
-  override async removeAllListeners(): Promise<void> {
-    // No-op for web
+  // async showControls(): Promise<void> {
+  //   // No-op for web - controls are handled by HTML
+  // }
+
+  // async hideControls(): Promise<void> {
+  //   // No-op for web - controls are handled by HTML
+  // }
+
+  async setPaused(options: { paused: boolean }): Promise<void> {
+    // No-op for web - state is managed by HTML video element
+  }
+
+  async setShowSkipIntro(options: { show: boolean }): Promise<void> {
+    // No-op for web - visibility is managed by Angular
+  }
+
+  async setShowNextEpisode(options: { show: boolean }): Promise<void> {
+    // No-op for web - visibility is managed by Angular
   }
 }
 

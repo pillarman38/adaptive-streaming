@@ -19,10 +19,10 @@ class BonusFeatures {
           try {
             return await new Promise(async (resolve, reject) => {
               ffmpeg.ffprobe(
-                `/media/connorwoodford/F898C32498C2DFEC/bonusFeatures/${movie}/${featuresForMovie[i]}`,
+                `/mnt/F898C32498C2DFEC/bonusFeatures/${movie}/${featuresForMovie[i]}`,
                 async function (err, metaData) {
                   const id = execSync(
-                    `mkvmerge -i "/media/connorwoodford/F898C32498C2DFEC/bonusFeatures/${movie}/${featuresForMovie[i]}"`
+                    `mkvmerge -i "/mnt/F898C32498C2DFEC/bonusFeatures/${movie}/${featuresForMovie[i]}"`
                   )
                     .toString()
                     .split("\n")
@@ -31,9 +31,9 @@ class BonusFeatures {
                     .replace(":", "");
 
                   await execSync(
-                    `mkvextract "/media/connorwoodford/F898C32498C2DFEC/bonusFeatures/${movie}/${
+                    `mkvextract "/mnt/F898C32498C2DFEC/bonusFeatures/${movie}/${
                       featuresForMovie[i]
-                    }" attachments "${id}:/media/connorwoodford/F898C32498C2DFEC/bonusFeatures/thumbnails/${featuresForMovie[
+                    }" attachments "${id}:/mnt/F898C32498C2DFEC/bonusFeatures/thumbnails/${featuresForMovie[
                       i
                     ].replace("mkv", "")}.jpg"`
                   );
@@ -47,7 +47,7 @@ class BonusFeatures {
                     ]
                       .replace(new RegExp(" ", "g"), "%20")
                       .replace(new RegExp("'", "g"), "")}`),
-                    filePath: `/media/connorwoodford/F898C32498C2DFEC/bonusFeatures/${movie}/${featuresForMovie[i]}`,
+                    filePath: `/mnt/F898C32498C2DFEC/bonusFeatures/${movie}/${featuresForMovie[i]}`,
                     featureTitle: featuresForMovie[i],
                     posterUrl: urlTransformer.transformUrl(`http://pixable.local:5012/bonusFeatures/thumbnails/${featuresForMovie[
                       i

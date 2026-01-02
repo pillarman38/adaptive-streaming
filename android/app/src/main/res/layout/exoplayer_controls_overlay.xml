@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/controlsView"
+    android:layout_width="match_parent"
+    android:layout_height="200dp"
+    android:background="@drawable/controls_gradient"
+    android:alpha="0"
+    android:visibility="gone"
+    android:elevation="10dp"
+    android:clickable="false"
+    android:focusable="false">
+
+    <!-- Main Controls Container -->
+    <LinearLayout
+        android:id="@+id/mainControlsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="bottom"
+        android:clickable="false"
+        android:focusable="false">
+
+    <!-- Seek Bar Container -->
+    <LinearLayout
+        android:id="@+id/seekContainer"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:orientation="vertical"
+        android:padding="0dp">
+
+        <!-- Seek Bar Background -->
+        <View
+            android:id="@+id/seekBarBackground"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:background="#66000000" />
+
+        <!-- Seek Bar Progress -->
+        <ProgressBar
+            android:id="@+id/seekBar"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="-50dp"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#FF0000"
+            style="?android:attr/progressBarStyleHorizontal" />
+    </LinearLayout>
+
+    <!-- Center Buttons Container -->
+    <LinearLayout
+        android:id="@+id/centerButtonsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="30dp">
+
+        <!-- Skip Back 30s Button -->
+        <ImageButton
+            android:id="@+id/skipBack30Btn"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:src="@android:drawable/ic_media_rew"
+            android:background="@drawable/button_focus_selector"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:clickable="true"
+            android:contentDescription="Skip back 30 seconds"
+            android:nextFocusLeft="@+id/playPauseBtn"
+            android:nextFocusRight="@+id/skipBack15Btn" />
+
+        <!-- Skip Back 15s Button -->
+        <ImageButton
+            android:id="@+id/skipBack15Btn"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:src="@android:drawable/ic_media_previous"
+            android:background="@drawable/button_focus_selector"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:clickable="true"
+            android:contentDescription="Skip back 15 seconds"
+            android:nextFocusLeft="@+id/skipBack30Btn"
+            android:nextFocusRight="@+id/playPauseBtn" />
+
+        <!-- Play/Pause Button (first in focus order, but visually in center) -->
+        <ImageButton
+            android:id="@+id/playPauseBtn"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:src="@android:drawable/ic_media_play"
+            android:background="@drawable/button_focus_selector"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:clickable="true"
+            android:contentDescription="Play/Pause"
+            android:nextFocusLeft="@+id/skipBack15Btn"
+            android:nextFocusRight="@+id/skipForward15Btn" />
+
+        <!-- Skip Forward 15s Button -->
+        <ImageButton
+            android:id="@+id/skipForward15Btn"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:src="@android:drawable/ic_media_next"
+            android:background="@drawable/button_focus_selector"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:clickable="true"
+            android:contentDescription="Skip forward 15 seconds"
+            android:nextFocusLeft="@+id/playPauseBtn"
+            android:nextFocusRight="@+id/skipForward30Btn" />
+
+        <!-- Skip Forward 30s Button -->
+        <ImageButton
+            android:id="@+id/skipForward30Btn"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:src="@android:drawable/ic_media_next"
+            android:background="@drawable/button_focus_selector"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:clickable="true"
+            android:contentDescription="Skip forward 30 seconds"
+            android:nextFocusLeft="@+id/skipForward15Btn" />
+
+        <!-- Audio Track Selection Button -->
+        <ImageButton
+            android:id="@+id/audioTrackBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:src="@android:drawable/ic_menu_sort_by_size"
+            android:background="@drawable/button_focus_selector"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:clickable="true"
+            android:contentDescription="Select Audio Track"
+            android:padding="8dp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Audio Track Selection Row (for label display) -->
+    <LinearLayout
+        android:id="@+id/audioTrackRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="10dp"
+        android:visibility="gone">
+
+        <!-- Current Audio Track Label -->
+        <TextView
+            android:id="@+id/currentAudioTrackLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Audio: Default"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Bottom Row for Skip Intro and Next Episode -->
+    <LinearLayout
+        android:id="@+id/bottomRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="20dp">
+
+        <!-- Skip Intro Button -->
+        <Button
+            android:id="@+id/skipIntroBtn"
+            android:layout_width="100dp"
+            android:layout_height="50dp"
+            android:layout_marginStart="20dp"
+            android:text="Skip Intro"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/button_red_focus_selector"
+            android:visibility="gone"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:contentDescription="Skip Intro" />
+
+        <!-- Spacer -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+        <!-- Next Episode Button -->
+        <Button
+            android:id="@+id/nextEpisodeBtn"
+            android:layout_width="100dp"
+            android:layout_height="50dp"
+            android:layout_marginEnd="20dp"
+            android:text="Next Episode"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/button_red_focus_selector"
+            android:visibility="gone"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:contentDescription="Next Episode" />
+    </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Audio Track Selection List (positioned alongside controls) -->
+    <LinearLayout
+        android:id="@+id/audioTrackListContainer"
+        android:layout_width="300dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#E6000000"
+        android:padding="10dp"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="20dp"
+        android:visibility="gone"
+        android:focusable="false"
+        android:elevation="15dp">
+
+        <TextView
+            android:id="@+id/audioTrackListTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Select Audio Track"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:paddingBottom="10dp" />
+
+        <LinearLayout
+            android:id="@+id/audioTrackList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </LinearLayout>
+
+</FrameLayout>
+

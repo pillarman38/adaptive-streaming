@@ -37,11 +37,63 @@ export class SideBarComponent implements OnInit, OnDestroy {
   @ViewChildren("homepageList") homepageList!: QueryList<ElementRef>;
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
-    // Only handle navigation if the sidebar is the current active list
-    // This prevents double-processing when other components are active
-    if (this.smartTv.smartTv?.currentListName === "sideBar") {
-      const ind = this.smartTv.smartTv?.navigate(event);
-      console.log("THI IND SIDE BAAR: ", ind);
+    if (!this.smartTv.smartTv) {
+      return;
+    }
+
+    const currentListName = this.smartTv.smartTv.currentListName;
+
+    // Only call navigate() if we're on the sidebar
+    // This prevents double navigation when on other lists (like movies)
+    if (currentListName !== "sideBar") {
+      return;
+    }
+
+    // Navigate within the sidebar
+    const ind = this.smartTv.smartTv?.navigate(event);
+
+    // Handle switching from sidebar to movies (when pressing right at right edge)
+    if (
+      ind?.borderReached === "right edge" &&
+      ind.currentListName === "sideBar"
+    ) {
+      this.smartTv.smartTv?.switchList("movies", 0);
+      return;
+    }
+
+    // console.log("THI IND SIDE BAAR: ", ind);
+
+    // Handle Enter/Select button on remote
+    // Android TV remotes may send "Enter", "NumpadEnter", or keyCode 13
+    const isEnterKey = event.code === "Enter" || 
+                       event.code === "NumpadEnter" || 
+                       event.key === "Enter" ||
+                       event.keyCode === 13;
+
+    if (isEnterKey && ind?.currentListName === "sideBar") {
+      const currentIndex = ind.currentIndex ?? 0;
+      // console.log("Sidebar Enter pressed at index:", currentIndex);
+      
+      switch (currentIndex) {
+        case 0:
+          // Refresh/Scan Library button
+          this.scanLibrary();
+          break;
+        case 1:
+          // Search
+          this.router.navigateByUrl("/search");
+          break;
+        case 2:
+          // Video Selection
+          this.router.navigateByUrl("/videoSelection");
+          break;
+        case 3:
+          // TV
+          this.router.navigateByUrl("/tv");
+          break;
+        default:
+          // console.log("Unknown sidebar index:", currentIndex);
+      }
     }
   }
 
@@ -50,7 +102,7 @@ export class SideBarComponent implements OnInit, OnDestroy {
   }
 
   updateBorder(element: any): void {
-    console.log("ELEMENT: ", element);
+    // console.log("ELEMENT: ", element);
   }
 
   navigateTo(url: string) {
@@ -70,7 +122,7 @@ export class SideBarComponent implements OnInit, OnDestroy {
     // Start the scan
     this.http.get(`${this.apiConfig.getBaseUrl()}/api/mov/scanLibrary`).subscribe({
       next: (res: any) => {
-        console.log('Scan completed:', res);
+        // console.log('Scan completed:', res);
       },
       error: (err) => {
         console.error('Scan error:', err);

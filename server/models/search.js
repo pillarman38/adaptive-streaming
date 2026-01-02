@@ -5,7 +5,7 @@ let routeFunctions = {
     pool.query(
       `SELECT title, posterUrl FROM movies WHERE title LIKE '${query.searchVal}%'
         UNION
-        SELECT title, posterUrl FROM tv WHERE title LIKE '${query.searchVal}%'
+        SELECT showName, posterUrl FROM tv WHERE showName LIKE '${query.searchVal}%'
         LIMIT 5;`,
       (err, res) => {
         console.log(err, res);

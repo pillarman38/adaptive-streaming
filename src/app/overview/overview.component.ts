@@ -17,6 +17,7 @@ import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { SideBarComponent } from "../side-bar/side-bar.component";
 import { HttpClient } from "@angular/common/http";
 import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
+import { ExoPlayerService } from "../services/exoplayer.service";
 
 @Pipe({
   name: "safeHtml",
@@ -49,7 +50,8 @@ export class OverviewComponent implements OnInit, AfterViewInit {
     private router: Router,
     private renderer: Renderer2,
     private http: HttpClient,
-    private smartTv: SmartTvLibSingletonService
+    private smartTv: SmartTvLibSingletonService,
+    private exoPlayerService: ExoPlayerService
   ) {}
 
   @ViewChild("right") right!: ElementRef;

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script to remove all .mp4 files from the specified directory
-TARGET_DIR="/media/connorwoodford/F898C32498C2DFEC/Videos"
+TARGET_DIR="/mnt/F898C32498C2DFEC/Videos"
 
 # Check if directory exists
 if [ ! -d "$TARGET_DIR" ]; then

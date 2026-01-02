@@ -6,36 +6,38 @@
     <video *ngIf="!useExoPlayer" id="video" #videoElem (click)="playPause()">
         <track *ngIf="subtitle" [src]="subtitleUrl" kind="subtitles" srclang="en" label="English">
     </video>
-
-    <div id="controls">
-        <div id="seekSpace" (click)="seekBarClick($event)">
-            <div id="seekBar" #seekBar></div>
-        </div>
-
-        <div *ngIf="show">
-            <div class="skipIntro" #controls>
-                <p>Skip Intro</p>
+    
+    <div *ngIf="!useExoPlayer">
+        <div id="controls" (mouseleave)="hideControls()">
+            <div id="seekSpace" (click)="seekBarClick($event)">
+                <div id="seekBar" #seekBar></div>
             </div>
-        </div>
 
-        <div id="centerBtns">
-            <img src="assets/skipBack.png" class="skipButtons" #controlBtns (click)="skipButtons(-30)">
-            <img src="assets/left.png" class="skipButtons" #controlBtns (click)="skipButtons(-15)">
-            
-            <div *ngIf ="paused">
-                <img src="assets/play.png" class="playPauseBtn" #controlBtns (click)="playPause()">
+            <div *ngIf="show">
+                <div class="skipIntro" #controls>
+                    <p>Skip Intro</p>
+                </div>
             </div>
-            <div *ngIf ="!paused">
-                <img src="assets/pause.png" class="playPauseBtn" #controlBtns (click)="playPause()">
-            </div>
-            
-            <img src="assets/right.png" class="skipButtons" #controlBtns (click)="skipButtons(+15)">
-            <img src="assets/skipForward.png" class="skipButtons" #controlBtns (click)="skipButtons(+30)">
-        </div>
 
-        <div *ngIf="show">
-            <div class="nextEpisode" #controls (click)="getNextEp()">
-                <p>Next Episode</p>
+            <div id="centerBtns">
+                <img src="assets/skipBack.png" class="skipButtons" #controlBtns (click)="skipButtons(-30)">
+                <img src="assets/left.png" class="skipButtons" #controlBtns (click)="skipButtons(-15)">
+                
+                <div *ngIf ="paused">
+                    <img src="assets/play.png" class="playPauseBtn" #controlBtns (click)="playPause()">
+                </div>
+                <div *ngIf ="!paused">
+                    <img src="assets/pause.png" class="playPauseBtn" #controlBtns (click)="playPause()">
+                </div>
+                
+                <img src="assets/right.png" class="skipButtons" #controlBtns (click)="skipButtons(+15)">
+                <img src="assets/skipForward.png" class="skipButtons" #controlBtns (click)="skipButtons(+30)">
+            </div>
+
+            <div *ngIf="show">
+                <div class="nextEpisode" #controls (click)="getNextEp()">
+                    <p>Next Episode</p>
+                </div>
             </div>
         </div>
     </div>

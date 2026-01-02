@@ -43,7 +43,7 @@ async function updateMoviesInDB() {
     loginSuccess = false;
   }
 
-  fs.readdir("/media/connorwoodford/F898C32498C2DFEC/Videos", async (err, files) => {
+  fs.readdir("/mnt/F898C32498C2DFEC/Videos", async (err, files) => {
     var arr = [];
     var selection = await files;
 
@@ -80,7 +80,7 @@ async function updateMoviesInDB() {
           };
 
           await ffmpeg.ffprobe(
-            `/media/connorwoodford/F898C32498C2DFEC/Videos/${fileName}`,
+            `/mnt/F898C32498C2DFEC/Videos/${fileName}`,
             async function (err, metaData) {
               let dolbyVision = false;
               let write = "";
@@ -143,7 +143,7 @@ async function updateMoviesInDB() {
                 
                 if (dolbyVision) {
                   // Dolby Vision detected - point to MKV file directly
-                  location = `/media/connorwoodford/F898C32498C2DFEC/Videos/${fileNameNoExt.replace(
+                  location = `/mnt/F898C32498C2DFEC/Videos/${fileNameNoExt.replace(
                     new RegExp(" ", "g"),
                     "%20"
                   )}.mkv`;
