@@ -8,19 +8,37 @@
     </div>
     <div id="info" #info (mouseover)="hover()" (mouseout)="hoverOut()">
         <img [src]="coverArt | safeUrl" id="coverArt">
-        <div id="playBtnContainer" #playBtnContainer>
+        <div *ngIf="!showVersionSelector" id="playBtnContainer" #playBtnContainer>
             <img id="playBtn" src="assets/playVideo.png" #playBtn (click)="playMovie()">
         </div>
 
-        <p id="transferTxt">Transmux Pixie transfer</p>
+        <div *ngIf="showVersionSelector" id="versionSelector" #versionSelector>
+            <p id="versionLabel">Version:</p>
+            <div id="versionList">
+              <div *ngFor="let version of availableVersions; index as i" 
+                   #versionOption
+                   class="versionOption" 
+                   [class.selected]="i === selectedVersionIndex"
+                   (click)="selectVersion(i)"
+                   (mouseover)="onVersionHover(i)">
+                <p class="versionInfo">
+                  {{version.resolution}} | {{version.audio}}
+                  <span *ngIf="version.dolbyVision === 1"> | Dolby Vision</span>
+                  <span *ngIf="version.threeD === 1"> | 3D</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+        <!-- <p id="transferTxt">Transmux Pixie transfer</p>
 
         <div *ngIf="!transmuxToPixie">
             <img src="assets/check.png" class="transferIcons" (click)="changeTransmuxStatus(0)">
         </div>
         <div *ngIf="transmuxToPixie">
             <img src="assets/copy.png" class="transferIcons" (click)="changeTransmuxStatus(1)">
-        </div>
-        <p id="plot">{{plot}}</p>
+        </div> -->
+        <p id="plot" [style.margin-top.px]="plotTopOffset">{{plot}}</p>
     </div>
     
     <div id="castList" #castList (mouseover)="hover()" (mouseout)="hoverOut()">

@@ -1,7 +1,7 @@
 require("./config/config");
 require("./server/models/pixie");
 const express = require("express");
-const app = express();
+const app = express()
 const port = 5012;
 let cors = require("cors");
 let bparser = require("body-parser");

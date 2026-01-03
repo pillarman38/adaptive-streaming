@@ -7,7 +7,7 @@
 
 #info {
     margin-top: 50px;
-    width: 50%;
+    width: 100%;
     margin-left: 30px;
     padding: 10px;
     border-radius: 10px;
@@ -23,7 +23,7 @@
 
 #plot {
     color: #fff;
-    position: absolute;
+    /* position: absolute; */
     margin-top: 100px;
     margin-left: 170px;
 }
@@ -154,4 +154,54 @@
     height: 100%;
     position: absolute;
     z-index: -1;
+}
+
+#versionSelector {
+    float: left;
+    margin-left: 30px;
+    margin-top: 0px;
+    color: #fff;
+    min-width: 250px;
+}
+
+#versionLabel {
+    color: #fff;
+    font-size: 16px;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+#versionList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.versionOption {
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.versionOption:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: translateX(5px);
+}
+
+.versionOption.selected {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #fff;
+    border-width: 2px;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.versionInfo {
+    color: #fff;
+    font-size: 14px;
+    margin: 0;
+    text-align: left;
 }

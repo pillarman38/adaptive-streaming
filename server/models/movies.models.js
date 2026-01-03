@@ -70,20 +70,23 @@ async function updateMoviesInDB() {
           scanProgress.current = l;
           scanProgress.currentFile = notIncluded[l];
           var fileName = notIncluded[l];
-          let fileNameNoExt = fileName.replace(".mp4", "").replace(".mkv", "");
-          var firstObj = {
-            title: notIncluded[l],
-            movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${fileNameNoExt
-              .replace(new RegExp(" ", "g"), "%20")
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")}`,
-          };
+          
+
 
           await ffmpeg.ffprobe(
             `/mnt/F898C32498C2DFEC/Videos/${fileName}`,
             async function (err, metaData) {
+              let fileNameNoExt = metaData.format.tags.title ? metaData.format.tags.title : fileName.replace(".mkv", "");
               let dolbyVision = false;
               let write = "";
+
+              var firstObj = {
+                title: notIncluded[l],
+                movieListUrl: `https://api.themoviedb.org/3/search/movie?api_key=490cd30bbbd167dd3eb65511a8bf2328&query=${fileNameNoExt
+                  .replace(new RegExp(" ", "g"), "%20")
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")}`,
+              };
 
               mbpsWithfixedDecimal = "";
               if (metaData.streams[0]) {
@@ -279,6 +282,7 @@ async function updateMoviesInDB() {
                   posterUrl,
                   vbr: mbpsWithfixedDecimal,
                   transmuxToPixie: false,
+                  threeD: metaData.streams[0].side_data_type === "Stereo 3D" ? 1 : 0,
                 };
 
                 await new Promise((resolve, reject) => {
@@ -304,14 +308,14 @@ async function updateMoviesInDB() {
                   scanProgress.current = scanProgress.total;
                   scanProgress.currentFile = "";
                   
-                  pool.query(
-                    `SELECT * FROM movies ORDER BY title ASC`,
-                    (err, resp) => {
-                      pool.query(`SELECT * from pickupwhereleftoff`, (e, r) => {
-                        callback(resp);
-                      });
-                    }
-                  );
+                  // pool.query(
+                  //   `SELECT * FROM movies ORDER BY title ASC`,
+                  //   (err, resp) => {
+                  //     // pool.query(`SELECT * from pickupwhereleftoff`, (e, r) => {
+                // callback(resp);
+                  //     // });
+                  //   }
+                  // );
                 } else {
                   l += 1;
                   await iterate();
@@ -576,13 +580,77 @@ let routeFunctions = {
 
     pool.query(
       `SELECT * FROM movies LIMIT 50 OFFSET ${reqObj.offset}`,
-      (err, res) => {
+      async (err, res) => {
+        if (err) {
+          callback(err, null);
+          return;
+        }
+        
         res.map(
           (movie) =>
             (movie.posterUrl = urlTransformer.transformUrl(`http://pixable.local:5012${movie.posterUrl}`))
         );
+        
         if (res.length > 0) {
-          callback(err, res);
+          // Group movies by title
+          const groupedMovies = {};
+          const titlesInBatch = new Set();
+          
+          // First pass: group movies in current batch
+          res.forEach((movie) => {
+            titlesInBatch.add(movie.title);
+            if (!groupedMovies[movie.title]) {
+              groupedMovies[movie.title] = {
+                ...movie,
+                versions: [movie]
+              };
+            } else {
+              // Add this movie as another version
+              groupedMovies[movie.title].versions.push(movie);
+            }
+          });
+          
+          // Second pass: For each grouped title, query ALL versions from database
+          // This ensures we get all versions even if they're on different pages
+          const groupedTitles = Object.keys(groupedMovies);
+          for (const title of groupedTitles) {
+            try {
+              const allVersions = await new Promise((resolve, reject) => {
+                pool.query(
+                  `SELECT * FROM movies WHERE title = ?`,
+                  [title],
+                  (err, versions) => {
+                    if (err) {
+                      reject(err);
+                    } else {
+                      // Transform poster URLs for all versions
+                      versions.forEach((version) => {
+                        version.posterUrl = urlTransformer.transformUrl(`http://pixable.local:5012${version.posterUrl}`);
+                      });
+                      resolve(versions);
+                    }
+                  }
+                );
+              });
+              
+              // Update the grouped movie with all versions
+              if (allVersions.length > 0) {
+                groupedMovies[title] = {
+                  ...allVersions[0],
+                  versions: allVersions
+                };
+                console.log(`Found ${allVersions.length} versions for "${title}"`);
+              }
+            } catch (queryErr) {
+              console.error(`Error querying all versions for "${title}":`, queryErr);
+              // Keep the grouped version from current batch if query fails
+            }
+          }
+          
+          // Convert grouped object to array
+          const result = Object.values(groupedMovies);
+          
+          callback(err, result);
         } else {
           callback(err, {
             message: "no more movies",

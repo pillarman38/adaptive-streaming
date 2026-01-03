@@ -35,6 +35,8 @@ export interface movieInfo {
   nextEp?: movieInfo;
   transmuxToPixie: number;
   dolbyVision: number;
+  threeD: number;
+  versions: movieInfo[];
 }
 
 export interface showInfo {
@@ -102,6 +104,8 @@ export class InfoStoreService {
     }
   }
 
+  movies: movieInfo[] = []
+
   videoInfo: movieInfo = {
     id: 0,
     title: "",
@@ -133,6 +137,8 @@ export class InfoStoreService {
     type: "movie",
     transmuxToPixie: 0,
     dolbyVision: 0,
+    threeD: 0,
+    versions: [],
   };
 
   showInfo: showInfo = {

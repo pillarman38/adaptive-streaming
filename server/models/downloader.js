@@ -10,13 +10,13 @@ class Downloader {
     let downloadCount = 0;
 
     if (type === "tv") {
-      const files = await fs.readdirSync(`J:/tvCoverArt`);
+      const files = await fs.readdirSync(`/mnt/263A6E793A6E45C1/tvPosters`);
       if (!files.includes(notIncludedFileName + ".jpg") && tmdbInfo) {
         const coverArt = await fetch(
           `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.poster_path}`
         );
         const fileStreamPosters = await fs.createWriteStream(
-          `J:/tvCoverArt/${notIncludedFileName}.jpg`
+          `/mnt/263A6E793A6E45C1/tvPosters/${notIncludedFileName}.jpg`
         );
 
         let contentEncoding = coverArt.headers.get("content-encoding");
@@ -377,14 +377,14 @@ class Downloader {
     }
 
     if (type === "tv") {
-      posters = fs.readdirSync("J:/tvPosters");
+      posters = fs.readdirSync("/mnt/263A6E793A6E45C1/tvPosters");
       let toCheck = +".jpg";
       if (!posters.includes(toCheck)) {
         let idGetter = undefined;
         var poster = "";
         try {
           idGetter = await execSync(
-            `F:/MKVToolNix/mkvmerge -i "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv"`
+            `mkvmerge -i "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv"`
           )
             .toString()
             .split("\n")
@@ -393,9 +393,9 @@ class Downloader {
             .replace(":", "");
 
           let id = parseInt(idGetter);
-          const command = `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:J:/tvPosters/${notIncluded}.jpg"`;
+          const command = `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg"`;
           const extraction = await execSync(
-            `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:J:/tvPosters/${notIncluded}.jpg"`
+            `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg"`
           );
           return `/tvPosters/${notIncluded.replace(
             new RegExp(" ", "g"),
@@ -406,7 +406,7 @@ class Downloader {
             var downloadUrl = `https://www.themoviedb.org/t/p/original${data.results[0].backdrop_path}`;
             var downloadPosterFile = await fetch(downloadUrl);
             const fileStreamPosters = await fs.createWriteStream(
-              `J:/tvPosters/${notIncluded}.jpg`
+              `/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg`
             );
             
             // Add error handler to prevent unhandled error events
@@ -483,10 +483,10 @@ class Downloader {
                 "%20"
               )}.jpg`;
             } else {
-              return "";
+              return "/assets/four0four.gif";
             }
           } else {
-            return "";
+            return "/assets/four0four.gif";
           }
         } else {
           return `/BackgroundImages/${notIncluded.replace(
@@ -495,11 +495,11 @@ class Downloader {
           )}.jpg`;
         }
       } else {
-        return "";
+        return "/assets/four0four.gif";
       }
     } catch (err) {
       console.log(err);
-      return "";
+      return "/assets/four0four.gif";
     }
   }
 

@@ -10,6 +10,90 @@ let pixie = require("../models/pixie");
 const BonusFeatures = require("../models/bonusFeatures");
 let { search } = require("../models/search");
 const urlTransformer = require("../utils/url-transformer");
+const path = require("path");
+
+router.get("/stream", (req, res) => { 
+  const filePath = req.query.path; 
+  if (!filePath) { 
+    return res.status(400).send("Missing file path"); 
+  } 
+  if (!fs.existsSync(filePath)) { 
+    return res.status(404).send("File not found"); 
+  } 
+  const stat = fs.statSync(filePath); 
+  const fileSize = stat.size; 
+  const range = req.headers.range; 
+  
+  // If no range header, serve the full file (ExoPlayer might make initial request without range)
+  if (!range) {
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = ext === ".mp4" ? "video/mp4" : ext === ".mkv" ? "video/x-matroska" : "application/octet-stream";
+    res.writeHead(200, {
+      "Content-Length": fileSize,
+      "Content-Type": contentType,
+      "Accept-Ranges": "bytes"
+    });
+    const stream = fs.createReadStream(filePath);
+    stream.pipe(res);
+    return;
+  }
+  
+  // Parse Range header: "bytes=start-end" or "bytes=start-" or "bytes=-suffix"
+  const rangeMatch = range.match(/bytes=(\d*)-(\d*)/);
+  if (!rangeMatch) {
+    res.writeHead(416, {
+      "Content-Range": `bytes */${fileSize}`,
+      "Accept-Ranges": "bytes"
+    });
+    return res.end("Invalid Range header format");
+  }
+  
+  let start = 0;
+  let end = fileSize - 1;
+  
+  if (rangeMatch[1]) {
+    start = parseInt(rangeMatch[1], 10);
+  }
+  
+  if (rangeMatch[2]) {
+    end = parseInt(rangeMatch[2], 10);
+  } else {
+    // If no end specified, use a reasonable chunk size (10MB) or file size
+    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
+    end = Math.min(start + CHUNK_SIZE - 1, fileSize - 1);
+  }
+  
+  // Validate range
+  if (isNaN(start) || isNaN(end) || start > end || start < 0 || end >= fileSize) {
+    res.writeHead(416, {
+      "Content-Range": `bytes */${fileSize}`,
+      "Accept-Ranges": "bytes"
+    });
+    return res.end("Range Not Satisfiable");
+  }
+  
+  const contentLength = end - start + 1;
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = ext === ".mp4" ? "video/mp4" : ext === ".mkv" ? "video/x-matroska" : "application/octet-stream";
+  
+  res.writeHead(206, {
+    "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+    "Accept-Ranges": "bytes",
+    "Content-Length": contentLength,
+    "Content-Type": contentType
+  });
+  
+  const stream = fs.createReadStream(filePath, { start, end }); 
+  stream.pipe(res);
+  
+  // Handle stream errors
+  stream.on("error", (err) => {
+    console.error("Stream error:", err);
+    if (!res.headersSent) {
+      res.status(500).send("Stream error");
+    }
+  });
+});
 
 router.post("/movies", (req, res) => {
   console.log("body", req.body);

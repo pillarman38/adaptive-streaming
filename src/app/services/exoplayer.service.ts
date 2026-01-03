@@ -42,8 +42,10 @@ export class ExoPlayerService {
 
     try {
       const result = await ExoPlayer.initialize({ containerId });
-      this.isInitialized = result.success;
-      return this.isInitialized;
+      // Note: ExoPlayer container is initialized, but ExoPlayer itself is created in loadVideo()
+      // So we don't set isInitialized = true here
+      // isInitialized will be set to true after loadVideo() succeeds
+      return result.success;
     } catch (error) {
       console.error('Error initializing ExoPlayer:', error);
       if (error instanceof Error) {
@@ -57,16 +59,23 @@ export class ExoPlayerService {
   }
 
   async loadVideo(url: string, subtitleUrl?: string): Promise<boolean> {
-    if (!this.isInitialized) {
-      console.warn('ExoPlayer not initialized');
-      return false;
-    }
+    // Note: We allow loadVideo to proceed even if isInitialized is false
+    // because ExoPlayer is actually created in loadVideo(), not in initialize()
+    // The initialize() method only sets up the container and PlayerView
 
     try {
       const result = await ExoPlayer.loadVideo({ url, subtitleUrl });
+      // Set isInitialized to true after ExoPlayer is successfully created and media is loaded
+      if (result.success) {
+        this.isInitialized = true;
+      }
       return result.success;
-    } catch (error) {
-      console.error('Error loading video:', error);
+    } catch (error: any) {
+      // Capacitor errors often have a message property
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      console.error('Error loading video:', errorMessage);
+      console.error('Full error object:', error);
+      this.isInitialized = false;
       return false;
     }
   }

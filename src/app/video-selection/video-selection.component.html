@@ -31,6 +31,10 @@
     <div *ngIf="currentBox.dolbyVision === 1 && isAndroid"class="bubbles">
       <p>Dolby Vision</p>
     </div>
+
+    <div *ngIf="currentBox.threeD === 1 && isAndroid"class="bubbles">
+      <p>3D</p>
+    </div>
   </div>
 
   <div id="list" #list>

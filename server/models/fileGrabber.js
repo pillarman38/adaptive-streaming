@@ -1,11 +1,13 @@
 const fs = require("fs");
+const path = require("path");
+// const files = [];
 
-const getFilesRecursively = (directory) => {
+const getFilesRecursively = (directory, files) => {
   const filesInDirectory = fs.readdirSync(directory);
   for (const file of filesInDirectory) {
     const absolute = path.join(directory, file);
     if (fs.statSync(absolute).isDirectory()) {
-      getFilesRecursively(absolute);
+      getFilesRecursively(absolute, files);
     } else {
       files.push(absolute.replace(/\\/g, "/"));
     }

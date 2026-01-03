@@ -10,6 +10,7 @@ import {
   PipeTransform,
   Renderer2,
   AfterViewInit,
+  OnDestroy,
 } from "@angular/core";
 import { InfoStoreService, movieInfo } from "../info-store.service";
 import { Router } from "@angular/router";
@@ -35,7 +36,7 @@ export class SafeHtmlPipe implements PipeTransform {
   templateUrl: "./overview.component.html",
   styleUrls: ["./overview.component.css"],
 })
-export class OverviewComponent implements OnInit, AfterViewInit {
+export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
   plot: string = "";
   idx: any;
   cast: Array<any> = [];
@@ -44,6 +45,11 @@ export class OverviewComponent implements OnInit, AfterViewInit {
   currentBox: movieInfo = this.infoStore.videoInfo;
   index = 0;
   transmuxToPixie: boolean = false;
+  showVersionSelector: boolean = false
+  availableVersions: movieInfo[] = []
+  selectedVersionIndex: number = 0
+  plotTopOffset: number = 100 // Default offset for plot position
+  private uiHideTimeout: any = null; // Timer for hiding UI after inactivity
 
   constructor(
     private infoStore: InfoStoreService,
@@ -59,9 +65,11 @@ export class OverviewComponent implements OnInit, AfterViewInit {
   @ViewChild("nav") nav!: ElementRef;
   @ViewChild("wrapper") wrapper!: ElementRef;
   @ViewChild("iframePlacer") iframePlacer!: ElementRef;
+  @ViewChild("videoPlayer") videoPlayer!: ElementRef<HTMLVideoElement>;
   @ViewChild("castList") castList!: ElementRef;
   @ViewChild("info") info!: ElementRef;
   @ViewChildren("playBtn") playBtn!: QueryList<ElementRef>;
+  @ViewChildren("versionOption") versionOptions!: QueryList<ElementRef>;
   @ViewChild(SideBarComponent) sideBar!: SideBarComponent;
   @ViewChild(SideBarComponent) sideBarComponent!: SideBarComponent;
 
@@ -69,10 +77,26 @@ export class OverviewComponent implements OnInit, AfterViewInit {
   async onKeyDown(event: KeyboardEvent) {
     console.log("EVENT: ", event);
 
-    // Only handle navigation if playBtn or sideBar is the current active list
+    // Check if D-pad keys are pressed (Arrow keys)
+    const isDpadKey = event.code === "ArrowUp" || 
+                      event.code === "ArrowDown" || 
+                      event.code === "ArrowLeft" || 
+                      event.code === "ArrowRight";
+    
+    // If any D-pad button is pressed, make UI visible and reset hide timer
+    if (isDpadKey) {
+      this.showUI();
+      this.resetUIHideTimer();
+    }
+
+    // Determine available lists based on whether version selector is shown
+    const availableLists = this.showVersionSelector 
+      ? ["versionOptions", "sideBar"]
+      : ["playBtn", "sideBar"];
+
+    // Only handle navigation if current list is in available lists
     if (!this.smartTv.smartTv || 
-        (this.smartTv.smartTv.currentListName !== "playBtn" && 
-         this.smartTv.smartTv.currentListName !== "sideBar")) {
+        !availableLists.includes(this.smartTv.smartTv.currentListName)) {
       return;
     }
 
@@ -84,29 +108,73 @@ export class OverviewComponent implements OnInit, AfterViewInit {
     event.key === "Enter" ||
     event.keyCode === 13;
 
+    // Handle Enter key based on current list
     if (isEnterKey) {
-      this.playMovie();
+      if (this.smartTv.smartTv.currentListName === "versionOptions") {
+        // Select the version when Enter is pressed on version selector
+        this.selectVersion(this.selectedVersionIndex);
+      } else if (this.smartTv.smartTv.currentListName === "playBtn") {
+        // Play movie when Enter is pressed on play button
+        this.playMovie();
+      }
+      return;
     }
 
-    if (
-      ind?.borderReached === "right edge" &&
-      ind?.currentListName === "playBtn"
-    ) {
-      this.smartTv.smartTv?.switchList("sideBar", 0);
-    }
+    // Navigation when version selector is visible
+    if (this.showVersionSelector) {
+      // Navigation from versionOptions to sideBar (left or right edge)
+      if (
+        (ind?.borderReached === "left edge" || ind?.borderReached === "right edge") &&
+        ind?.currentListName === "versionOptions"
+      ) {
+        this.smartTv.smartTv?.switchList("sideBar", 0);
+      }
 
-    if (
-      ind?.borderReached === "left edge" &&
-      ind?.currentListName === "playBtn"
-    ) {
-      this.smartTv.smartTv?.switchList("sideBar", 0);
-    }
+      // Navigation from sideBar to versionOptions (left or right edge)
+      if (
+        (ind?.borderReached === "left edge" || ind?.borderReached === "right edge") &&
+        ind?.currentListName === "sideBar"
+      ) {
+        this.smartTv.smartTv?.switchList("versionOptions", this.selectedVersionIndex);
+      }
 
-    if (
-      ind?.borderReached === "right edge" &&
-      ind?.currentListName === "sideBar"
-    ) {
-      this.smartTv.smartTv?.switchList("playBtn", 0);
+      // Update selected version index when navigating within version selector (up/down)
+      if (this.smartTv.smartTv.currentListName === "versionOptions") {
+        if (ind?.currentIndex !== undefined) {
+          this.selectedVersionIndex = ind.currentIndex;
+          // Update UI with the newly highlighted version's data
+          this.updateUIForVersion(this.selectedVersionIndex);
+        }
+        // Handle wrapping at top/bottom of version list
+        if (ind?.borderReached === "top edge" && this.selectedVersionIndex === 0) {
+          // Stay at top or wrap to bottom
+          this.selectedVersionIndex = this.availableVersions.length - 1;
+          this.smartTv.smartTv?.setCurrentIndex(this.selectedVersionIndex);
+          this.updateUIForVersion(this.selectedVersionIndex);
+        } else if (ind?.borderReached === "bottom edge" && this.selectedVersionIndex === this.availableVersions.length - 1) {
+          // Stay at bottom or wrap to top
+          this.selectedVersionIndex = 0;
+          this.smartTv.smartTv?.setCurrentIndex(this.selectedVersionIndex);
+          this.updateUIForVersion(this.selectedVersionIndex);
+        }
+      }
+    } else {
+      // Navigation when version selector is NOT visible (normal flow)
+      // Navigation from playBtn to sideBar (left or right edge)
+      if (
+        (ind?.borderReached === "left edge" || ind?.borderReached === "right edge") &&
+        ind?.currentListName === "playBtn"
+      ) {
+        this.smartTv.smartTv?.switchList("sideBar", 0);
+      }
+
+      // Navigation from sideBar to playBtn (left or right edge)
+      if (
+        (ind?.borderReached === "left edge" || ind?.borderReached === "right edge") &&
+        ind?.currentListName === "sideBar"
+      ) {
+        this.smartTv.smartTv?.switchList("playBtn", 0);
+      }
     }
   }
 
@@ -127,13 +195,45 @@ export class OverviewComponent implements OnInit, AfterViewInit {
   }
 
   hover() {
-    this.castList.nativeElement.style.opacity = "1";
-    this.info.nativeElement.style.opacity = "1";
+    this.showUI();
+    this.resetUIHideTimer();
   }
 
   hoverOut() {
-    this.castList.nativeElement.style.opacity = "0";
-    this.info.nativeElement.style.opacity = "0";
+    // Don't hide immediately on mouseout - let the timer handle it
+    this.resetUIHideTimer();
+  }
+
+  private showUI() {
+    if (this.castList && this.castList.nativeElement) {
+      this.castList.nativeElement.style.opacity = "1";
+    }
+    if (this.info && this.info.nativeElement) {
+      this.info.nativeElement.style.opacity = "1";
+    }
+  }
+
+  private hideUI() {
+    if (this.castList && this.castList.nativeElement) {
+      this.castList.nativeElement.style.opacity = "0";
+    }
+    if (this.info && this.info.nativeElement) {
+      this.info.nativeElement.style.opacity = "0";
+    }
+  }
+
+  private resetUIHideTimer() {
+    // Clear existing timer
+    if (this.uiHideTimeout) {
+      clearTimeout(this.uiHideTimeout);
+      this.uiHideTimeout = null;
+    }
+    
+    // Set new timer to hide UI after 3 seconds of inactivity
+    this.uiHideTimeout = setTimeout(() => {
+      this.hideUI();
+      this.uiHideTimeout = null;
+    }, 3000);
   }
 
   ngAfterViewInit() {
@@ -149,14 +249,35 @@ export class OverviewComponent implements OnInit, AfterViewInit {
     // this.renderer.setProperty(divElement, "innerHTML", iframeHtml);
     // Append the div (with iframe) to the container
     // this.renderer.appendChild(this.iframePlacer.nativeElement, divElement);
+    
+    // Set up navigation after view is initialized
     setTimeout(() => {
-      // coverArt.style.opacity = "0"
-      // coverArt.style.transition = "opacity 2.0s"
-      // plotSection.style.opacity = "0"
-      // plotSection.style.transition = "opacity 2.0s"
-      this.castList.nativeElement.style.opacity = "0";
-      this.info.nativeElement.style.opacity = "0";
-      // this.castList.style.transition = "opacity 2.0s"
+      if (this.showVersionSelector && this.versionOptions.length > 0) {
+        // Version selector is visible - make it the starting list
+        this.smartTv.smartTv?.addCurrentList({
+          startingList: true,
+          listName: "versionOptions",
+          startingIndex: this.selectedVersionIndex,
+          listElements: this.versionOptions,
+        });
+        this.smartTv.smartTv?.setCurrentIndex(this.selectedVersionIndex);
+      } else if (this.playBtn.length > 0) {
+        // Version selector not visible - use play button as starting list
+        this.smartTv.smartTv?.addCurrentList({
+          startingList: true,
+          listName: "playBtn",
+          startingIndex: 0,
+          listElements: this.playBtn,
+        });
+        this.smartTv.smartTv?.setCurrentIndex(0);
+      }
+    }, 1200);
+    
+    setTimeout(() => {
+      // Hide UI after 3 seconds, but timer will reset on D-pad activity
+      this.hideUI();
+      // Start the inactivity timer
+      this.resetUIHideTimer();
     }, 3000);
   }
   onHover(e: number, listName: string) {
@@ -182,8 +303,78 @@ export class OverviewComponent implements OnInit, AfterViewInit {
       });
   }
 
+  onVersionHover(index: number) {
+    this.selectedVersionIndex = index;
+    // Update Smart TV navigation index if version selector is active
+    if (this.smartTv.smartTv?.currentListName === "versionOptions") {
+      this.smartTv.smartTv?.findAndSetIndex(index, "versionOptions");
+    }
+    // Update UI with the highlighted version's data
+    this.updateUIForVersion(index);
+  }
+
+  private updateUIForVersion(index: number) {
+    if (index < 0 || index >= this.availableVersions.length) {
+      return;
+    }
+    
+    const version = this.availableVersions[index];
+    
+    // Update all UI properties with the selected version's data
+    this.plot = version.overview;
+    this.cast = JSON.parse(version.cast || "[]");
+    this.coverArt = version.coverArt;
+    const newTrailer = version.trailerUrl.replace(new RegExp(" ", "g"), "%20");
+    
+    // Update trailer and reload video if it changed
+    if (this.trailer !== newTrailer) {
+      this.trailer = newTrailer;
+      // Reload the video element with the new trailer
+      if (this.videoPlayer && this.videoPlayer.nativeElement) {
+        this.videoPlayer.nativeElement.src = this.trailer;
+        this.videoPlayer.nativeElement.load();
+        this.videoPlayer.nativeElement.play().catch(err => {
+          console.log("Video autoplay prevented or failed:", err);
+        });
+      }
+    } else {
+      this.trailer = newTrailer;
+    }
+  }
+
+  selectVersion(index: number) {
+    this.selectedVersionIndex = index;
+    this.infoStore.videoInfo = this.availableVersions[index];
+    
+    // Update component properties with new version data
+    this.plot = this.infoStore.videoInfo.overview;
+    this.cast = JSON.parse(this.infoStore.videoInfo.cast);
+    this.coverArt = this.infoStore.videoInfo.coverArt;
+    this.trailer = this.infoStore.videoInfo.trailerUrl.replace(
+      new RegExp(" ", "g"),
+      "%20"
+    );
+    
+    // Navigate to player with selected version
+    this.router.navigateByUrl("/player");
+  }
+
   ngOnInit(): void {
     console.log("INFOO: ", this.infoStore.videoInfo);
+    // Filter movies by same title AND tmdbId
+    this.availableVersions = this.infoStore.videoInfo.versions;
+    
+    if(this.availableVersions.length > 1) {
+      this.showVersionSelector = true;
+      // Find the index of the current movie in the versions array
+      const currentIndex = this.availableVersions.findIndex(
+        (version) => version.id === this.infoStore.videoInfo.id
+      );
+      this.selectedVersionIndex = currentIndex >= 0 ? currentIndex : 0;
+    }
+    
+    console.log("AVAILABLE VERSIONS: ", this.availableVersions);
+    
     if (this.infoStore.videoInfo.transmuxToPixie === 0) {
       this.transmuxToPixie = false;
     } else {
@@ -196,22 +387,7 @@ export class OverviewComponent implements OnInit, AfterViewInit {
     // Show sidebar on overview page (player will hide it when navigating to player)
     this.smartTv.changeVisibility(true);
 
-    setTimeout(() => {
-      // console.log(
-      //   "SIDEBAR: ",
-      //   this.sideBarComponent,
-      //   this.smartTv.smartTv?.listsArr
-      // );
-
-      this.smartTv.smartTv?.addCurrentList({
-        startingList: true,
-        listName: "playBtn",
-        startingIndex: 0,
-        listElements: this.playBtn,
-      });
-      this.smartTv.smartTv?.setCurrentIndex(0);
-      // Removed unsafe assignment to an optional property (currentIndex)
-    }, 1000);
+    // Navigation setup will be done in ngAfterViewInit after view elements are available
 
     if (this.infoStore.videoInfo.pid > 0) {
       console.log("INSIDE PID: ");
@@ -223,6 +399,14 @@ export class OverviewComponent implements OnInit, AfterViewInit {
         .subscribe((res) => {
           console.log("RESPONDED: ", res);
         });
+    }
+  }
+
+  ngOnDestroy() {
+    // Clear the UI hide timer when component is destroyed
+    if (this.uiHideTimeout) {
+      clearTimeout(this.uiHideTimeout);
+      this.uiHideTimeout = null;
     }
   }
 }

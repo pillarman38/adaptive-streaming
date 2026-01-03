@@ -32,7 +32,6 @@ export class VideoSelectionComponent implements OnInit {
   deviceName: string = "";
   isAndroid: boolean = false;
 
-
   constructor(
     private http: HttpClient,
     private router: Router,
@@ -230,6 +229,7 @@ export class VideoSelectionComponent implements OnInit {
           // Use concat which returns a new array
           const newMovies = this.movies.concat(response);
           this.movies = newMovies;
+          this.infoStore.movies = newMovies;
           // console.log("MOVIES AFTER: ", this.movies.length);
           // console.log("MOVIES ARRAY: ", this.movies);
           // console.log("NEW MOVIES REFERENCE: ", newMovies === this.movies);
@@ -327,8 +327,7 @@ export class VideoSelectionComponent implements OnInit {
         offset: this.offset,
       })
       .subscribe((res: any) => {
-        // console.log("RES: ", res, this.boxes);
-
+        console.log("RES: ", res);
         // Check if there are more movies available
         // If response has a message property, there are no more movies
         if (res.message) {
@@ -337,9 +336,22 @@ export class VideoSelectionComponent implements OnInit {
         } else {
           // this.hasMoreMovies = true;
           this.movies = res;
+          // Store flat list of all movie versions for version filtering in overview
+          const flatMovies: movieInfo[] = [];
+          res.forEach((groupedMovie: any) => {
+            if (groupedMovie.versions && groupedMovie.versions.length > 0) {
+              flatMovies.push(...groupedMovie.versions);
+            } else {
+              // If no versions array, it's a single movie (backward compatibility)
+              flatMovies.push(groupedMovie);
+            }
+          });
+          this.infoStore.movies = flatMovies;
           this.offset += res.length;
-          this.currentBox = res[this.index];
-          this.poster = this.currentBox.posterUrl;
+          // currentBox should use the grouped movie (which has all properties from first version)
+          const currentMovie: any = res[this.index];
+          this.currentBox = currentMovie;
+          this.poster = currentMovie.posterUrl;
           
           setTimeout(() => {
             // // console.log("SMART TV VIDEO: ", this.smartTv);
@@ -374,7 +386,6 @@ export class VideoSelectionComponent implements OnInit {
           
           }, 1000);
         }
-        
       });
   }
 }

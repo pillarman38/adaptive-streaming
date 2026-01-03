@@ -57,32 +57,14 @@ const transcoder = {
     if (movieTitle.device === 'nvidia-shield' && fileExt.toLowerCase() === 'mkv') {
       console.log('Nvidia Shield detected with MKV file - skipping transcoding, returning original file');
       
-      // Convert file path to URL
-      // filePath is like: /mnt/F898C32498C2DFEC/Videos/movie.mkv
-      // express.static serves from /mnt/F898C32498C2DFEC, so URL is /Videos/movie.mkv
-      const basePath = '/mnt/F898C32498C2DFEC';
-      let videoUrl;
-      
-      if (movieTitle.filePath.startsWith(basePath)) {
-        // Extract relative path from basePath
-        videoUrl = movieTitle.filePath.substring(basePath.length);
-      } else {
-        // Fallback: try to extract just the filename and assume it's in Videos/
-        const fileName = movieTitle.filePath.split('/').pop();
-        videoUrl = `/Videos/${fileName}`;
-      }
-      
-      // Replace spaces with %20 for URL encoding
-      videoUrl = videoUrl.replace(new RegExp(" ", "g"), "%20");
+      const streamUrl = `http://pixable.local:5012/api/mov/stream?path=${encodeURIComponent(movieTitle.filePath)}`;
       
       var movieReturner = {
         browser: movieTitle["browser"] || "Android",
         pid: 0, // No transcoding process
         duration: movieTitle["duration"],
         fileformat: movieTitle["fileformat"] || "mkv",
-        location: urlTransformer.transformUrl(
-          `http://pixable.local:5012${videoUrl}`
-        ),
+        location: urlTransformer.transformUrl(streamUrl),
         title: movieTitle["title"],
         subtitleFile: movieTitle["srtLocation"] 
           ? urlTransformer.transformUrl(`http://pixable.local:5012/modifiedVtts/${movieTitle["title"]}.vtt`)

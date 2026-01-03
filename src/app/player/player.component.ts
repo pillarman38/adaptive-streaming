@@ -281,17 +281,32 @@ export class PlayerComponent implements OnInit, OnDestroy {
           "%20"
         );
         // Transform URL to use IP address on Android
+        console.log("VIDEO URL: ", videoUrl);
+        
         videoUrl = this.apiConfig.transformUrl(videoUrl);
         console.log("USING EXOPLAYER: ", this.useExoPlayer);
         
         if (this.useExoPlayer) {
           // Use ExoPlayer for Android
-          await this.exoPlayerService.loadVideo(
-            videoUrl,
-            this.subtitle ? this.subtitleUrl : undefined
-          );
-          await this.exoPlayerService.play();
-          this.paused = false;
+          try {
+            const loadSuccess = await this.exoPlayerService.loadVideo(
+              videoUrl,
+              this.subtitle ? this.subtitleUrl : undefined
+            );
+            
+            if (!loadSuccess) {
+              console.error('Failed to load video in ExoPlayer');
+              return;
+            }
+            
+            await this.exoPlayerService.play();
+            this.paused = false;
+          } catch (error: any) {
+            const errorMessage = error?.message || error?.toString() || 'Unknown error';
+            console.error('Error loading/playing video:', errorMessage);
+            console.error('Full error object:', error);
+            return;
+          }
 
           // Set up listeners for native control events
           console.log('=== BEFORE setupNativeControlListeners ===');
@@ -363,31 +378,46 @@ export class PlayerComponent implements OnInit, OnDestroy {
         if (!initialized) {
           console.warn("ExoPlayer initialization failed, falling back to HTML5 video");
           this.useExoPlayer = false;
+          // Continue to getVideo() with HTML5 fallback
+          this.getVideo();
         } else {
-        console.log("=== Setting up native control listeners... ===");
-        
-        await this.controlsdSetup();
-      }
+          console.log("=== Setting up native control listeners... ===");
+          
+          await this.controlsdSetup();
+          
+          // Only call getVideo() after successful initialization
+          this.getVideo();
+        }
       } catch (error) {
         console.error("Error initializing ExoPlayer:", error);
         console.error("Error details:", error instanceof Error ? error.message : String(error));
         // Fall back to HTML5 video if ExoPlayer fails
         this.useExoPlayer = false;
+        // Continue to getVideo() with HTML5 fallback
+        this.getVideo();
       }
+    } else {
+      // Not using ExoPlayer, proceed with HTML5 video
+      this.getVideo();
     }
 
-    this.getVideo();
-
-    setTimeout(() => {
+    // Only add controlBtns to Smart TV navigation if not using ExoPlayer
+    // (ExoPlayer uses native Android controls, not HTML controls)
+    if (!this.useExoPlayer) {
       setTimeout(() => {
-        this.smartTv.smartTv?.addCurrentList({
-          startingList: true,
-          listName: "controlBtns",
-          startingIndex: 0,
-          listElements: this.controlBtns,
-        });
-      }, 500);
-    });
+        setTimeout(() => {
+          // Only add if controlBtns exist and have elements
+          if (this.controlBtns && this.controlBtns.length > 0) {
+            this.smartTv.smartTv?.addCurrentList({
+              startingList: true,
+              listName: "controlBtns",
+              startingIndex: 0,
+              listElements: this.controlBtns,
+            });
+          }
+        }, 500);
+      });
+    }
   }
 
   async ngOnDestroy(): Promise<void> {
