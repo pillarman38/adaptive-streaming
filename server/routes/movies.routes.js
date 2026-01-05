@@ -12,8 +12,8 @@ let { search } = require("../models/search");
 const urlTransformer = require("../utils/url-transformer");
 const path = require("path");
 
-router.get("/stream", (req, res) => { 
-  const filePath = req.query.path; 
+router.get("/stream", (req, res) => {
+  const filePath = decodeURIComponent(req.query.path); 
   if (!filePath) { 
     return res.status(400).send("Missing file path"); 
   } 
@@ -24,6 +24,18 @@ router.get("/stream", (req, res) => {
   const fileSize = stat.size; 
   const range = req.headers.range; 
   
+  // Determine optimal chunk size based on file size (larger files = larger chunks)
+  // For very large files (90GB+), use larger chunks to reduce request overhead
+  let CHUNK_SIZE;
+  if (fileSize > 50 * 1024 * 1024 * 1024) { // > 50GB (very large 4K/8K files)
+    CHUNK_SIZE = 100 * 1024 * 1024; // 100MB chunks for very large files
+  } else if (fileSize > 20 * 1024 * 1024 * 1024) { // > 20GB (likely 4K)
+    CHUNK_SIZE = 50 * 1024 * 1024; // 50MB chunks for 4K
+  } else if (fileSize > 10 * 1024 * 1024 * 1024) { // > 10GB
+    CHUNK_SIZE = 25 * 1024 * 1024; // 25MB chunks
+  } else {
+    CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks for smaller files
+  }
   // If no range header, serve the full file (ExoPlayer might make initial request without range)
   if (!range) {
     const ext = path.extname(filePath).toLowerCase();
@@ -31,9 +43,13 @@ router.get("/stream", (req, res) => {
     res.writeHead(200, {
       "Content-Length": fileSize,
       "Content-Type": contentType,
-      "Accept-Ranges": "bytes"
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "public, max-age=3600" // Cache for 1 hour
     });
-    const stream = fs.createReadStream(filePath);
+    // Use highWaterMark for better buffering (8MB buffer)
+    const stream = fs.createReadStream(filePath, { 
+      highWaterMark: 8 * 1024 * 1024 
+    });
     stream.pipe(res);
     return;
   }
@@ -58,8 +74,7 @@ router.get("/stream", (req, res) => {
   if (rangeMatch[2]) {
     end = parseInt(rangeMatch[2], 10);
   } else {
-    // If no end specified, use a reasonable chunk size (10MB) or file size
-    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
+    // If no end specified, use adaptive chunk size
     end = Math.min(start + CHUNK_SIZE - 1, fileSize - 1);
   }
   
@@ -80,10 +95,25 @@ router.get("/stream", (req, res) => {
     "Content-Range": `bytes ${start}-${end}/${fileSize}`,
     "Accept-Ranges": "bytes",
     "Content-Length": contentLength,
-    "Content-Type": contentType
+    "Content-Type": contentType,
+    "Cache-Control": "public, max-age=3600" // Cache for 1 hour
   });
   
-  const stream = fs.createReadStream(filePath, { start, end }); 
+  // Use highWaterMark for better buffering - larger buffer for 4K files
+  let bufferSize;
+  if (fileSize > 50 * 1024 * 1024 * 1024) { // > 50GB
+    bufferSize = 32 * 1024 * 1024; // 32MB buffer for very large files
+  } else if (fileSize > 20 * 1024 * 1024 * 1024) { // > 20GB
+    bufferSize = 16 * 1024 * 1024; // 16MB buffer for 4K
+  } else {
+    bufferSize = 8 * 1024 * 1024; // 8MB buffer for smaller files
+  }
+  const stream = fs.createReadStream(filePath, { 
+    start, 
+    end,
+    highWaterMark: bufferSize // Larger buffer for better I/O performance
+  });
+    
   stream.pipe(res);
   
   // Handle stream errors

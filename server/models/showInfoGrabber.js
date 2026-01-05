@@ -238,7 +238,7 @@ async function showInfoGrabber(show) {
   }
 
   const downloader = new Downloader();
-  const tvPoster = await downloader.getPoster(show, showInfo, "tv");
+  const tvPoster = await downloader.getCard(show, showInfo, "tv");
   const tvCoverArt = await downloader.getCoverArt(
     show,
     showInfo.results[0],

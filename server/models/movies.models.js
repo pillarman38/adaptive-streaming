@@ -71,8 +71,6 @@ async function updateMoviesInDB() {
           scanProgress.currentFile = notIncluded[l];
           var fileName = notIncluded[l];
           
-
-
           await ffmpeg.ffprobe(
             `/mnt/F898C32498C2DFEC/Videos/${fileName}`,
             async function (err, metaData) {
@@ -163,7 +161,7 @@ async function updateMoviesInDB() {
 
               var subTarr = [];
               var audio;
-              var subcounter = -1;
+              // var subcounter = -1;
 
               // if (metaData !== undefined) {
               //   if (fileExt === "mp4") {
@@ -192,8 +190,9 @@ async function updateMoviesInDB() {
 
               let moviedata = await fetch(firstObj.movieListUrl);
               let data = await moviedata.json();
-              let poster = await downloader.getPoster(
+              let movieCard = await downloader.getCard(
                 fileNameNoExt,
+                fileName,
                 data,
                 "movies"
               );
@@ -249,8 +248,8 @@ async function updateMoviesInDB() {
                 var metaDataObj = {
                   title: fileNameNoExt,
                   filePath: metaData["format"]["filename"],
-                  posterUrl: poster || "",
-                  coverArt,
+                  movieCard: movieCard || "",
+                  coverArt: coverArt || "",
                   cast: parsedCastList,
                   audio: audio.codecName,
                   overview:
@@ -586,11 +585,19 @@ let routeFunctions = {
           return;
         }
         
-        res.map(
-          (movie) =>
-            (movie.posterUrl = urlTransformer.transformUrl(`http://pixable.local:5012${movie.posterUrl}`))
-        );
-        
+        // res.map(
+        //   (movie) =>
+        //     (movie.posterUrl = urlTransformer.transformUrl(`${movie.posterUrl}`))
+        // );
+
+        // res.map(
+        //   (movie) =>
+        //     (movie.coverArt = urlTransformer.transformUrl(`${movie.coverArt}`))
+        // );
+        // res.map(
+        //   (movie) =>
+        //     (movie.movieCard = urlTransformer.transformUrl(`${movie.movieCard}`))
+        // );
         if (res.length > 0) {
           // Group movies by title
           const groupedMovies = {};
@@ -624,9 +631,9 @@ let routeFunctions = {
                       reject(err);
                     } else {
                       // Transform poster URLs for all versions
-                      versions.forEach((version) => {
-                        version.posterUrl = urlTransformer.transformUrl(`http://pixable.local:5012${version.posterUrl}`);
-                      });
+                      // versions.forEach((version) => {
+                      //   version.posterUrl = urlTransformer.transformUrl(`http://pixable.local:5012${version.posterUrl}`);
+                      // });
                       resolve(versions);
                     }
                   }

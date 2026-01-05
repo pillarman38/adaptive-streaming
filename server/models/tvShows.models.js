@@ -50,7 +50,7 @@ let tv = {
             let numberOfSeasons = showSeasonsInfo.length || 1;
 
             const downloader = new Downloader();
-            const tvPoster = await downloader.getPoster(
+            const tvPoster = await downloader.getCard(
               showsToAdd[i],
               showInfo,
               "tv"

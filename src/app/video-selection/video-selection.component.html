@@ -39,7 +39,7 @@
 
   <div id="list" #list>
     <div class="boxes" #boxes boxes *ngFor="let movie of movies; index as i" (mouseover)="onHover(i, 'movies')" (click)="selectMovie()">
-      <img [src]="movie.posterUrl | safeUrl" class="posterArt">
+      <img [src]="movie.movieCard | safeUrl" class="posterArt">
       <div class="titleCards">
         <p>{{i}}: {{movie.title}}</p>
       </div>

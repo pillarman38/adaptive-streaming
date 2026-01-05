@@ -48,12 +48,12 @@ class Downloader {
               (100 * totalBytes) / contentLength
             );
             if (downloadComplete === 100) {
-              return resolve(`/tvCoverArt/${notIncludedFileName}.jpg`);
+              return resolve(urlTransformer.transformUrl(`http://pixable.local:5012/tvCoverArt/${notIncludedFileName}.jpg`));
             }
           });
         });
       } else {
-        return `/tvCoverArt/${notIncludedFileName}.jpg`;
+        return urlTransformer.transformUrl(`http://pixable.local:5012/tvCoverArt/${notIncludedFileName}.jpg`);
       }
     }
 
@@ -100,12 +100,12 @@ class Downloader {
               (100 * totalBytes) / contentLength
             );
             if (downloadComplete === 100) {
-              return resolve(`/MovieCoverArt/${notIncludedFileName}.jpg`);
+              return resolve(urlTransformer.transformUrl(`http://pixable.local:5012/MovieCoverArt/${notIncludedFileName}.jpg`));
             }
           });
         });
       } else {
-        return `/MovieCoverArt/${notIncludedFileName}.jpg`;
+        return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCoverArt/${notIncludedFileName}.jpg`);
       }
     }
   }
@@ -154,7 +154,7 @@ class Downloader {
         });
       });
     } else {
-      return "/assets/four0four.gif";
+      return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
     }
   }
 
@@ -230,10 +230,10 @@ class Downloader {
             // );
           }
 
-          return urlTransformer.transformUrl(urlTransformer.transformUrl(`http://pixable.local:5012/Trailers/${notIncluded}.mp4`).replace(
+          return urlTransformer.transformUrl(`http://pixable.local:5012/Trailers/${notIncluded}.mp4`).replace(
             / /g,
             "%20"
-          ));
+          );
         } else {
           return "";
         }
@@ -288,13 +288,13 @@ class Downloader {
     return JSON.stringify(castList);
   }
 
-  async getPoster(notIncluded, data, type) {
+  async getCard(notIncluded, fileName, data, type) {
     let posters;
     if (type === "movies") {
       try {
-        posters = fs.readdirSync("/mnt/F898C32498C2DFEC/MoviePosters");
+        posters = fs.readdirSync("/mnt/F898C32498C2DFEC/MovieCards");
       } catch (err) {
-        console.error(`Error reading MoviePosters directory:`, err);
+        console.error(`Error reading MovieCards directory:`, err);
         // If we can't read the directory, try to download the poster anyway
         posters = [];
       }
@@ -304,7 +304,7 @@ class Downloader {
         var poster = "";
         try {
           idGetter = execSync(
-            `mkvmerge -i "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv"`
+            `mkvmerge -i "/mnt/F898C32498C2DFEC/Videos/${fileName}"`
           )
             .toString()
             .split("\n")
@@ -313,21 +313,21 @@ class Downloader {
             .replace(":", "");
 
           let id = parseInt(idGetter);
-          const command = `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/mnt/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg"`;
+          const command = `mkvextract "/mnt/F898C32498C2DFEC/Videos/${fileName}" attachments "${id}:/mnt/F898C32498C2DFEC/MovieCards/${notIncluded}.jpg"`;
           const extraction = await execSync(
-            `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/mnt/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg"`
+            `mkvextract "/mnt/F898C32498C2DFEC/Videos/${fileName}" attachments "${id}:/mnt/F898C32498C2DFEC/MovieCards/${notIncluded}.jpg"`
           );
-          return `/MoviePosters/${notIncluded.replace(
+          return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCards/${notIncluded.replace(
             new RegExp(" ", "g"),
             "%20"
-          )}.jpg`;
+          )}.jpg`);
         } catch (err) {
           try {
             if(data.results.length > 0 && data.results[0].backdrop_path) {
               var downloadUrl = `https://www.themoviedb.org/t/p/w533_and_h300_bestv2${data.results[0].backdrop_path}`;
               var downloadPosterFile = await fetch(downloadUrl);
               
-              const posterPath = `/mnt/F898C32498C2DFEC/MoviePosters/${notIncluded}.jpg`;
+              const posterPath = `/mnt/F898C32498C2DFEC/MovieCards/${notIncluded}.jpg`;
               let fileStreamPosters;
               
               try {
@@ -357,22 +357,22 @@ class Downloader {
                 fileStreamPosters.on("finish", resolve);
               });
 
-              return `/mnt/F898C32498C2DFEC/MoviePosters/${notIncluded.replace(
+              return `http://pixable.local:5012/mnt/F898C32498C2DFEC/MovieCards/${notIncluded.replace(
                 new RegExp(" ", "g"),
                 "%20"
               )}.jpg`;
             }
           } catch (err) {
-            console.error(`Failed to get poster for ${notIncluded}:`, err);
-            return "/assets/four0four.gif";
+            console.error(`Failed to get poster for ${fileName}:`, err);
+            return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
           }
         }
       } else {
         // Poster already exists, return the path
-        return `/MoviePosters/${notIncluded.replace(
+        return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCards/${notIncluded.replace(
           new RegExp(" ", "g"),
           "%20"
-        )}.jpg`;
+        )}.jpg`);
       }
     }
 
@@ -384,7 +384,7 @@ class Downloader {
         var poster = "";
         try {
           idGetter = await execSync(
-            `mkvmerge -i "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv"`
+            `mkvmerge -i "/mnt/F898C32498C2DFEC/Videos/${fileName}"`
           )
             .toString()
             .split("\n")
@@ -393,14 +393,14 @@ class Downloader {
             .replace(":", "");
 
           let id = parseInt(idGetter);
-          const command = `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg"`;
+          const command = `mkvextract "/mnt/F898C32498C2DFEC/Videos/${fileName}" attachments "${id}:/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg"`;
           const extraction = await execSync(
-            `mkvextract "/mnt/F898C32498C2DFEC/Videos/${notIncluded}.mkv" attachments "${id}:/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg"`
+            `mkvextract "/mnt/F898C32498C2DFEC/Videos/${fileName}" attachments "${id}:/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg"`
           );
-          return `/tvPosters/${notIncluded.replace(
+          return urlTransformer.transformUrl(`/tvPosters/${notIncluded.replace(
             new RegExp(" ", "g"),
             "%20"
-          )}.jpg`;
+          )}.jpg`);
         } catch (err) {
           try {
             var downloadUrl = `https://www.themoviedb.org/t/p/original${data.results[0].backdrop_path}`;
@@ -429,13 +429,13 @@ class Downloader {
               fileStreamPosters.on("finish", resolve);
             });
 
-            return `/tvPosters/${notIncluded.replace(
+            return urlTransformer.transformUrl(`http://pixable.local:5012/tvPosters/${notIncluded.replace(
               new RegExp(" ", "g"),
               "%20"
-            )}.jpg`;
+            )}.jpg`);
           } catch (err) {
             console.error(`Failed to get TV poster for ${notIncluded}:`, err);
-            return "/assets/four0four.gif";
+            return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
           }
         }
       }
@@ -478,28 +478,28 @@ class Downloader {
                 });
                 fileStreamPosters.on("finish", resolve);
               });
-              return `/BackgroundImages/${notIncluded.replace(
+              return urlTransformer.transformUrl(`http://pixable.local:5012/BackgroundImages/${notIncluded.replace(
                 new RegExp(" ", "g"),
                 "%20"
-              )}.jpg`;
+              )}.jpg`);
             } else {
-              return "/assets/four0four.gif";
+              return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
             }
           } else {
-            return "/assets/four0four.gif";
+            return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
           }
         } else {
-          return `/BackgroundImages/${notIncluded.replace(
+          return urlTransformer.transformUrl(`http://pixable.local:5012/BackgroundImages/${notIncluded.replace(
             new RegExp(" ", "g"),
             "%20"
-          )}.jpg`;
+          )}.jpg`);
         }
       } else {
-        return "/assets/four0four.gif";
+        return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
       }
     } catch (err) {
       console.log(err);
-      return "/assets/four0four.gif";
+      return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
     }
   }
 

@@ -29,7 +29,7 @@ export interface movieInfo {
   srtUrl: string;
   bonusFeatures: number;
   browser?: string;
-  posterUrl?: string;
+  movieCard?: string;
   backdropPhotoUrl?: string;
   type: string;
   nextEp?: movieInfo;
@@ -37,6 +37,7 @@ export interface movieInfo {
   dolbyVision: number;
   threeD: number;
   versions: movieInfo[];
+  posterUrl: string;
 }
 
 export interface showInfo {
@@ -118,7 +119,7 @@ export class InfoStoreService {
     filePath: "",
     fileformat: "",
     originalLang: "",
-    posterUrl: "",
+    movieCard: "",
     pid: 0,
     resolution: "",
     seekTime: 0,
@@ -139,6 +140,7 @@ export class InfoStoreService {
     dolbyVision: 0,
     threeD: 0,
     versions: [],
+    posterUrl: "",
   };
 
   showInfo: showInfo = {
