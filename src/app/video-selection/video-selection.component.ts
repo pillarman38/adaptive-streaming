@@ -90,7 +90,7 @@ export class VideoSelectionComponent implements OnInit {
       const topRowIndex = currentColumn;
       this.smartTv.smartTv?.setCurrentIndex(topRowIndex);
       this.index = topRowIndex;
-      // console.log("Wrapped from bottom to top row, index:", topRowIndex);
+      console.log("Wrapped from bottom to top row, index:", topRowIndex);
     }
     
     // Fallback: manually detect if we're at the last index and down arrow was pressed
@@ -357,9 +357,8 @@ export class VideoSelectionComponent implements OnInit {
             // // console.log("SMART TV VIDEO: ", this.smartTv);
             // // console.log("BOXES QUERY LIST: ", this.boxes);
             // // console.log("BOXES LENGTH: ", this.boxes.length);
-
             if (this.smartTv.smartTv && this.boxes.length > 0) {
-            this.smartTv.smartTv.setInitialScale(0.5);
+            // this.smartTv.smartTv.setInitialScale(0.5);
             this.smartTv.smartTv.addCurrentList({
               startingList: true,
               listName: "movies",

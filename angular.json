@@ -21,19 +21,8 @@
             ],
             "tsConfig": "tsconfig.app.json",
             "assets": [
-              "src/appInfo.json",
-              "src/largeIcon.png",
-              "src/icon.png",
               "src/favicon.ico",
-              "src/assets",
-              {
-                "glob": "server-config.json",
-                "input": ".",
-                "output": "/assets"
-              },
-              "src/manifest.webmanifest",
-              "src/manifest.webmanifest",
-              "src/manifest.webmanifest"
+              "src/assets"
             ],
             "styles": [
               "src/styles.css"

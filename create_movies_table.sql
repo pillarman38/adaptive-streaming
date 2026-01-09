@@ -1,0 +1,37 @@
+-- SQL script to create the movies table for metaDataObj
+-- This table stores movie metadata including file information, video/audio properties, and external API data
+
+CREATE TABLE IF NOT EXISTS movies (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(500) NOT NULL,
+    filePath VARCHAR(1000) NOT NULL,
+    fileName VARCHAR(500) NOT NULL,
+    movieCard TEXT,
+    coverArt VARCHAR(1000),
+    cast TEXT,
+    audio VARCHAR(100),
+    overview TEXT,
+    duration DECIMAL(10, 2),
+    resolution VARCHAR(50),
+    channels INT,
+    dolbyVision BOOLEAN DEFAULT FALSE,
+    originalLang VARCHAR(10),
+    subtitles TEXT,
+    subtitleSelect INT DEFAULT -1,
+    seekTime DECIMAL(10, 2) DEFAULT 0,
+    tmdbId INT DEFAULT 0,
+    srtLocation VARCHAR(1000),
+    location VARCHAR(1000),
+    trailerUrl VARCHAR(1000),
+    srtUrl VARCHAR(1000),
+    bonusFeatures TEXT,
+    posterUrl VARCHAR(1000),
+    vbr VARCHAR(20),
+    transmuxToPixie BOOLEAN DEFAULT FALSE,
+    threeD TINYINT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_title (title),
+    INDEX idx_tmdbId (tmdbId),
+    INDEX idx_fileName (fileName)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

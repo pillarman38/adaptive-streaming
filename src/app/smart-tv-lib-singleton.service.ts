@@ -8,7 +8,7 @@ import { SmartTvComponent } from "smart-tv"
 export class SmartTvLibSingletonService {
   smartTv: SmartTvComponent | undefined;
   sideBarVisibility = new Subject<any>();
-
+  
   constructor() {}
 
   changeVisibility(visibility: boolean) {

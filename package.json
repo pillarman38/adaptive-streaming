@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "concurrently --kill-others \"ng build --watch\" \"nodemon server.js\" ",
+    "start": "concurrently \"npm run start:client\" \"npm run start:server\"",
+    "start:client": "ng serve --open",
+    "start:server": "nodemon server.js",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
@@ -11,7 +13,6 @@
   },
   "private": true,
   "dependencies": {
-    "@angular-devkit/schematics": "^17.1.0",
     "@angular/animations": "^16.1.0",
     "@angular/common": "^16.1.0",
     "@angular/compiler": "^16.1.0",
