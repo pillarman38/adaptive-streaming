@@ -13,7 +13,9 @@ const config: CapacitorConfig = {
     allowMixedContent: true,
     captureInput: true,
     webContentsDebuggingEnabled: true
-  }
+  },
+  // Android Studio path for Linux
+  linuxAndroidStudioPath: '/opt/android-studio-2025.2.2/android-studio/bin/studio.sh'
 };
 
 export default config;

@@ -24,7 +24,7 @@ export class AppComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     // Ensure server config is loaded before navigating
     await this.apiConfig.ensureConfigLoaded();
-    
+    console.log("BASE URL: ", this.apiConfig.getBaseUrl());
     this.smartTv.sideBarVisibility.subscribe((visibility) => {
       this.visibility = visibility;
     });

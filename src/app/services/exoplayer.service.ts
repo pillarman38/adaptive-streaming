@@ -18,6 +18,7 @@ export interface ExoPlayerPlugin {
   setPaused(options: { paused: boolean }): Promise<void>;
   setShowSkipIntro(options: { show: boolean }): Promise<void>;
   setShowNextEpisode(options: { show: boolean }): Promise<void>;
+  launchZidooPlayer(options: { url: string; title?: string; position?: number }): Promise<{ success: boolean; fallback?: boolean }>;
 }
 
 const ExoPlayer = registerPlugin<ExoPlayerPlugin>('ExoPlayer', {
@@ -274,6 +275,19 @@ export class ExoPlayerService {
       await ExoPlayer.setShowNextEpisode({ show });
     } catch (error) {
       console.error('Error setting next episode visibility:', error);
+    }
+  }
+
+  async launchZidooPlayer(url: string, title?: string, position?: number): Promise<{ success: boolean; fallback?: boolean }> {
+    if (!Capacitor.isNativePlatform()) {
+      return { success: false };
+    }
+    try {
+      const result = await ExoPlayer.launchZidooPlayer({ url, title, position });
+      return { success: result.success, fallback: result.fallback || false };
+    } catch (error) {
+      console.error('Error launching Zidoo player:', error);
+      return { success: false };
     }
   }
 }

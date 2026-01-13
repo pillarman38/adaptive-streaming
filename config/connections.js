@@ -1,4 +1,4 @@
-var mysql = require('mysql')
+const mysql = require('mysql2');
 var pool = mysql.createPool({
     host: process.env.host,
     user: process.env.user,

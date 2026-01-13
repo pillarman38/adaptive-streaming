@@ -190,23 +190,89 @@ async function updateMoviesInDB() {
 
               let moviedata = await fetch(firstObj.movieListUrl);
               let data = await moviedata.json();
-              let movieCard = await downloader.getCard(
+              // Helper function to encode URL path while preserving protocol and host:port
+              // Since filenames are already encoded by downloader functions, this mainly
+              // handles URL transformation (pixable.local to IP) and ensures directory names are encoded
+              const encodeUrlPath = (url) => {
+                if (!url) return url;
+                
+                // If URL has protocol://host:port structure
+                if (url.includes("://")) {
+                  // Match protocol://host:port and path separately
+                  const urlMatch = url.match(/^([^:]+:\/\/[^\/]+)(\/.*)?$/);
+                  if (urlMatch) {
+                    // urlMatch[1] = protocol://host:port
+                    // urlMatch[2] = /path (or undefined if no path)
+                    const protocolAndHost = urlMatch[1];
+                    const path = urlMatch[2] || "";
+                    
+                    if (path) {
+                      // Split path by '/' and encode each segment
+                      // Filenames should already be encoded, but directory names might not be
+                      const pathSegments = path.split('/').map(segment => {
+                        if (!segment) return ''; // Keep empty strings for slashes
+                        // Try to decode first - if it succeeds, the segment was encoded, so re-encode it
+                        // If decode fails, the segment wasn't encoded, so encode it
+                        try {
+                          const decoded = decodeURIComponent(segment);
+                          // If decoding succeeded and the result is different, it was encoded
+                          // Re-encode to ensure proper encoding
+                          return encodeURIComponent(decoded);
+                        } catch (e) {
+                          // Decoding failed, segment wasn't encoded, so encode it
+                          return encodeURIComponent(segment);
+                        }
+                      });
+                      // Join segments with '/' - this preserves the path structure
+                      return protocolAndHost + pathSegments.join('/');
+                    } else {
+                      return protocolAndHost;
+                    }
+                  } else {
+                    // Fallback: if regex doesn't match, encode entire URL
+                    return encodeURI(url);
+                  }
+                } else {
+                  // No protocol, try to decode first to handle already-encoded strings
+                  try {
+                    const decoded = decodeURIComponent(url);
+                    return encodeURIComponent(decoded);
+                  } catch (e) {
+                    // Not encoded, encode it
+                    return encodeURIComponent(url);
+                  }
+                }
+              };
+              
+              // Get trailer URL and encode special characters in the path
+              let trailerUrlRaw = await downloader.getTrailer(fileNameNoExt, data);
+              let trailerUrl = trailerUrlRaw ? encodeUrlPath(trailerUrlRaw) : trailerUrlRaw;
+              
+              // Get cover art and encode special characters in the path
+              let coverArtRaw = await downloader.getCoverArt(
+                fileNameNoExt,
+                data,
+                "movie"
+              );
+              let coverArt = coverArtRaw ? encodeUrlPath(coverArtRaw) : coverArtRaw;
+              
+              // Get poster URL and encode special characters in the path
+              let posterUrlRaw = await downloader.getBackgroundPoster(
+                fileNameNoExt,
+                data,
+                "movie"
+              );
+              let posterUrl = posterUrlRaw ? encodeUrlPath(posterUrlRaw) : posterUrlRaw;
+              
+              // Get movie card and encode special characters in the path
+              let movieCardRaw = await downloader.getCard(
                 fileNameNoExt,
                 fileName,
                 data,
                 "movies"
               );
-              let trailerUrl = await downloader.getTrailer(fileNameNoExt, data);
-              let coverArt = await downloader.getCoverArt(
-                fileNameNoExt,
-                data,
-                "movie"
-              );
-              let posterUrl = await downloader.getBackgroundPoster(
-                fileNameNoExt,
-                data,
-                "movie"
-              );
+              let movieCard = movieCardRaw ? encodeUrlPath(movieCardRaw) : movieCardRaw;
+              
               let subtitleSrts = "";
               // if (loginSuccess === true && loginRes) {
               // subtitleSrts = await downloader.getSubtitleVtt(
@@ -578,86 +644,226 @@ let routeFunctions = {
     }
 
     pool.query(
-      `SELECT * FROM movies LIMIT 50 OFFSET ${reqObj.offset}`,
+      `SELECT * FROM movies ORDER BY title ASC LIMIT 50 OFFSET ${reqObj.offset}`,
       async (err, res) => {
         if (err) {
           callback(err, null);
           return;
         }
         
-        // res.map(
-        //   (movie) =>
-        //     (movie.posterUrl = urlTransformer.transformUrl(`${movie.posterUrl}`))
-        // );
-
-        // res.map(
-        //   (movie) =>
-        //     (movie.coverArt = urlTransformer.transformUrl(`${movie.coverArt}`))
-        // );
-        // res.map(
-        //   (movie) =>
-        //     (movie.movieCard = urlTransformer.transformUrl(`${movie.movieCard}`))
-        // );
-        if (res.length > 0) {
-          // Group movies by title
-          const groupedMovies = {};
-          const titlesInBatch = new Set();
+        // Helper function to encode URL path while preserving protocol and host:port
+        const encodeUrlPath = (url) => {
+          if (!url) return url;
           
-          // First pass: group movies in current batch
-          res.forEach((movie) => {
-            titlesInBatch.add(movie.title);
-            if (!groupedMovies[movie.title]) {
-              groupedMovies[movie.title] = {
-                ...movie,
-                versions: [movie]
-              };
-            } else {
-              // Add this movie as another version
-              groupedMovies[movie.title].versions.push(movie);
-            }
-          });
-          
-          // Second pass: For each grouped title, query ALL versions from database
-          // This ensures we get all versions even if they're on different pages
-          const groupedTitles = Object.keys(groupedMovies);
-          for (const title of groupedTitles) {
-            try {
-              const allVersions = await new Promise((resolve, reject) => {
-                pool.query(
-                  `SELECT * FROM movies WHERE title = ?`,
-                  [title],
-                  (err, versions) => {
-                    if (err) {
-                      reject(err);
-                    } else {
-                      // Transform poster URLs for all versions
-                      // versions.forEach((version) => {
-                      //   version.posterUrl = urlTransformer.transformUrl(`http://pixable.local:5012${version.posterUrl}`);
-                      // });
-                      resolve(versions);
-                    }
-                  }
-                );
-              });
+          // If URL has protocol://host:port structure
+          if (url.includes("://")) {
+            // Match protocol://host:port and path separately
+            const urlMatch = url.match(/^([^:]+:\/\/[^\/]+)(\/.*)?$/);
+            if (urlMatch) {
+              // urlMatch[1] = protocol://host:port
+              // urlMatch[2] = /path (or undefined if no path)
+              const protocolAndHost = urlMatch[1];
+              const path = urlMatch[2] || "";
               
-              // Update the grouped movie with all versions
-              if (allVersions.length > 0) {
-                groupedMovies[title] = {
-                  ...allVersions[0],
-                  versions: allVersions
-                };
-                console.log(`Found ${allVersions.length} versions for "${title}"`);
+              if (path) {
+                // Split path by '/' and encode each segment
+                const pathSegments = path.split('/').map(segment => {
+                  if (!segment) return ''; // Keep empty strings for slashes
+                  // Try to decode first - if it succeeds, the segment was encoded, so re-encode it
+                  // If decode fails, the segment wasn't encoded, so encode it
+                  try {
+                    const decoded = decodeURIComponent(segment);
+                    // Re-encode to ensure proper encoding
+                    return encodeURIComponent(decoded);
+                  } catch (e) {
+                    // Decoding failed, segment wasn't encoded, so encode it
+                    return encodeURIComponent(segment);
+                  }
+                });
+                // Join segments with '/' - this preserves the path structure
+                return protocolAndHost + pathSegments.join('/');
+              } else {
+                return protocolAndHost;
               }
-            } catch (queryErr) {
-              console.error(`Error querying all versions for "${title}":`, queryErr);
-              // Keep the grouped version from current batch if query fails
+            } else {
+              // Fallback: if regex doesn't match, encode entire URL
+              return encodeURI(url);
+            }
+          } else {
+            // No protocol, try to decode first to handle already-encoded strings
+            try {
+              const decoded = decodeURIComponent(url);
+              return encodeURIComponent(decoded);
+            } catch (e) {
+              // Not encoded, encode it
+              return encodeURIComponent(url);
             }
           }
+        };
+        
+        res.map(
+          (movie) =>
+            (movie.posterUrl = encodeUrlPath(urlTransformer.transformUrl(`${movie.posterUrl}`)))
+        );
+
+        res.map(
+          (movie) =>
+            (movie.coverArt = encodeUrlPath(urlTransformer.transformUrl(`${movie.coverArt}`)))
+        );
+        res.map(
+          (movie) =>
+            (movie.movieCard = encodeUrlPath(urlTransformer.transformUrl(`${movie.movieCard}`)))
+        );
+        if (res.length > 0) {
+          // Helper function to check if two titles are similar (one contains another)
+          // Examples: "Avatar: The Way of Water" and "Avatar: The Way of Water Disc 1" are similar
+          const areTitlesSimilar = (title1, title2) => {
+            if (!title1 || !title2) return false;
+            const t1 = title1.toLowerCase().trim();
+            const t2 = title2.toLowerCase().trim();
+            // Check if one title contains the other (or they're equal)
+            // This handles cases like "Avatar: The Way of Water" and "Avatar: The Way of Water Disc 1"
+            if (t1 === t2) return true;
+            // Check if the shorter title is contained in the longer title
+            // This ensures "Avatar: The Way of Water" matches "Avatar: The Way of Water Disc 1"
+            const shorter = t1.length <= t2.length ? t1 : t2;
+            const longer = t1.length > t2.length ? t1 : t2;
+            return longer.includes(shorter);
+          };
           
-          // Convert grouped object to array
-          const result = Object.values(groupedMovies);
+          // Helper function to find a group key for a movie based on movieCard and title similarity
+          const findGroupKey = (movie, existingGroups) => {
+            // First, try to find a group with the same movieCard
+            for (const [key, group] of Object.entries(existingGroups)) {
+              // Check if movieCard matches
+              if (group.movieCard && movie.movieCard && 
+                  group.movieCard === movie.movieCard) {
+                // Check if title is similar to any version in this group
+                const hasSimilarTitle = group.versions.some(version => 
+                  areTitlesSimilar(version.title, movie.title)
+                );
+                if (hasSimilarTitle) {
+                  return key;
+                }
+              }
+            }
+            // No matching group found, create a new key based on movieCard
+            // Use movieCard as the key if it exists, otherwise use title
+            return movie.movieCard || movie.title || `group_${Object.keys(existingGroups).length}`;
+          };
+
+          const movies = []
           
-          callback(err, result);
+            try {
+                      // Group the matching versions by normalized title (remove "Disc 1", "Disc 2", etc.)
+                      // Group the matching versions by normalized title (remove "Disc 1", "Disc 2", etc.)
+                      function normalize(title) { 
+                        return title.toLowerCase()
+                          .replace(/disc\s*\d+/i, '')  // Remove "Disc 1", "Disc 2", etc.
+                          .replace(/\s*\(\d{4}\)\s*$/, '')  // Remove year in parentheses at the end like "(2025)"
+                          .replace(/\s*3d\s*$/i, '')  // Remove "3D" at the end (case-insensitive)
+                          .replace(/\s*extended\s*(edition|cut|version)?\s*$/i, '')  // Remove "Extended Edition", "Extended Cut", etc.
+                          .replace(/\s*director'?s\s*cut\s*$/i, '')  // Remove "Director's Cut"
+                          .replace(/\s*unrated\s*$/i, '')  // Remove "Unrated"
+                          .replace(/\s*theatrical\s*$/i, '')  // Remove "Theatrical"
+                          .trim(); 
+                      }
+                      const groups = {};
+                      
+                      // Use potentialVersions (the query result) - res is the initial batch from outer scope
+                      for (const row of res) {
+                        const key = normalize(row.title); 
+                        if (!groups[key]) {
+                          groups[key] = [];
+                        }
+                        groups[key].push(row);
+                      }
+                      
+                      // Push each individual group to the movies array
+                      for (const key in groups) {
+                        const groupItems = groups[key];
+                        const defaultPosterUrl = "http://10.0.0.13:5012/assets/four0four.gif";
+                        
+                        // Helper function to find first valid value for a field
+                        const findFirstValid = (fieldName, defaultValue = null) => {
+                          for (const item of groupItems) {
+                            if (item[fieldName] && 
+                                item[fieldName] !== defaultPosterUrl && 
+                                String(item[fieldName]).trim() !== '') {
+                              return item[fieldName];
+                            }
+                          }
+                          return defaultValue;
+                        };
+                        
+                        // Find the first valid values for each field
+                        const posterUrl = findFirstValid('posterUrl', defaultPosterUrl);
+                        const movieCard = findFirstValid('movieCard', defaultPosterUrl);
+                        const backdropPhotoUrl = findFirstValid('backdropPhotoUrl', defaultPosterUrl);
+                        const coverArt = findFirstValid('coverArt', defaultPosterUrl);
+                        const trailer = findFirstValid('trailer', null) || findFirstValid('trailerUrl', null);
+                        const cast = findFirstValid('cast', null);
+                        const overview = findFirstValid('overview', null);
+                        const duration = findFirstValid('duration', null);
+                        const resolution = findFirstValid('resolution', null);
+                        const channels = findFirstValid('channels', null);
+                        const audio = findFirstValid('audio', null);
+                        const subtitles = findFirstValid('subtitles', null);
+                        const subtitleSelect = findFirstValid('subtitleSelect', null);
+                        const seekTime = findFirstValid('seekTime', null);
+                        const tmdbId = findFirstValid('tmdbId', null);
+                        const srtLocation = findFirstValid('srtLocation', null);
+                        const location = findFirstValid('location', null);
+                        const trailerUrl = findFirstValid('trailerUrl', null);
+                        const srtUrl = findFirstValid('srtUrl', null);
+                        const bonusFeatures = findFirstValid('bonusFeatures', null);
+                        const vbr = findFirstValid('vbr', null);
+                        const transmuxToPixie = findFirstValid('transmuxToPixie', null);
+                        const threeD = findFirstValid('threeD', null);  
+                        const dolbyVision = findFirstValid('dolbyVision', null);
+                        const originalLang = findFirstValid('originalLang', null);
+                        const filePath = findFirstValid('filePath', null);
+                        const fileName = findFirstValid('fileName', null);
+                        const fileformat = findFirstValid('fileformat', null);
+
+                        movies.push({
+                          title: groupItems[0].title, 
+                          versions: groupItems,
+                          posterUrl: posterUrl,
+                          movieCard: movieCard,
+                          backdropPhotoUrl: backdropPhotoUrl,
+                          coverArt: coverArt,
+                          trailer: trailer,
+                          cast: cast,
+                          overview: overview,
+                          duration: duration,
+                          resolution: resolution,
+                          channels: channels,
+                          audio: audio,
+                          subtitles: subtitles,
+                          subtitleSelect: subtitleSelect,
+                          seekTime: seekTime,
+                          tmdbId: tmdbId,
+                          srtLocation: srtLocation,
+                          location: location,
+                          trailerUrl: trailerUrl,
+                          srtUrl: srtUrl,
+                          bonusFeatures: bonusFeatures,
+                          vbr: vbr,
+                          transmuxToPixie: transmuxToPixie,
+                          threeD: threeD,
+                          dolbyVision: dolbyVision,
+                          originalLang: originalLang,
+                          filePath: filePath,
+                          fileName: fileName,
+                          fileformat: fileformat,
+                        });
+                      }
+            } catch (queryErr) {
+              console.error(`Error querying all versions for group "${groupKey}":`, queryErr);
+              // Keep the grouped version from current batch if query fails
+            }
+          callback(err, movies);
         } else {
           callback(err, {
             message: "no more movies",

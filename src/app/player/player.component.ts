@@ -155,7 +155,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
     private apiConfig: ApiConfigService,
   ) {
     this.isAndroid = this.platformService.isAndroid();
-    this.useExoPlayer = this.isAndroid;
+    // Don't use ExoPlayer for Zidoo devices - they have their own player
+    this.useExoPlayer = this.isAndroid && !this.platformService.isZidoo();
   }
 
   async playPause() {
@@ -237,18 +238,18 @@ export class PlayerComponent implements OnInit, OnDestroy {
   }
 
   getVideo() {
-    console.log(
-      "VIDEO INFO: ",
-      this.infoStore.videoInfo,
-      Object.keys(this.infoStore.videoInfo).includes("epNumber")
-    );
+    // console.log(
+    //   "VIDEO INFO: ",
+    //   this.infoStore.videoInfo,
+    //   Object.keys(this.infoStore.videoInfo).includes("epNumber")
+    // );
     if (Object.keys(this.infoStore.videoInfo).includes("epNumber")) {
-      console.log("A SHOW");
-      console.log("SENDING OUT: ", this.infoStore.videoInfo, this.event);
+      // console.log("A SHOW");
+      // console.log("SENDING OUT: ", this.infoStore.videoInfo, this.event);
 
       this.show = true;
     } else {
-      console.log("A MOVIE");
+      // console.log("A MOVIE");
       this.show = false;
     }
     this.subtitle = this.infoStore.videoInfo.srtUrl ? true : false;
@@ -273,7 +274,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
       )
       .subscribe(async (event: any) => {
         this.event = event;
-        console.log("EVENT: ", this.event);
+        // console.log("EVENT: ", this.event);
         this.infoStore.videoInfo.pid = this.event.pid;
 
         let videoUrl = this.event.location.replace(
@@ -285,6 +286,52 @@ export class PlayerComponent implements OnInit, OnDestroy {
         
         videoUrl = this.apiConfig.transformUrl(videoUrl);
         console.log("USING EXOPLAYER: ", this.useExoPlayer);
+        console.log("IS ZIDOO: ", this.platformService.isZidoo());
+        
+        // Check if Zidoo device - launch Zidoo player instead
+        const isZidooDevice = this.platformService.isZidoo();
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player.component.ts:292',message:'Checking if Zidoo device',data:{isZidooDevice,deviceName:this.platformService.getDeviceName()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        
+        if (isZidooDevice) {
+          console.log("Zidoo device detected - launching Zidoo player");
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player.component.ts:295',message:'Attempting to launch Zidoo player',data:{videoUrl:videoUrl.substring(0,50),title:this.infoStore.videoInfo.title},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          try {
+            const title = this.infoStore.videoInfo.title || "";
+            const position = 0; // Start from beginning, could be enhanced to support resume
+            const result = await this.exoPlayerService.launchZidooPlayer(videoUrl, title, position);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player.component.ts:300',message:'Zidoo player launch result',data:{success:result.success,fallback:result.fallback},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            if (result.success) {
+              if (result.fallback) {
+                console.log("Generic video player launched (Zidoo player not installed)");
+              } else {
+                console.log("Zidoo player launched successfully");
+              }
+              // Note: We don't set paused state since external player handles its own playback
+            } else {
+              // Zidoo player launch failed - log but don't show warning
+              const filePath = (result as any).filePath || videoUrl;
+              console.warn('Zidoo player launch failed, file path:', filePath);
+              // Note: We don't show a warning overlay - the user can manually open Zidoo File Manager if needed
+            }
+          } catch (error: any) {
+            const errorMessage = error?.message || error?.toString() || 'Unknown error';
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player.component.ts:308',message:'Zidoo player launch error',data:{errorMessage,error:JSON.stringify(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            console.error('Error launching Zidoo player:', errorMessage);
+            console.error('Full error object:', error);
+            
+            // Show error message to user
+            alert(`Error launching Zidoo player\n\n${errorMessage}\n\nPlease open Zidoo File Manager manually and navigate to:\n${videoUrl}`);
+          }
+          return; // Don't continue with ExoPlayer or HTML5 video
+        }
         
         if (this.useExoPlayer) {
           // Use ExoPlayer for Android
@@ -363,7 +410,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit(): Promise<void> {
-    console.log("INFO STORE: ", this.infoStore.videoInfo);
+    // console.log("INFO STORE: ", this.infoStore.videoInfo);
     // this.location = this.infoStore.videoInfo.location
     this.infoStore.videoInfo.browser = "Safari";
     this.smartTv.changeVisibility(false);

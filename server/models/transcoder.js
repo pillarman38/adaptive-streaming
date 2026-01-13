@@ -75,6 +75,53 @@ const transcoder = {
       return;
     }
     
+    // For Zidoo devices, return the file path directly (not HTTP URL)
+    // Zidoo player requires file paths, not HTTP streaming URLs
+    if (movieTitle.device === 'zidoo') {
+      console.log('Zidoo device detected - returning file path instead of streaming URL');
+      
+      // Transform server path to Zidoo SMB mount path
+      // Example: /mnt/F898C32498C2DFEC/Videos/1917.mkv -> /mnt/smb/10.0.0.13/Videos/1917.mkv
+      const serverPath = movieTitle.filePath;
+      
+      // Replace server mount point with Zidoo SMB mount point
+      // TODO: Update zidooMountPoint to match your actual SMB mount path on Zidoo
+      // To find your mount path:
+      // 1. On Zidoo, open File Manager
+      // 2. Navigate to your SMB share
+      // 3. Note the full path (e.g., /mnt/smb/10.0.0.13/Videos or /mnt/nfs/10.0.0.13/Videos)
+      // 4. Update zidooMountPoint below
+      const serverMountPoint = '/mnt/F898C32498C2DFEC/Videos';
+      const zidooMountPoint = '/mnt/smb/10.0.0.13/Videos'; // UPDATE THIS with your actual Zidoo mount path
+      
+      let zidooPath = serverPath;
+      if (serverPath.startsWith(serverMountPoint)) {
+        zidooPath = serverPath.replace(serverMountPoint, zidooMountPoint);
+        console.log('Transformed path for Zidoo:', serverPath, '->', zidooPath);
+      } else {
+        console.warn('Server path does not match expected mount point:', serverPath);
+        // If path doesn't match, try to extract just the filename and directory structure
+        const pathParts = serverPath.split('/');
+        const fileName = pathParts[pathParts.length - 1];
+        const directory = pathParts[pathParts.length - 2] || 'Videos';
+        zidooPath = `${zidooMountPoint}/${fileName}`;
+        console.log('Using fallback path transformation:', zidooPath);
+      }
+      
+      var movieReturner = {
+        browser: movieTitle["browser"] || "Android",
+        pid: 0, // No transcoding process
+        duration: movieTitle["duration"],
+        fileformat: movieTitle["fileformat"] || "mkv",
+        location: zidooPath, // Return Zidoo SMB mount path
+        title: movieTitle["title"],
+        subtitleFile: movieTitle["srtLocation"] || undefined,
+      };
+      
+      callback(null, movieReturner);
+      return;
+    }
+    
     pool.query(
       `DELETE FROM pickupwhereleftoff WHERE titleOrEpisode = '${movieTitle.title}'`,
       async (error, resp) => {

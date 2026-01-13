@@ -41,8 +41,12 @@
     <div class="boxes" #boxes boxes *ngFor="let movie of movies; index as i" (mouseover)="onHover(i, 'movies')" (click)="selectMovie()">
       <img [src]="movie.movieCard | safeUrl" class="posterArt">
       <div class="titleCards">
-        <p>{{i}}: {{movie.title}}</p>
+        <p>{{movie.title}}</p>
       </div>
+    </div>
+    <div *ngIf="isLoadingMore" class="loading-indicator">
+      <div class="spinner"></div>
+      <p class="loading-text">Loading more movies...</p>
     </div>
   </div>
 </div>

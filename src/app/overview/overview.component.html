@@ -7,7 +7,10 @@
         </video>
     </div>
     <div id="info" #info (mouseover)="hover()" (mouseout)="hoverOut()">
-        <img [src]="coverArt | safeUrl" id="coverArt">
+        <div id="posterContainer">
+            <img [src]="coverArt | safeUrl" id="coverArt">
+            <p *ngIf="currentDuration" id="duration">Duration: {{currentDuration}}</p>
+        </div>
         <div *ngIf="!showVersionSelector" id="playBtnContainer" #playBtnContainer>
             <img id="playBtn" src="assets/playVideo.png" #playBtn (click)="playMovie()">
         </div>
@@ -22,9 +25,13 @@
                    (click)="selectVersion(i)"
                    (mouseover)="onVersionHover(i)">
                 <p class="versionInfo">
-                  {{version.resolution}} | {{version.audio}}
-                  <span *ngIf="version.dolbyVision === 1"> | Dolby Vision</span>
-                  <span *ngIf="version.threeD === 1"> | 3D</span>
+                    <span *ngIf="version.isExtendedEdition === 1" class="extended-label">Extended Edition | </span>
+                    <span *ngIf="version.resolution === '1920x1080'">HD | </span>
+                    <span *ngIf="version.resolution === '3840x2160'">4k | </span>
+                    <span *ngIf="version.audio === 'truehd'">Dolby Atmos</span>
+                    <span *ngIf="version.audio !== 'truehd'">{{version.audio}}</span>
+                    <span *ngIf="version.dolbyVision === 1"> | Dolby Vision</span>
+                    <span *ngIf="version.threeD === 1"> | 3D</span>
                 </p>
               </div>
             </div>

@@ -1,6 +1,8 @@
 package com.adaptivestreaming.app;
 
 import android.net.Uri;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.KeyEvent;
@@ -23,11 +25,13 @@ import android.view.Gravity;
 import android.util.DisplayMetrics;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.TrackGroup;
 import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.exoplayer.ExoPlayer;
+import android.util.Log;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector.SelectionOverride;
 import androidx.media3.ui.PlayerView;
@@ -44,9 +48,11 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import org.json.JSONException;
 import com.adaptivestreaming.app.R;
+import androidx.core.content.FileProvider;
 
 @CapacitorPlugin(name = "ExoPlayer")
 public class ExoPlayerPlugin extends Plugin {
+    private static final String TAG = "ExoPlayerPlugin";
     private ExoPlayer exoPlayer;
     private PlayerView playerView;
     private FrameLayout containerView;
@@ -1035,7 +1041,7 @@ public class ExoPlayerPlugin extends Plugin {
                         playerView.setPlayer(exoPlayer);
                     }
 
-                    // Set up ExoPlayer listener for playback state changes
+                    // Set up ExoPlayer listener for playback state changes and errors
                     exoPlayer.addListener(new Player.Listener() {
                         @Override
                         public void onPlaybackStateChanged(int playbackState) {
@@ -1044,6 +1050,9 @@ public class ExoPlayerPlugin extends Plugin {
                                 startTimeUpdates();
                             } else if (playbackState == Player.STATE_ENDED) {
                                 // Stop time updates when playback ends
+                                stopTimeUpdates();
+                            } else if (playbackState == Player.STATE_IDLE) {
+                                // Player is idle - might indicate an error
                                 stopTimeUpdates();
                             }
                         }
@@ -1056,6 +1065,36 @@ public class ExoPlayerPlugin extends Plugin {
                             } else {
                                 // Stop time updates when paused
                                 stopTimeUpdates();
+                            }
+                        }
+
+                        @Override
+                        public void onPlayerError(PlaybackException error) {
+                            String errorMessage = "Playback error: " + error.getMessage();
+                            if (error.getCause() != null) {
+                                errorMessage += " (Cause: " + error.getCause().getMessage() + ")";
+                            }
+                            
+                            // Check if it's a codec-related error
+                            if (error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                                error.errorCode == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ||
+                                error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED) {
+                                errorMessage = "Codec not supported: " + errorMessage;
+                                Log.e(TAG, "Codec error detected - video codec may not be supported by this device");
+                            }
+                            
+                            Log.e(TAG, errorMessage);
+                            
+                            // Notify JavaScript about the error
+                            try {
+                                JSObject errorData = new JSObject();
+                                errorData.put("error", errorMessage);
+                                errorData.put("errorCode", error.errorCode);
+                                errorData.put("codecError", error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                                                          error.errorCode == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED);
+                                notifyListeners("playerError", errorData);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error notifying listeners about playback error", e);
                             }
                         }
                     });
@@ -1337,6 +1376,450 @@ public class ExoPlayerPlugin extends Plugin {
             ret.put("success", true);
             call.resolve(ret);
         });
+    }
+
+    @PluginMethod
+    public void launchZidooPlayer(PluginCall call) {
+        try {
+            String videoUrl = call.getString("url");
+            String title = call.getString("title", "");
+            int position = call.getInt("position", 0);
+            
+            // #region agent log
+            Log.d(TAG, "launchZidooPlayer called - url: " + (videoUrl != null ? videoUrl.substring(0, Math.min(50, videoUrl.length())) : "null") + ", title: " + title);
+            // #endregion
+            
+            if (videoUrl == null || videoUrl.isEmpty()) {
+                call.reject("Video URL is required");
+                return;
+            }
+
+            // Check if Zidoo player is installed
+            PackageManager pm = getContext().getPackageManager();
+            
+            // #region agent log
+            Log.d(TAG, "Checking for Zidoo player - trying multiple detection methods");
+            // #endregion
+            
+            // Method 1: Check for com.zidoo.poster package (we know this exists on Z9X Pro)
+            boolean isZidooDevice = false;
+            try {
+                pm.getPackageInfo("com.zidoo.poster", 0);
+                isZidooDevice = true;
+                // #region agent log
+                Log.d(TAG, "Method 1: Found com.zidoo.poster package - Zidoo device confirmed");
+                // #endregion
+            } catch (PackageManager.NameNotFoundException e) {
+                // #region agent log
+                Log.d(TAG, "Method 1: com.zidoo.poster package not found");
+                // #endregion
+            }
+            
+            // Method 2: Try queryIntentActivities (for Activities that handle the Intent)
+            if (!isZidooDevice) {
+                Intent testIntent = new Intent("com.zidoo.player.action.VIDEO_PLAY");
+                java.util.List<android.content.pm.ResolveInfo> activityHandlers = pm.queryIntentActivities(testIntent, 0);
+                // #region agent log
+                Log.d(TAG, "Method 2: queryIntentActivities found " + (activityHandlers != null ? activityHandlers.size() : 0) + " handler(s)");
+                // #endregion
+                isZidooDevice = activityHandlers != null && !activityHandlers.isEmpty();
+            }
+            
+            // Method 3: Try queryBroadcastReceivers (for BroadcastReceivers that handle the Intent)
+            if (!isZidooDevice) {
+                Intent testIntent = new Intent("com.zidoo.player.action.VIDEO_PLAY");
+                java.util.List<android.content.pm.ResolveInfo> broadcastHandlers = pm.queryBroadcastReceivers(testIntent, 0);
+                // #region agent log
+                Log.d(TAG, "Method 3: queryBroadcastReceivers found " + (broadcastHandlers != null ? broadcastHandlers.size() : 0) + " handler(s)");
+                // #endregion
+                isZidooDevice = broadcastHandlers != null && !broadcastHandlers.isEmpty();
+            }
+            
+            // #region agent log
+            Log.d(TAG, "Final Zidoo device detection result: " + (isZidooDevice ? "CONFIRMED" : "NOT FOUND"));
+            // #endregion
+            
+            if (!isZidooDevice) {
+                // #region agent log
+                Log.e(TAG, "No Zidoo player packages found - hypothesis A REJECTED, hypothesis C (not installed) CONFIRMED");
+                // Try to list all installed packages with "zidoo" in name for debugging
+                try {
+                    java.util.List<android.content.pm.PackageInfo> packages = pm.getInstalledPackages(0);
+                    int zidooCount = 0;
+                    for (android.content.pm.PackageInfo pkgInfo : packages) {
+                        if (pkgInfo.packageName.toLowerCase().contains("zidoo")) {
+                            Log.d(TAG, "Found installed package with 'zidoo' in name: " + pkgInfo.packageName);
+                            zidooCount++;
+                        }
+                    }
+                    Log.d(TAG, "Total packages with 'zidoo' in name: " + zidooCount);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error listing packages: " + e.getMessage());
+                }
+                // #endregion
+                
+                // Fallback: Try generic video player Intent (let Android choose the best player)
+                // #region agent log
+                Log.d(TAG, "Attempting fallback to generic video player Intent");
+                // #endregion
+                try {
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setDataAndType(Uri.parse(videoUrl), "video/*");
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    
+                    // Check if any app can handle this Intent
+                    if (intent.resolveActivity(pm) != null) {
+                        // #region agent log
+                        Log.d(TAG, "Generic video player Intent can be resolved - launching");
+                        // #endregion
+                        getActivity().startActivity(intent);
+                        
+                        JSObject ret = new JSObject();
+                        ret.put("success", true);
+                        ret.put("fallback", true);
+                        call.resolve(ret);
+                        return;
+                    } else {
+                        // #region agent log
+                        Log.e(TAG, "No app can handle video Intent");
+                        // #endregion
+                        call.reject("Zidoo player is not installed and no video player app found");
+                        return;
+                    }
+                } catch (Exception e) {
+                    // #region agent log
+                    Log.e(TAG, "Error with fallback Intent: " + e.getMessage());
+                    // #endregion
+                    call.reject("Zidoo player is not installed and failed to launch fallback player: " + e.getMessage());
+                    return;
+                }
+            }
+            
+            try {
+                // Check if videoUrl is an HTTP URL - Zidoo needs file paths, not HTTP URLs
+                boolean isHttpUrl = videoUrl.startsWith("http://") || videoUrl.startsWith("https://");
+                
+                // #region agent log
+                Log.d(TAG, "Video URL/path received: " + videoUrl.substring(0, Math.min(100, videoUrl.length())));
+                Log.d(TAG, "Is HTTP URL: " + isHttpUrl);
+                // #endregion
+                
+                if (isHttpUrl) {
+                    // #region agent log
+                    Log.e(TAG, "Zidoo player does not support HTTP streaming - need file path");
+                    // #endregion
+                    call.reject("Zidoo player requires a file path, not an HTTP URL. The server should provide the file path for Zidoo devices.");
+                    return;
+                }
+                
+                // Option 1: Launch Zidoo's File Manager or file browser to open the file
+                // This allows Zidoo's File Manager to handle the file and launch the native player
+                // NOTE: We don't check if the file exists because our app is sandboxed and cannot
+                // see system mount points (/mnt/*), USB drives, or SMB/NFS mounts. Zidoo's native
+                // player can see these paths, so we trust the path and let Zidoo validate it.
+                // #region agent log
+                Log.d(TAG, "Using file browser method to launch Zidoo player");
+                Log.d(TAG, "File path: " + videoUrl);
+                Log.d(TAG, "Note: Not checking file existence - app is sandboxed, Zidoo can see the file");
+                // #endregion
+                
+                // Create file URI from path string (don't use File object since we can't verify existence)
+                // Use file:// URI scheme for local file paths
+                Uri fileUri;
+                if (videoUrl.startsWith("/")) {
+                    // Local file path - use file:// URI
+                    fileUri = Uri.parse("file://" + videoUrl);
+                } else {
+                    // Already a URI or unexpected format
+                    fileUri = Uri.parse(videoUrl);
+                }
+                
+                // Try to determine MIME type from file extension (extract from path string)
+                String mimeType = "video/*";
+                String pathLower = videoUrl.toLowerCase();
+                if (pathLower.endsWith(".mkv")) {
+                    mimeType = "video/x-matroska";
+                } else if (pathLower.endsWith(".mp4")) {
+                    mimeType = "video/mp4";
+                } else if (pathLower.endsWith(".avi")) {
+                    mimeType = "video/x-msvideo";
+                } else if (pathLower.endsWith(".m4v")) {
+                    mimeType = "video/mp4";
+                } else if (pathLower.endsWith(".mov")) {
+                    mimeType = "video/quicktime";
+                }
+                
+                // #region agent log
+                Log.d(TAG, "File URI: " + fileUri.toString());
+                Log.d(TAG, "MIME type: " + mimeType);
+                // #endregion
+                
+                // Check if path is on a system mount point that regular apps can't access
+                // Paths like /mnt/*, /storage/*, etc. are only accessible to system apps
+                boolean isSystemMountPath = videoUrl.startsWith("/mnt/") || 
+                                           videoUrl.startsWith("/storage/") ||
+                                           videoUrl.startsWith("/sdcard/");
+                
+                // #region agent log
+                Log.d(TAG, "File path: " + videoUrl);
+                Log.d(TAG, "Is system mount path: " + isSystemMountPath);
+                // #endregion
+                
+                // If it's a system mount path, skip regular apps (they can't access it)
+                // and go straight to trying to open Zidoo's File Manager
+                if (!isSystemMountPath) {
+                    // Method 1: Try ACTION_VIEW but EXCLUDE com.zidoo.poster (Poster Wall)
+                    // Only try this for paths that regular apps might be able to access
+                    Intent fileManagerIntent = new Intent(Intent.ACTION_VIEW);
+                    fileManagerIntent.setDataAndType(fileUri, mimeType);
+                    fileManagerIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    fileManagerIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    
+                    // Get all apps that can handle this Intent
+                    java.util.List<android.content.pm.ResolveInfo> resolveList = pm.queryIntentActivities(fileManagerIntent, 0);
+                    
+                    // #region agent log
+                    Log.d(TAG, "Method 1: Trying ACTION_VIEW with file URI (non-system path)");
+                    Log.d(TAG, "Found " + (resolveList != null ? resolveList.size() : 0) + " apps that can handle this Intent");
+                    // #endregion
+                    
+                    // Filter out com.zidoo.poster (Poster Wall) from the list
+                    if (resolveList != null && !resolveList.isEmpty()) {
+                        // Find an app that's NOT Poster Wall
+                        android.content.pm.ResolveInfo selectedApp = null;
+                        for (android.content.pm.ResolveInfo info : resolveList) {
+                            if (info.activityInfo != null && !info.activityInfo.packageName.equals("com.zidoo.poster")) {
+                                selectedApp = info;
+                                // #region agent log
+                                Log.d(TAG, "Found non-Poster app: " + info.activityInfo.packageName);
+                                // #endregion
+                                break;
+                            }
+                        }
+                        
+                        if (selectedApp != null) {
+                            try {
+                                Intent specificIntent = new Intent(Intent.ACTION_VIEW);
+                                specificIntent.setDataAndType(fileUri, mimeType);
+                                specificIntent.setClassName(selectedApp.activityInfo.packageName, selectedApp.activityInfo.name);
+                                specificIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                specificIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                
+                                if (specificIntent.resolveActivity(pm) != null) {
+                                    getActivity().startActivity(specificIntent);
+                                    // #region agent log
+                                    Log.d(TAG, "Method 1 SUCCESS: Launched " + selectedApp.activityInfo.packageName);
+                                    // #endregion
+                                    JSObject ret = new JSObject();
+                                    ret.put("success", true);
+                                    call.resolve(ret);
+                                    return;
+                                }
+                            } catch (Exception e) {
+                                // #region agent log
+                                Log.w(TAG, "Method 1 failed: " + e.getMessage());
+                                // #endregion
+                            }
+                        }
+                    }
+                } else {
+                    // #region agent log
+                    Log.d(TAG, "Skipping Method 1 - system mount path requires File Manager");
+                    // #endregion
+                }
+                
+                // Method 2: Show chooser dialog excluding Poster Wall
+                // This lets the user choose which app to use, but we'll filter out Poster Wall
+                // Only try this for non-system mount paths
+                if (!isSystemMountPath) {
+                    try {
+                        Intent chooserIntent = new Intent(Intent.ACTION_VIEW);
+                        chooserIntent.setDataAndType(fileUri, mimeType);
+                        chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        
+                        // Get apps that can handle this Intent
+                        java.util.List<android.content.pm.ResolveInfo> resolveList2 = pm.queryIntentActivities(chooserIntent, 0);
+                        
+                        // Create a list of apps excluding Poster Wall
+                        java.util.List<android.content.pm.ResolveInfo> filteredList = new java.util.ArrayList<>();
+                        if (resolveList2 != null) {
+                            for (android.content.pm.ResolveInfo info : resolveList2) {
+                                if (info.activityInfo != null && !info.activityInfo.packageName.equals("com.zidoo.poster")) {
+                                    filteredList.add(info);
+                                }
+                            }
+                        }
+                    
+                    if (!filteredList.isEmpty()) {
+                        // Create chooser with filtered list
+                        android.content.Intent[] initialIntents = new android.content.Intent[filteredList.size()];
+                        for (int i = 0; i < filteredList.size(); i++) {
+                            android.content.pm.ResolveInfo info = filteredList.get(i);
+                            Intent specificIntent = new Intent(Intent.ACTION_VIEW);
+                            specificIntent.setDataAndType(fileUri, mimeType);
+                            specificIntent.setClassName(info.activityInfo.packageName, info.activityInfo.name);
+                            specificIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            initialIntents[i] = specificIntent;
+                        }
+                        
+                        Intent chooser = Intent.createChooser(chooserIntent, "Open with");
+                        chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, initialIntents);
+                        
+                        // #region agent log
+                        Log.d(TAG, "Method 2: Showing chooser dialog with " + filteredList.size() + " apps (Poster Wall excluded)");
+                        // #endregion
+                        
+                        getActivity().startActivity(chooser);
+                        JSObject ret = new JSObject();
+                        ret.put("success", true);
+                        call.resolve(ret);
+                        return;
+                    }
+                    } catch (Exception e) {
+                        // #region agent log
+                        Log.w(TAG, "Method 2 failed: " + e.getMessage());
+                        // #endregion
+                    }
+                }
+                
+                // Method 3: Open Zidoo Media Center at the directory containing the file
+                // Media Center cannot auto-play files, but it can open folders
+                // User will need to manually select the file in Media Center to play it
+                try {
+                    int lastSlash = videoUrl.lastIndexOf('/');
+                    if (lastSlash > 0) {
+                        String directoryPath = videoUrl.substring(0, lastSlash);
+                        String fileName = videoUrl.substring(lastSlash + 1);
+                        
+                        // #region agent log
+                        Log.d(TAG, "Method 3: Opening Zidoo Media Center at directory");
+                        Log.d(TAG, "Directory: " + directoryPath);
+                        Log.d(TAG, "File name: " + fileName);
+                        // #endregion
+                        
+                        // Create URI for the directory (not the file)
+                        Uri dirUri = Uri.parse("file://" + directoryPath);
+                        
+                        // Method 3a: Try ACTION_VIEW with directory URI, targeting Media Center
+                        try {
+                            Intent viewIntent = new Intent(Intent.ACTION_VIEW);
+                            viewIntent.setDataAndType(dirUri, "resource/folder");
+                            viewIntent.setPackage("com.zidoo.poster");
+                            viewIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            viewIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                            
+                            // Add directory path as extra
+                            viewIntent.putExtra("path", directoryPath);
+                            viewIntent.putExtra("folderPath", directoryPath);
+                            viewIntent.putExtra("directory", directoryPath);
+                            
+                            // Also include the filename so Media Center knows which file to highlight (if supported)
+                            viewIntent.putExtra("fileName", fileName);
+                            viewIntent.putExtra("file", fileName);
+                            
+                            // #region agent log
+                            Log.d(TAG, "Method 3a: Trying ACTION_VIEW with directory, targeting com.zidoo.poster");
+                            Log.d(TAG, "Directory URI: " + dirUri.toString());
+                            // #endregion
+                            
+                            if (viewIntent.resolveActivity(pm) != null) {
+                                getActivity().startActivity(viewIntent);
+                                // #region agent log
+                                Log.d(TAG, "Method 3a SUCCESS: Opened Media Center at directory");
+                                // #endregion
+                                JSObject ret = new JSObject();
+                                ret.put("success", true);
+                                ret.put("message", "Media Center opened. Please select " + fileName + " to play.");
+                                ret.put("directory", directoryPath);
+                                ret.put("fileName", fileName);
+                                call.resolve(ret);
+                                return;
+                            } else {
+                                // #region agent log
+                                Log.w(TAG, "Method 3a: ACTION_VIEW cannot be resolved by com.zidoo.poster");
+                                // #endregion
+                            }
+                        } catch (Exception e) {
+                            // #region agent log
+                            Log.d(TAG, "Method 3a failed: " + e.getMessage());
+                            // #endregion
+                        }
+                        
+                        // Method 3b: Launch Media Center and pass directory path as extra
+                        try {
+                            Intent mediaCenterIntent = pm.getLaunchIntentForPackage("com.zidoo.poster");
+                            if (mediaCenterIntent != null) {
+                                mediaCenterIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                mediaCenterIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                                
+                                // Add directory path in multiple formats
+                                mediaCenterIntent.putExtra("path", directoryPath);
+                                mediaCenterIntent.putExtra("folderPath", directoryPath);
+                                mediaCenterIntent.putExtra("directory", directoryPath);
+                                mediaCenterIntent.putExtra("folder", directoryPath);
+                                
+                                // Include filename for reference
+                                mediaCenterIntent.putExtra("fileName", fileName);
+                                mediaCenterIntent.putExtra("file", fileName);
+                                
+                                // Set directory URI as data
+                                mediaCenterIntent.setData(dirUri);
+                                mediaCenterIntent.setType("resource/folder");
+                                
+                                // #region agent log
+                                Log.d(TAG, "Method 3b: Launching com.zidoo.poster with directory path");
+                                // #endregion
+                                
+                                getActivity().startActivity(mediaCenterIntent);
+                                
+                                // #region agent log
+                                Log.d(TAG, "Method 3b SUCCESS: Zidoo Media Center launched at directory");
+                                // #endregion
+                                
+                                JSObject ret = new JSObject();
+                                ret.put("success", true);
+                                ret.put("message", "Media Center opened. Please select " + fileName + " to play.");
+                                ret.put("directory", directoryPath);
+                                ret.put("fileName", fileName);
+                                call.resolve(ret);
+                                return;
+                            }
+                        } catch (Exception e) {
+                            // #region agent log
+                            Log.d(TAG, "Method 3b failed: " + e.getMessage());
+                            // #endregion
+                        }
+                    } else {
+                        // #region agent log
+                        Log.w(TAG, "Method 3: Could not extract directory from file path: " + videoUrl);
+                        // #endregion
+                    }
+                } catch (Exception e) {
+                    // #region agent log
+                    Log.e(TAG, "Method 3 failed to open Zidoo Media Center: " + e.getMessage(), e);
+                    // #endregion
+                }
+                
+                // #region agent log
+                Log.e(TAG, "All methods failed - could not launch Zidoo player or file manager");
+                Log.e(TAG, "File path: " + videoUrl);
+                // #endregion
+                
+                // Return failure - we tried everything
+                JSObject ret = new JSObject();
+                ret.put("success", false);
+                ret.put("filePath", videoUrl);
+                call.resolve(ret);
+            } catch (Exception e) {
+                // #region agent log
+                Log.e(TAG, "Error launching Zidoo player: " + e.getMessage(), e);
+                // #endregion
+                call.reject("Failed to launch Zidoo player: " + e.getMessage());
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error launching Zidoo player", e);
+            call.reject("Failed to launch Zidoo player: " + e.getMessage());
+        }
     }
 
     @Override

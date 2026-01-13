@@ -19,6 +19,7 @@ import { SideBarComponent } from "../side-bar/side-bar.component";
 import { HttpClient } from "@angular/common/http";
 import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 import { ExoPlayerService } from "../services/exoplayer.service";
+import { ApiConfigService } from "../services/api-config.service";
 
 @Pipe({
   name: "safeHtml",
@@ -49,6 +50,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
   availableVersions: movieInfo[] = []
   selectedVersionIndex: number = 0
   plotTopOffset: number = 100 // Default offset for plot position
+  currentDuration: string = "" // Formatted duration of currently highlighted version
   private uiHideTimeout: any = null; // Timer for hiding UI after inactivity
 
   constructor(
@@ -57,7 +59,8 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     private renderer: Renderer2,
     private http: HttpClient,
     private smartTv: SmartTvLibSingletonService,
-    private exoPlayerService: ExoPlayerService
+    private exoPlayerService: ExoPlayerService,
+    private apiConfig: ApiConfigService
   ) {}
 
   @ViewChild("right") right!: ElementRef;
@@ -107,6 +110,20 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     event.code === "NumpadEnter" || 
     event.key === "Enter" ||
     event.keyCode === 13;
+
+    // Handle back button (Escape, Backspace, or Android TV Back button)
+    const isBackKey = event.code === "Escape" || 
+                      event.code === "Backspace" || 
+                      event.key === "Escape" ||
+                      event.key === "Backspace" ||
+                      event.keyCode === 27 || // Escape
+                      event.keyCode === 8;    // Backspace
+
+    if (isBackKey) {
+      // Navigate back to video selection page
+      this.router.navigateByUrl("/videoSelection");
+      return;
+    }
 
     // Handle Enter key based on current list
     if (isEnterKey) {
@@ -293,6 +310,18 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
 
   changeTransmuxStatus(status: number) {
     this.infoStore.videoInfo.transmuxToPixie = status;
+    this.apiConfig.ensureConfigLoaded().then(() => {
+      this.http
+        .post(
+          `${this.apiConfig.getBaseUrl()}/api/mov/transmux`,
+          this.infoStore.videoInfo
+        )
+        .subscribe((res: any) => {
+          this.transmuxToPixie = res;
+        });
+    }).catch((error) => {
+      console.error('Error loading config before transmux API call:', error);
+      // Fallback
     this.http
       .post(
         `http://pixable.local:5012/api/mov/transmux`,
@@ -300,6 +329,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
       )
       .subscribe((res: any) => {
         this.transmuxToPixie = res;
+        });
       });
   }
 
@@ -324,6 +354,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     this.plot = version.overview;
     this.cast = JSON.parse(version.cast || "[]");
     this.coverArt = version.coverArt;
+    this.currentDuration = this.formatDuration(version.duration);
     const newTrailer = version.trailerUrl.replace(new RegExp(" ", "g"), "%20");
     
     // Update trailer and reload video if it changed
@@ -350,6 +381,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     this.plot = this.infoStore.videoInfo.overview;
     this.cast = JSON.parse(this.infoStore.videoInfo.cast);
     this.coverArt = this.infoStore.videoInfo.coverArt;
+    this.currentDuration = this.formatDuration(this.infoStore.videoInfo.duration);
     this.trailer = this.infoStore.videoInfo.trailerUrl.replace(
       new RegExp(" ", "g"),
       "%20"
@@ -358,6 +390,23 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     // Navigate to player with selected version
     this.router.navigateByUrl("/player");
   }
+
+  formatDuration(duration: number): string {
+    if (!duration || duration <= 0) {
+      return "";
+    }
+    
+    const totalSeconds = Math.floor(duration);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${minutes}m`;
+    }
+  }
+
 
   ngOnInit(): void {
     console.log("INFOO: ", this.infoStore.videoInfo);
@@ -373,7 +422,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
       this.selectedVersionIndex = currentIndex >= 0 ? currentIndex : 0;
     }
     
-    console.log("AVAILABLE VERSIONS: ", this.availableVersions);
+    // console.log("AVAILABLE VERSIONS: ", this.availableVersions);
     
     if (this.infoStore.videoInfo.transmuxToPixie === 0) {
       this.transmuxToPixie = false;
@@ -383,6 +432,9 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     this.plot = this.infoStore.videoInfo.overview;
     this.cast = JSON.parse(this.infoStore.videoInfo.cast);
     this.coverArt = this.infoStore.videoInfo.coverArt;
+    this.currentDuration = this.formatDuration(this.infoStore.videoInfo.duration);
+    console.log("CURRENT DURATION: ", this.currentDuration);
+    
     console.log("PID: ", this.infoStore.videoInfo.pid);
     // Show sidebar on overview page (player will hide it when navigating to player)
     this.smartTv.changeVisibility(true);
@@ -392,12 +444,24 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.infoStore.videoInfo.pid > 0) {
       console.log("INSIDE PID: ");
 
+      this.apiConfig.ensureConfigLoaded().then(() => {
+        this.http
+          .post(`${this.apiConfig.getBaseUrl()}/api/mov/pidkill`, {
+            pid: this.infoStore.videoInfo.pid,
+          })
+          .subscribe((res) => {
+            console.log("RESPONDED: ", res);
+          });
+      }).catch((error) => {
+        console.error('Error loading config before pidkill API call:', error);
+        // Fallback
       this.http
         .post(`http://pixable.local:5012/api/mov/pidkill`, {
           pid: this.infoStore.videoInfo.pid,
         })
         .subscribe((res) => {
           console.log("RESPONDED: ", res);
+          });
         });
     }
   }

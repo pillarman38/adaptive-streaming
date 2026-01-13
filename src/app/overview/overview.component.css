@@ -110,10 +110,23 @@
     height: 100%;
 }
 
+#posterContainer {
+    float: left;
+    width: 160px;
+    margin-right: 10px;
+}
+
 #coverArt{
     width: 160px;
-    float: left;
-    margin-right: 10px;
+    display: block;
+}
+
+#duration {
+    color: #fff;
+    font-size: 14px;
+    margin-top: 8px;
+    text-align: center;
+    margin-bottom: 0;
 }
 
 .elementBorder {

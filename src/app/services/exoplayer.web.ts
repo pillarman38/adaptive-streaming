@@ -67,5 +67,11 @@ export class ExoPlayerWeb extends WebPlugin implements ExoPlayerPlugin {
   async setShowNextEpisode(options: { show: boolean }): Promise<void> {
     // No-op for web - visibility is managed by Angular
   }
+
+  async launchZidooPlayer(options: { url: string; title?: string; position?: number }): Promise<{ success: boolean }> {
+    // Web implementation - not supported, return false
+    console.warn('launchZidooPlayer is not supported on web platform');
+    return { success: false };
+  }
 }
 
