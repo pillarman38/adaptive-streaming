@@ -116,3 +116,71 @@
 #subtitleBtn {
     width: 100%;
 }
+
+/* Audio Track Selection Styles */
+.audioTrackBtn {
+    margin: auto 10px;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.audioTrackBtn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.audioTrackBtn svg {
+    width: 32px;
+    height: 32px;
+}
+
+.audioTrackList {
+    position: absolute;
+    right: 20px;
+    bottom: 200px;
+    width: 300px;
+    background-color: rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    padding: 10px;
+    z-index: 10001;
+    max-height: 400px;
+    overflow-y: auto;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.audioTrackListTitle {
+    color: #FFFFFF;
+    font-size: 18px;
+    font-weight: bold;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    margin-bottom: 10px;
+}
+
+.audioTrackItem {
+    color: #FFFFFF;
+    padding: 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    margin-bottom: 4px;
+}
+
+.audioTrackItem:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.audioTrackItem.selected {
+    background-color: rgba(255, 0, 0, 0.5);
+    font-weight: bold;
+}
+
+.audioTrackItem.selected:hover {
+    background-color: rgba(255, 0, 0, 0.6);
+}

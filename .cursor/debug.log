@@ -1,2 +1,222 @@
 {"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769279636360,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
 {"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769279636360,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769285171513,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769285171514,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769285269788,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769285269788,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769285315264,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769285315265,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769285315278,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769285315278,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769285316233,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769285316233,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769285486597,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769285486597,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769285546003,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769285546004,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769285546004,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769285546004,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"player.component.ts:292","message":"Checking if Zidoo device","data":{"isZidooDevice":false,"deviceName":"chrome"},"timestamp":1769285546004,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769285550601,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769285550601,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769285663512,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769285663512,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286262940,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286262946,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286262946,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286262947,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286262940,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286262947,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286262977,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286262977,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286262996,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286262997,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286263008,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286263008,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286266035,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286266035,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286266040,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286266040,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286266078,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286266078,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286266099,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286266100,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286266106,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286266107,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286266125,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286266126,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286352691,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286352691,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286352701,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286352701,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286352718,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286352718,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286352733,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286352734,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286352737,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286352737,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286352777,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286352778,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286355193,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286355193,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286355210,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286355210,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286355238,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286355238,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286355245,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286355245,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286355259,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286355259,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286355261,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286355261,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286487285,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286487285,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286565489,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286565489,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286623836,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286623838,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286623839,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"player.component.ts:292","message":"Checking if Zidoo device","data":{"isZidooDevice":false,"deviceName":"chrome"},"timestamp":1769286623839,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286623837,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286812216,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286812216,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286812231,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286812232,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286812239,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286812239,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286812248,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286812249,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286812269,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286812270,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286812271,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286812271,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286812292,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286812292,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286815411,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286815411,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286815416,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286815416,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286815439,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286815439,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286815447,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286815448,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286815453,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286815453,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286815456,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286815456,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286815464,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286815464,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769286841265,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769286841266,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287221101,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287221101,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287728438,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287728439,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287728476,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287728476,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287728495,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287728495,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287728508,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287728509,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287728498,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287728498,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287728527,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287728528,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287728542,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287728542,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287728548,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287728549,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287728550,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287728551,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287756718,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287756718,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287882997,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287882998,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287883020,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287883020,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287883028,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287883028,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287883028,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287883028,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287883089,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287883090,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287883089,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287883090,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287883093,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287883094,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287883130,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287883130,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287883131,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287883131,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769287883137,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769287883137,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769288016745,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769288016745,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769288488758,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769288488758,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769288697146,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769288697147,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769289040373,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769289040374,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769289199471,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769289199471,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769289371297,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769289371297,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769289453081,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769289453082,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769289618541,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769289618541,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769290101048,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769290101048,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769290166649,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769290166649,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769290465591,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769290465591,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769290643069,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769290643069,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769290769580,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769290769581,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769291020626,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769291020626,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769291221798,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769291221798,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769291406990,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769291406991,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769291608642,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769291608642,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769291839970,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769291839970,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769292059077,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769292059078,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769292291479,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769292291480,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769292495812,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769292495813,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769292734679,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769292734680,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769292960676,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769292960677,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769293269453,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769293269454,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769293697344,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769293697345,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769293923866,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769293923867,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769294223140,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769294223140,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769294516426,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769294516427,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769295141345,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769295141345,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769295483589,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769295483590,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769295726143,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769295726144,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769296005386,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769296005386,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769296318560,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769296318560,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769296838520,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769296838521,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:48","message":"isZidoo called","data":{"isAndroid":false},"timestamp":1769297047028,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"platform.service.ts:52","message":"Not Android - returning false","data":{},"timestamp":1769297047028,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}

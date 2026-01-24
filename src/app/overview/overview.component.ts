@@ -104,7 +104,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const ind = this.smartTv.smartTv?.navigate(event);
-    console.log("THI IND: ", ind);
+    // console.log("THI IND: ", ind);
 
     const isEnterKey = event.code === "Enter" || 
     event.code === "NumpadEnter" || 
@@ -409,7 +409,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
 
 
   ngOnInit(): void {
-    console.log("INFOO: ", this.infoStore.videoInfo);
+    // console.log("INFOO: ", this.infoStore.videoInfo);
     // Filter movies by same title AND tmdbId
     this.availableVersions = this.infoStore.videoInfo.versions;
     

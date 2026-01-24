@@ -37,6 +37,24 @@
                 
                 <img src="assets/right.png" class="skipButtons" #controlBtns (click)="skipButtons(+15)">
                 <img src="assets/skipForward.png" class="skipButtons" #controlBtns (click)="skipButtons(+30)">
+                
+                <!-- Audio Track Selection Button -->
+                <div *ngIf="hasMultipleAudioTracks" class="audioTrackBtn" #controlBtns (click)="toggleAudioTrackList()" title="Select Audio Track">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+                        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                    </svg>
+                </div>
+            </div>
+            
+            <!-- Audio Track Selection List -->
+            <div *ngIf="showAudioTrackList && hasMultipleAudioTracks" class="audioTrackList">
+                <div class="audioTrackListTitle">Select Audio Track</div>
+                <div *ngFor="let track of availableAudioTracks; let i = index" 
+                     class="audioTrackItem" 
+                     [class.selected]="i === currentAudioTrackIndex"
+                     (click)="selectAudioTrack(i)">
+                    {{ track.label || track.language || 'Track ' + (i + 1) }}
+                </div>
             </div>
 
             <div *ngIf="show">

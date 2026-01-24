@@ -41,12 +41,16 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import org.json.JSONException;
+import org.json.JSONObject;
+import org.json.JSONArray;
 import com.adaptivestreaming.app.R;
 import androidx.core.content.FileProvider;
 
@@ -74,6 +78,8 @@ public class ExoPlayerPlugin extends Plugin {
     private java.util.List<Button> audioTrackButtons = new java.util.ArrayList<>();
     private int selectedAudioTrackIndex = -1;
     private boolean controlsVisible = false;
+    private volatile boolean isShowingAudioTrackList = false; // Flag to prevent hideControls from hiding audio list
+    private volatile boolean suppressAutoShowAudioList = false; // Flag to prevent auto-showing list when button gets focus programmatically
     private boolean isPaused = false;
     private boolean showSkipIntro = false;
     private boolean showNextEpisode = false;
@@ -294,8 +300,9 @@ public class ExoPlayerPlugin extends Plugin {
         audioTrackBtn = controlsView.findViewById(R.id.audioTrackBtn);
         currentAudioTrackLabel = controlsView.findViewById(R.id.currentAudioTrackLabel);
         audioTrackRow = controlsView.findViewById(R.id.audioTrackRow);
-        audioTrackListContainer = controlsView.findViewById(R.id.audioTrackListContainer);
-        audioTrackList = controlsView.findViewById(R.id.audioTrackList);
+        
+        // Create audio track list container as a separate full-screen overlay
+        createAudioTrackListContainer(container);
 
         // Set up seek bar with high precision (10000 = 0.01% precision)
         // This prevents rounding issues where small skips near the end don't move the seekbar
@@ -522,6 +529,9 @@ public class ExoPlayerPlugin extends Plugin {
 
         // Set up audio track selection button
         audioTrackBtn.setOnClickListener(v -> {
+            // #region agent log
+            android.util.Log.d("ExoPlayerPlugin", "Audio track button clicked - calling toggleAudioTrackList()");
+            // #endregion
             toggleAudioTrackList();
             resetControlsHideTimer();
         });
@@ -530,9 +540,23 @@ public class ExoPlayerPlugin extends Plugin {
         audioTrackBtn.setOnFocusChangeListener(new OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
+                // #region agent log
+                android.util.Log.d("ExoPlayerPlugin", "Audio track button focus changed: " + hasFocus + ", suppressAutoShow: " + suppressAutoShowAudioList + ", listVisible: " + (audioTrackListContainer != null ? (audioTrackListContainer.getVisibility() == View.VISIBLE) : "null"));
+                // #endregion
+                
                 if (hasFocus && audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.GONE) {
-                    // When button gets focus, show the track list
-                    showAudioTrackList();
+                    // When button gets focus, show the track list (unless we're suppressing auto-show)
+                    // Only auto-show if button is visible (controls might be hidden but button could still be accessible)
+                    if (!suppressAutoShowAudioList && audioTrackBtn.getVisibility() == View.VISIBLE) {
+                        // #region agent log
+                        android.util.Log.d("ExoPlayerPlugin", "Auto-showing audio track list due to focus change - controlsVisible: " + controlsVisible);
+                        // #endregion
+                        showAudioTrackList();
+                    } else {
+                        // #region agent log
+                        android.util.Log.d("ExoPlayerPlugin", "Suppressed auto-show of audio track list - suppressAutoShow: " + suppressAutoShowAudioList + ", buttonVisibility: " + audioTrackBtn.getVisibility());
+                        // #endregion
+                    }
                 } else if (!hasFocus && audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.VISIBLE) {
                     // When button loses focus and no item in list is focused, hide the list
                     boolean listItemFocused = false;
@@ -543,6 +567,9 @@ public class ExoPlayerPlugin extends Plugin {
                         }
                     }
                     if (!listItemFocused) {
+                        // #region agent log
+                        android.util.Log.d("ExoPlayerPlugin", "Hiding audio track list because button lost focus and no list item has focus");
+                        // #endregion
                         hideAudioTrackList();
                     }
                 }
@@ -592,6 +619,71 @@ public class ExoPlayerPlugin extends Plugin {
             @Override
             public boolean onKey(View v, int keyCode, KeyEvent event) {
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    // Check if audio track list is visible - if so, let the buttons handle navigation
+                    boolean audioListVisible = audioTrackListContainer != null && 
+                        audioTrackListContainer.getVisibility() == View.VISIBLE;
+                    
+                    if (audioListVisible) {
+                        // If audio list is visible, only handle Back and Left to close it
+                        // Let all other keys (Up/Down/Enter) be handled by the track buttons
+                        if (keyCode == KeyEvent.KEYCODE_BACK) {
+                            android.util.Log.d("ExoPlayerPlugin", "Back pressed while audio track list visible - hiding list and consuming event");
+                            // Hide the list immediately (synchronously) to prevent event propagation
+                            audioTrackListContainer.setVisibility(View.GONE);
+                            isShowingAudioTrackList = false;
+                            
+                            getActivity().runOnUiThread(() -> {
+                                // Show controls
+                                showControls(null);
+                                
+                                // Focus the audio track button
+                                if (audioTrackBtn != null) {
+                                    audioTrackBtn.requestFocus();
+                                }
+                            });
+                            return true; // Consume the event to prevent going back to overview
+                        }
+                        
+                        // Handle D-pad Left - hide audio track list if visible
+                        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                            android.util.Log.d("ExoPlayerPlugin", "Left pressed while audio track list visible - hiding list and consuming event");
+                            // Hide the list immediately (synchronously) to prevent event propagation
+                            audioTrackListContainer.setVisibility(View.GONE);
+                            isShowingAudioTrackList = false;
+                            
+                            getActivity().runOnUiThread(() -> {
+                                // Show controls
+                                showControls(null);
+                                
+                                // Focus the audio track button
+                                if (audioTrackBtn != null) {
+                                    audioTrackBtn.requestFocus();
+                                }
+                            });
+                            return true; // Consume the event
+                        }
+                        
+                        // For all other keys when audio list is visible, check which view has focus
+                        View focusedView = getActivity().getCurrentFocus();
+                        android.util.Log.d("ExoPlayerPlugin", "Key " + keyCode + " (DPAD_UP=" + KeyEvent.KEYCODE_DPAD_UP + ", DPAD_DOWN=" + KeyEvent.KEYCODE_DPAD_DOWN + ") pressed while audio list visible. Focused view: " + (focusedView != null ? focusedView.getClass().getSimpleName() : "null"));
+                        
+                        // If no button has focus, try to focus the first one
+                        if (focusedView == null || !audioTrackButtons.contains(focusedView)) {
+                            android.util.Log.d("ExoPlayerPlugin", "No track button has focus, attempting to focus first button");
+                            if (!audioTrackButtons.isEmpty()) {
+                                audioTrackButtons.get(0).requestFocus();
+                            }
+                        }
+                        
+                        return false; // Let buttons handle it
+                    }
+                    
+                    // Handle Back button - hide audio track list if visible
+                    if (keyCode == KeyEvent.KEYCODE_BACK) {
+                        // If audio list is not visible, let the event propagate (normal back behavior)
+                        return false;
+                    }
+                    
                     // Handle D-pad navigation keys - show controls (or reset timer if already visible)
                     if (keyCode == KeyEvent.KEYCODE_DPAD_UP ||
                         keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
@@ -687,44 +779,101 @@ public class ExoPlayerPlugin extends Plugin {
             }
         });
 
-        // containerView.setOnKeyListener(new View.OnKeyListener() {
-        //     @Override
-        //     public boolean onKey(View v, int keyCode, KeyEvent event) {
-        //         if (event.getAction() == KeyEvent.ACTION_DOWN) {
-        //             // Handle Enter/Select button from Nvidia Shield remote
-        //             if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-        //                 // Only handle if controls are not visible
-        //                 // If controls are visible, let the buttons handle Enter normally
-        //                 if (!controlsVisible && exoPlayer != null) {
-        //                     getActivity().runOnUiThread(() -> {
-        //                         // Pause the video if it's playing
-        //                         if (!isPaused) {
-        //                             exoPlayer.pause();
-        //                             isPaused = true;
-        //                             if (playPauseBtn != null) {
-        //                                 playPauseBtn.setImageResource(android.R.drawable.ic_media_play);
-        //                             }
-        //                             stopTimeUpdates();
-        //                         }
-        //                         // Show controls
-        //                         showControls(null);
-        //                     });
-        //                     android.util.Log.d("ExoPlayerPlugin", "Enter pressed - paused video and showing controls");
-        //                     return true; // Consume the event
-        //                 }
-        //                 // If controls are visible, return false to let buttons handle it
-        //                 return false;
-        //             }
-        //         }
-        //         return false; // Let other key events propagate
-        //     }
-        // });
-
         // Initialize controls hide handler
         controlsHideHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
         // Auto-hide controls after 5 seconds (controls start visible)
         controlsHideHandler.postDelayed(() -> hideControls(null), 5000);
+    }
+
+    private void createAudioTrackListContainer(FrameLayout container) {
+        // Create the outer container that spans full screen
+        audioTrackListContainer = new LinearLayout(getContext());
+        audioTrackListContainer.setOrientation(LinearLayout.VERTICAL);
+        // No background on outer container - we'll add it to inner container instead
+        audioTrackListContainer.setPadding(0, 0, 0, 0); // Remove padding from outer container
+        audioTrackListContainer.setGravity(Gravity.END);
+        audioTrackListContainer.setVisibility(View.GONE);
+        audioTrackListContainer.setFocusable(false);
+        audioTrackListContainer.setFocusableInTouchMode(false);
+        audioTrackListContainer.setDescendantFocusability(LinearLayout.FOCUS_AFTER_DESCENDANTS); // Allow children to receive focus
+        audioTrackListContainer.setElevation(15f);
+        
+        FrameLayout.LayoutParams containerParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        );
+        audioTrackListContainer.setLayoutParams(containerParams);
+        
+        // Create inner container to constrain content width to 1/3 of screen width
+        LinearLayout innerContainer = new LinearLayout(getContext());
+        innerContainer.setOrientation(LinearLayout.VERTICAL);
+        int screenWidth = getContext().getResources().getDisplayMetrics().widthPixels;
+        int listWidth = screenWidth / 3; // One third of screen width
+        LinearLayout.LayoutParams innerParams = new LinearLayout.LayoutParams(
+            listWidth,
+            LinearLayout.LayoutParams.MATCH_PARENT // Fill available height for scrolling
+        );
+        innerParams.gravity = Gravity.END;
+        innerContainer.setLayoutParams(innerParams);
+        innerContainer.setGravity(Gravity.END);
+        // Add the dark background to the inner container instead
+        innerContainer.setBackgroundColor(Color.argb(230, 0, 0, 0)); // #E6000000
+        innerContainer.setPadding(
+            (int)(10 * getContext().getResources().getDisplayMetrics().density),
+            (int)(10 * getContext().getResources().getDisplayMetrics().density),
+            (int)(10 * getContext().getResources().getDisplayMetrics().density),
+            (int)(10 * getContext().getResources().getDisplayMetrics().density)
+        );
+        innerContainer.setFocusable(false);
+        innerContainer.setFocusableInTouchMode(false);
+        innerContainer.setDescendantFocusability(LinearLayout.FOCUS_AFTER_DESCENDANTS); // Allow children to receive focus
+        
+        // Create title TextView
+        TextView titleView = new TextView(getContext());
+        titleView.setId(View.generateViewId()); // Generate a unique ID since we're creating this programmatically
+        titleView.setText("Select Audio Track");
+        titleView.setTextColor(Color.WHITE);
+        titleView.setTextSize(18);
+        titleView.setTypeface(null, android.graphics.Typeface.BOLD);
+        titleView.setPadding(0, 0, 0, (int)(10 * getContext().getResources().getDisplayMetrics().density));
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        titleView.setLayoutParams(titleParams);
+        
+        // Create ScrollView to wrap the track list for scrollability
+        android.widget.ScrollView scrollView = new android.widget.ScrollView(getContext());
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0, // Will use weight
+            1.0f // Weight to fill remaining space
+        );
+        scrollView.setLayoutParams(scrollParams);
+        scrollView.setFillViewport(true); // Ensure content fills the viewport
+        scrollView.setFocusable(false); // Don't intercept focus - let buttons handle it
+        scrollView.setFocusableInTouchMode(false);
+        
+        // Create the track list LinearLayout
+        audioTrackList = new LinearLayout(getContext());
+        audioTrackList.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        audioTrackList.setLayoutParams(listParams);
+        
+        // Add track list to ScrollView
+        scrollView.addView(audioTrackList);
+        
+        // Add views to hierarchy
+        innerContainer.addView(titleView);
+        innerContainer.addView(scrollView);
+        audioTrackListContainer.addView(innerContainer);
+        
+        // Add to the main container (full screen)
+        container.addView(audioTrackListContainer);
     }
 
     private JSObject createSkipObject(int seconds) {
@@ -837,6 +986,188 @@ public class ExoPlayerPlugin extends Plugin {
         notifyListeners(eventName, data);
     }
 
+    /**
+     * Generates a user-friendly display name for an audio track based on codec and channel information
+     */
+    private String getAudioTrackDisplayName(androidx.media3.common.Format format) {
+        String codecName = "";
+        String channelInfo = "";
+        
+        // Check MIME type first (e.g., "audio/ac3", "audio/eac3", "audio/true-hd")
+        String mimeType = format.sampleMimeType;
+        if (mimeType != null && !mimeType.isEmpty()) {
+            String mime = mimeType.toLowerCase();
+            
+            // Extract codec name from MIME type (e.g., "ac3" from "audio/ac3")
+            if (mime.startsWith("audio/")) {
+                String codecPart = mime.substring(6); // Remove "audio/" prefix
+                
+                if (codecPart.contains("true-hd") || codecPart.contains("truehd") || codecPart.contains("mlp")) {
+                    codecName = "truehd";
+                } else if (codecPart.contains("eac3") || codecPart.contains("ec-3")) {
+                    codecName = "eac3";
+                } else if (codecPart.contains("ac3")) {
+                    codecName = "ac3";
+                } else if (codecPart.contains("dts")) {
+                    if (codecPart.contains("dtsx") || codecPart.contains("dts-x")) {
+                        codecName = "dts:x";
+                    } else if (codecPart.contains("dts-hd") || codecPart.contains("dtshd")) {
+                        codecName = "dts-hd";
+                    } else {
+                        codecName = "dts";
+                    }
+                } else if (codecPart.contains("aac")) {
+                    codecName = "aac";
+                } else if (codecPart.contains("opus")) {
+                    codecName = "opus";
+                } else if (codecPart.contains("vorbis")) {
+                    codecName = "vorbis";
+                } else if (codecPart.contains("flac")) {
+                    codecName = "flac";
+                } else if (codecPart.contains("pcm")) {
+                    codecName = "pcm";
+                } else {
+                    // Use the codec part as-is in lowercase (e.g., "ac3" from "audio/ac3")
+                    codecName = codecPart;
+                }
+            }
+        }
+        
+        // If MIME type didn't give us a codec, check codecs field
+        if (codecName.isEmpty() && format.codecs != null && !format.codecs.isEmpty()) {
+            String codecs = format.codecs.toLowerCase();
+            
+            // Map codec strings to user-friendly names (lowercase)
+            if (codecs.contains("truehd") || codecs.contains("mlp")) {
+                codecName = "truehd";
+            } else if (codecs.contains("eac3") || codecs.contains("ec-3")) {
+                codecName = "eac3";
+            } else if (codecs.contains("ac-3") || codecs.contains("ac3")) {
+                codecName = "ac3";
+            } else if (codecs.contains("dts-hd") || codecs.contains("dtshd")) {
+                codecName = "dts-hd";
+            } else if (codecs.contains("dtsx") || codecs.contains("dts-x")) {
+                codecName = "dts:x";
+            } else if (codecs.contains("dts")) {
+                codecName = "dts";
+            } else if (codecs.contains("aac")) {
+                codecName = "aac";
+            } else if (codecs.contains("mp4a") || codecs.contains("mp4")) {
+                codecName = "aac";
+            } else if (codecs.contains("opus")) {
+                codecName = "opus";
+            } else if (codecs.contains("vorbis")) {
+                codecName = "vorbis";
+            } else if (codecs.contains("flac")) {
+                codecName = "flac";
+            } else if (codecs.contains("pcm")) {
+                codecName = "pcm";
+            } else {
+                // Use the codec string as-is in lowercase if we don't recognize it
+                codecName = format.codecs.toLowerCase();
+            }
+        }
+        
+        // Get channel count and format channel info
+        if (format.channelCount > 0) {
+            int channels = format.channelCount;
+            if (channels == 1) {
+                channelInfo = "Mono";
+            } else if (channels == 2) {
+                channelInfo = "Stereo";
+            } else if (channels == 6) {
+                channelInfo = "5.1";
+            } else if (channels == 8) {
+                // Check if it's Atmos (TrueHD with 8 channels often indicates Atmos)
+                if (codecName.equals("truehd") || (format.codecs != null && format.codecs.toLowerCase().contains("truehd"))) {
+                    channelInfo = "atmos";
+                } else {
+                    channelInfo = "7.1";
+                }
+            } else if (channels > 8) {
+                // For more than 8 channels, check for Atmos or DTS:X
+                if (codecName.equals("truehd") || (format.codecs != null && format.codecs.toLowerCase().contains("truehd"))) {
+                    channelInfo = "atmos";
+                } else if (codecName.equals("dts:x") || codecName.equals("dts-hd")) {
+                    channelInfo = "x";
+                } else {
+                    channelInfo = channels + ".1";
+                }
+            } else {
+                channelInfo = channels + "ch";
+            }
+        }
+        
+        // Combine codec and channel info
+        String displayName = "";
+        if (!codecName.isEmpty() && !channelInfo.isEmpty()) {
+            displayName = codecName + " " + channelInfo;
+        } else if (!codecName.isEmpty()) {
+            displayName = codecName;
+        } else if (!channelInfo.isEmpty()) {
+            displayName = channelInfo;
+        } else {
+            // Fallback to label or language
+            displayName = format.label != null ? format.label :
+                (format.language != null ? format.language : "Track");
+        }
+        
+        return displayName;
+    }
+
+    /**
+     * Notifies JavaScript about detected audio tracks
+     */
+    private void notifyAudioTracksDetected(Tracks tracks) {
+        if (tracks == null) {
+            return;
+        }
+
+        try {
+            // Find audio tracks
+            for (Tracks.Group trackGroup : tracks.getGroups()) {
+                if (trackGroup.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
+                    org.json.JSONArray tracksArray = new org.json.JSONArray();
+                    
+                    int currentIndex = -1;
+                    int trackCount = trackGroup.length;
+                    
+                    // Build array of track information
+                    for (int i = 0; i < trackGroup.length; i++) {
+                        androidx.media3.common.Format format = trackGroup.getTrackFormat(i);
+                        String trackName = getAudioTrackDisplayName(format);
+                        
+                        org.json.JSONObject trackInfo = new org.json.JSONObject();
+                        trackInfo.put("id", i);
+                        trackInfo.put("label", trackName);
+                        trackInfo.put("language", format.language != null ? format.language : "");
+                        trackInfo.put("enabled", trackGroup.isTrackSelected(i));
+                        
+                        tracksArray.put(trackInfo);
+                        
+                        if (trackGroup.isTrackSelected(i)) {
+                            currentIndex = i;
+                        }
+                    }
+                    
+                    JSObject audioTracksData = new JSObject();
+                    audioTracksData.put("tracks", tracksArray.toString());
+                    audioTracksData.put("count", trackCount);
+                    audioTracksData.put("currentIndex", currentIndex);
+                    audioTracksData.put("hasMultiple", trackCount > 1);
+                    
+                    // Notify JavaScript listeners
+                    notifyListeners("audioTracksDetected", audioTracksData);
+                    
+                    android.util.Log.d(TAG, "Notified JavaScript about " + trackCount + " audio tracks, current: " + currentIndex);
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Error notifying JavaScript about audio tracks", e);
+        }
+    }
+
     private void updateAudioTrackUI(Tracks tracks) {
         if (audioTrackRow == null || exoPlayer == null) {
             android.util.Log.d("ExoPlayerPlugin", "updateAudioTrackUI: audioTrackRow or exoPlayer is null");
@@ -844,41 +1175,75 @@ public class ExoPlayerPlugin extends Plugin {
         }
 
         getActivity().runOnUiThread(() -> {
-            // Find audio tracks
+            // Collect ALL audio tracks from ALL audio track groups
+            java.util.List<Tracks.Group> audioTrackGroups = new java.util.ArrayList<>();
+            int totalAudioTrackCount = 0;
+            int currentTrackGroupIndex = -1;
+            int currentTrackIndexInGroup = -1;
+            
             for (Tracks.Group trackGroup : tracks.getGroups()) {
                 if (trackGroup.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
-                    android.util.Log.d("ExoPlayerPlugin", "Found audio track group with " + trackGroup.length + " tracks");
-                    // Show audio track selection UI if there are multiple audio tracks
-                    if (trackGroup.length > 1) {
-                        android.util.Log.d("ExoPlayerPlugin", "Showing audio track selection UI - multiple tracks available");
-                        audioTrackRow.setVisibility(View.VISIBLE);
-
-                        // Update current track label
-                        for (int i = 0; i < trackGroup.length; i++) {
-                            if (trackGroup.isTrackSelected(i)) {
-                                androidx.media3.common.Format format = trackGroup.getTrackFormat(i);
-                                String trackName = format.label != null ? format.label :
-                                    (format.language != null ? format.language : "Track " + (i + 1));
-                                if (currentAudioTrackLabel != null) {
-                                    currentAudioTrackLabel.setText("Audio: " + trackName);
-                                    currentAudioTrackLabel.setVisibility(View.VISIBLE);
-                                }
-                                android.util.Log.d("ExoPlayerPlugin", "Current audio track: " + trackName);
-                                selectedAudioTrackIndex = i;
-                                break;
-                            }
+                    audioTrackGroups.add(trackGroup);
+                    totalAudioTrackCount += trackGroup.length;
+                    
+                    // Find currently selected track
+                    for (int i = 0; i < trackGroup.length; i++) {
+                        if (trackGroup.isTrackSelected(i)) {
+                            currentTrackGroupIndex = audioTrackGroups.size() - 1;
+                            currentTrackIndexInGroup = i;
+                            break;
                         }
-
-                        // Populate audio track list
-                        populateAudioTrackList(trackGroup);
-                    } else {
-                        // Hide audio track selection if only one track
-                        android.util.Log.d("ExoPlayerPlugin", "Hiding audio track selection UI - only one track");
-                        audioTrackRow.setVisibility(View.GONE);
-                        hideAudioTrackList();
                     }
-                    break;
                 }
+            }
+            
+            android.util.Log.d("ExoPlayerPlugin", "Total audio tracks found: " + totalAudioTrackCount + " across " + audioTrackGroups.size() + " groups");
+            
+            // Show audio track selection UI if there are multiple audio tracks (across all groups)
+            if (totalAudioTrackCount > 1) {
+                android.util.Log.d("ExoPlayerPlugin", "Showing audio track selection UI - multiple tracks available (" + totalAudioTrackCount + " total)");
+                
+                // Show the audio track button
+                if (audioTrackBtn != null) {
+                    audioTrackBtn.setVisibility(View.VISIBLE);
+                    android.util.Log.d("ExoPlayerPlugin", "Audio track button made VISIBLE");
+                } else {
+                    android.util.Log.w("ExoPlayerPlugin", "Audio track button is null - cannot show");
+                }
+                audioTrackRow.setVisibility(View.VISIBLE);
+
+                // Update current track label
+                if (currentTrackGroupIndex >= 0 && currentTrackIndexInGroup >= 0) {
+                    Tracks.Group selectedGroup = audioTrackGroups.get(currentTrackGroupIndex);
+                    androidx.media3.common.Format format = selectedGroup.getTrackFormat(currentTrackIndexInGroup);
+                    String trackName = getAudioTrackDisplayName(format);
+                    if (currentAudioTrackLabel != null) {
+                        currentAudioTrackLabel.setText("Audio: " + trackName);
+                        currentAudioTrackLabel.setVisibility(View.VISIBLE);
+                    }
+                    android.util.Log.d("ExoPlayerPlugin", "Current audio track: " + trackName);
+                    
+                    // Calculate global track index across all groups
+                    int globalIndex = 0;
+                    for (int g = 0; g < currentTrackGroupIndex; g++) {
+                        globalIndex += audioTrackGroups.get(g).length;
+                    }
+                    globalIndex += currentTrackIndexInGroup;
+                    selectedAudioTrackIndex = globalIndex;
+                }
+
+                // Populate audio track list with all tracks from all groups
+                populateAudioTrackListFromMultipleGroups(audioTrackGroups, selectedAudioTrackIndex);
+            } else {
+                // Hide audio track selection if only one track
+                android.util.Log.d("ExoPlayerPlugin", "Hiding audio track selection UI - only one track");
+                
+                // Hide the audio track button
+                if (audioTrackBtn != null) {
+                    audioTrackBtn.setVisibility(View.GONE);
+                }
+                audioTrackRow.setVisibility(View.GONE);
+                hideAudioTrackList();
             }
         });
     }
@@ -896,8 +1261,7 @@ public class ExoPlayerPlugin extends Plugin {
             // Create a button for each audio track
             for (int i = 0; i < trackGroup.length; i++) {
                 androidx.media3.common.Format format = trackGroup.getTrackFormat(i);
-                String trackName = format.label != null ? format.label :
-                    (format.language != null ? format.language : "Track " + (i + 1));
+                String trackName = getAudioTrackDisplayName(format);
                 boolean isSelected = trackGroup.isTrackSelected(i);
 
                 Button trackButton = new Button(getContext());
@@ -961,8 +1325,10 @@ public class ExoPlayerPlugin extends Plugin {
                                 }
                                 return true;
                             } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_BACK) {
-                                // Move focus back to audio track button
+                                // Move focus back to audio track button and hide the list
+                                android.util.Log.d("ExoPlayerPlugin", "Left/Back pressed on audio track button - hiding list");
                                 audioTrackBtn.requestFocus();
+                                hideAudioTrackList();
                                 return true;
                             } else if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
                                 // Select this track
@@ -980,15 +1346,360 @@ public class ExoPlayerPlugin extends Plugin {
         });
     }
 
-    private void toggleAudioTrackList() {
-        if (audioTrackListContainer == null) {
+    private void populateAudioTrackListFromMultipleGroups(java.util.List<Tracks.Group> audioTrackGroups, int selectedGlobalIndex) {
+        if (audioTrackList == null) {
             return;
         }
 
         getActivity().runOnUiThread(() -> {
+            // Clear existing buttons
+            audioTrackList.removeAllViews();
+            audioTrackButtons.clear();
+
+            int globalIndex = 0;
+            
+            // Create a button for each audio track across all groups
+            for (int groupIdx = 0; groupIdx < audioTrackGroups.size(); groupIdx++) {
+                Tracks.Group trackGroup = audioTrackGroups.get(groupIdx);
+                
+                for (int trackIdx = 0; trackIdx < trackGroup.length; trackIdx++) {
+                    androidx.media3.common.Format format = trackGroup.getTrackFormat(trackIdx);
+                    String trackName = getAudioTrackDisplayName(format);
+                    boolean isSelected = (globalIndex == selectedGlobalIndex);
+
+                    Button trackButton = new Button(getContext());
+                    trackButton.setText(trackName);
+                    trackButton.setTextColor(isSelected ? Color.YELLOW : Color.WHITE);
+                    trackButton.setBackgroundColor(isSelected ? Color.argb(100, 255, 255, 0) : Color.TRANSPARENT);
+                    trackButton.setPadding((int)(20 * getContext().getResources().getDisplayMetrics().density),
+                                           (int)(15 * getContext().getResources().getDisplayMetrics().density),
+                                           (int)(20 * getContext().getResources().getDisplayMetrics().density),
+                                           (int)(15 * getContext().getResources().getDisplayMetrics().density));
+
+                    LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    params.setMargins(0, (int)(5 * getContext().getResources().getDisplayMetrics().density), 0, 0);
+                    trackButton.setLayoutParams(params);
+
+                    trackButton.setFocusable(true);
+                    trackButton.setFocusableInTouchMode(true);
+                    setupButtonFocus(trackButton);
+
+                    final int finalGlobalIndex = globalIndex;
+                    final int finalGroupIdx = groupIdx;
+                    final int finalTrackIdx = trackIdx;
+                    
+                    trackButton.setOnClickListener(v -> {
+                        // #region agent log
+                        android.util.Log.d("ExoPlayerPlugin", "Track button " + finalGlobalIndex + " clicked - calling selectAudioTrackFromMultipleGroups");
+                        android.util.Log.d("ExoPlayerPlugin", "  - controlsVisible: " + controlsVisible);
+                        android.util.Log.d("ExoPlayerPlugin", "  - isShowingAudioTrackList: " + isShowingAudioTrackList);
+                        android.util.Log.d("ExoPlayerPlugin", "  - button clickable: " + trackButton.isClickable() + ", enabled: " + trackButton.isEnabled() + ", visibility: " + trackButton.getVisibility());
+                        android.util.Log.d("ExoPlayerPlugin", "  - container visibility: " + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null"));
+                        // #endregion
+                        selectAudioTrackFromMultipleGroups(audioTrackGroups, finalGlobalIndex, finalGroupIdx, finalTrackIdx);
+                    });
+
+                    // Set up focus change listener to update selection
+                    trackButton.setOnFocusChangeListener(new OnFocusChangeListener() {
+                        @Override
+                        public void onFocusChange(View v, boolean hasFocus) {
+                            android.util.Log.d("ExoPlayerPlugin", "Track button " + finalGlobalIndex + " focus changed: " + hasFocus);
+                            if (hasFocus) {
+                                // Highlight focused item
+                                trackButton.setBackgroundColor(Color.argb(150, 255, 255, 255));
+                            } else {
+                                // Reset to normal or selected state
+                                boolean isCurrentlySelected = finalGlobalIndex == selectedAudioTrackIndex;
+                                trackButton.setBackgroundColor(isCurrentlySelected ? Color.argb(100, 255, 255, 0) : Color.TRANSPARENT);
+                                trackButton.setTextColor(isCurrentlySelected ? Color.YELLOW : Color.WHITE);
+                            }
+                        }
+                    });
+
+                    // Set up key listener for navigation
+                    trackButton.setOnKeyListener(new View.OnKeyListener() {
+                        @Override
+                        public boolean onKey(View v, int keyCode, KeyEvent event) {
+                            // #region agent log
+                            android.util.Log.d("ExoPlayerPlugin", "Track button " + finalGlobalIndex + " key listener - keyCode: " + keyCode + ", action: " + event.getAction());
+                            android.util.Log.d("ExoPlayerPlugin", "  - button hasFocus: " + trackButton.hasFocus() + ", isFocused: " + trackButton.isFocused());
+                            android.util.Log.d("ExoPlayerPlugin", "  - container visibility: " + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null"));
+                            android.util.Log.d("ExoPlayerPlugin", "  - button parent: " + (trackButton.getParent() != null ? trackButton.getParent().getClass().getSimpleName() : "null"));
+                            // #endregion
+                            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                                    android.util.Log.d("ExoPlayerPlugin", "DPAD_UP on track " + finalGlobalIndex);
+                                    // Move focus to previous item or back to button
+                                    if (finalGlobalIndex > 0) {
+                                        android.util.Log.d("ExoPlayerPlugin", "Moving focus to track " + (finalGlobalIndex - 1));
+                                        audioTrackButtons.get(finalGlobalIndex - 1).requestFocus();
+                                    } else {
+                                        android.util.Log.d("ExoPlayerPlugin", "Moving focus to audio track button");
+                                        audioTrackBtn.requestFocus();
+                                    }
+                                    return true;
+                                } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                                    android.util.Log.d("ExoPlayerPlugin", "DPAD_DOWN on track " + finalGlobalIndex);
+                                    // Move focus to next item
+                                    if (finalGlobalIndex < audioTrackButtons.size() - 1) {
+                                        android.util.Log.d("ExoPlayerPlugin", "Moving focus to track " + (finalGlobalIndex + 1));
+                                        audioTrackButtons.get(finalGlobalIndex + 1).requestFocus();
+                                    } else {
+                                        android.util.Log.d("ExoPlayerPlugin", "Already at last track");
+                                    }
+                                    return true;
+                                } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_BACK) {
+                                    // Move focus back to audio track button and hide the list
+                                    android.util.Log.d("ExoPlayerPlugin", "Left/Back pressed on audio track button - hiding list");
+                                    audioTrackBtn.requestFocus();
+                                    hideAudioTrackList();
+                                    return true;
+                                } else if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+                                    // #region agent log
+                                    android.util.Log.d("ExoPlayerPlugin", "Enter pressed on track " + finalGlobalIndex + " - selecting track");
+                                    android.util.Log.d("ExoPlayerPlugin", "  - button clickable: " + trackButton.isClickable() + ", enabled: " + trackButton.isEnabled() + ", visibility: " + trackButton.getVisibility());
+                                    android.util.Log.d("ExoPlayerPlugin", "  - container visibility: " + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null"));
+                                    android.util.Log.d("ExoPlayerPlugin", "  - isShowingAudioTrackList: " + isShowingAudioTrackList);
+                                    android.util.Log.d("ExoPlayerPlugin", "  - audioTrackGroups size: " + (audioTrackGroups != null ? audioTrackGroups.size() : "null"));
+                                    // #endregion
+                                    // Select this track
+                                    selectAudioTrackFromMultipleGroups(audioTrackGroups, finalGlobalIndex, finalGroupIdx, finalTrackIdx);
+                                    return true;
+                                }
+                            }
+                            android.util.Log.d("ExoPlayerPlugin", "Track button key listener returning false for keyCode: " + keyCode);
+                            return false;
+                        }
+                    });
+
+                    audioTrackList.addView(trackButton);
+                    audioTrackButtons.add(trackButton);
+                    
+                    globalIndex++;
+                }
+            }
+            
+            android.util.Log.d("ExoPlayerPlugin", "Populated " + globalIndex + " audio track buttons from " + audioTrackGroups.size() + " groups");
+        });
+    }
+
+    private void selectAudioTrackFromMultipleGroups(java.util.List<Tracks.Group> audioTrackGroups, int globalIndex, int groupIdx, int trackIdx) {
+        if (exoPlayer == null || groupIdx < 0 || groupIdx >= audioTrackGroups.size()) {
+            android.util.Log.w("ExoPlayerPlugin", "Cannot select audio track: invalid group index");
+            return;
+        }
+
+        Tracks.Group targetGroup = audioTrackGroups.get(groupIdx);
+        if (trackIdx < 0 || trackIdx >= targetGroup.length) {
+            android.util.Log.w("ExoPlayerPlugin", "Cannot select audio track: invalid track index");
+            return;
+        }
+
+        androidx.media3.common.Format format = targetGroup.getTrackFormat(trackIdx);
+        String trackName = getAudioTrackDisplayName(format);
+
+        // Get the media track group for this audio track
+        TrackGroup mediaTrackGroup = targetGroup.getMediaTrackGroup();
+        
+        // #region agent log
+        android.util.Log.d("ExoPlayerPlugin", "Track selection details:");
+        android.util.Log.d("ExoPlayerPlugin", "  - globalIndex: " + globalIndex);
+        android.util.Log.d("ExoPlayerPlugin", "  - groupIdx: " + groupIdx + " (of " + audioTrackGroups.size() + " groups)");
+        android.util.Log.d("ExoPlayerPlugin", "  - trackIdx: " + trackIdx + " (of " + targetGroup.length + " tracks in group)");
+        android.util.Log.d("ExoPlayerPlugin", "  - trackName: " + trackName);
+        android.util.Log.d("ExoPlayerPlugin", "  - mediaTrackGroup tracks: " + mediaTrackGroup.length);
+        for (int i = 0; i < mediaTrackGroup.length; i++) {
+            androidx.media3.common.Format f = mediaTrackGroup.getFormat(i);
+            android.util.Log.d("ExoPlayerPlugin", "    Track " + i + ": " + getAudioTrackDisplayName(f));
+        }
+        // #endregion
+        
+        // Get current track selection parameters
+        TrackSelectionParameters currentTrackParams = exoPlayer.getTrackSelectionParameters();
+        
+        // Create the override for the selected track
+        TrackSelectionOverride override = new TrackSelectionOverride(mediaTrackGroup, Collections.singletonList(trackIdx));
+        
+        // #region agent log
+        android.util.Log.d("ExoPlayerPlugin", "Creating override for trackIdx: " + trackIdx + " in mediaTrackGroup with " + mediaTrackGroup.length + " tracks");
+        android.util.Log.d("ExoPlayerPlugin", "Current track selection parameters before change:");
+        android.util.Log.d("ExoPlayerPlugin", "  - Overrides count: " + currentTrackParams.overrides.size());
+        for (java.util.Map.Entry<TrackGroup, TrackSelectionOverride> entry : currentTrackParams.overrides.entrySet()) {
+            TrackGroup tg = entry.getKey();
+            android.util.Log.d("ExoPlayerPlugin", "    Override: TrackGroup with " + tg.length + " tracks");
+        }
+        // #endregion
+        
+        // Clear all existing audio track overrides first, then add the new one
+        // This ensures only one audio track is selected at a time
+        TrackSelectionParameters.Builder paramsBuilder = currentTrackParams.buildUpon();
+        
+        // #region agent log
+        int audioOverrideCount = 0;
+        for (java.util.Map.Entry<TrackGroup, TrackSelectionOverride> entry : currentTrackParams.overrides.entrySet()) {
+            TrackGroup tg = entry.getKey();
+            // Check if this is an audio track group by looking at the format
+            if (tg.length > 0) {
+                androidx.media3.common.Format firstFormat = tg.getFormat(0);
+                if (firstFormat != null && firstFormat.sampleMimeType != null && firstFormat.sampleMimeType.startsWith("audio/")) {
+                    audioOverrideCount++;
+                }
+            }
+        }
+        android.util.Log.d("ExoPlayerPlugin", "Found " + audioOverrideCount + " existing audio track overrides to clear");
+        // #endregion
+        
+        // Clear all audio track overrides using clearOverridesOfType
+        paramsBuilder.clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_AUDIO);
+        
+        // Now add the new override
+        paramsBuilder.addOverride(override);
+        
+        TrackSelectionParameters newParams = paramsBuilder.build();
+        
+        // #region agent log
+        android.util.Log.d("ExoPlayerPlugin", "New track selection parameters:");
+        android.util.Log.d("ExoPlayerPlugin", "  - Overrides count: " + newParams.overrides.size());
+        for (java.util.Map.Entry<TrackGroup, TrackSelectionOverride> entry : newParams.overrides.entrySet()) {
+            TrackGroup tg = entry.getKey();
+            android.util.Log.d("ExoPlayerPlugin", "    Override: TrackGroup with " + tg.length + " tracks");
+        }
+        // #endregion
+        
+        exoPlayer.setTrackSelectionParameters(newParams);
+        
+        // #region agent log
+        // Immediately check what ExoPlayer reports as selected (before onTracksChanged)
+        android.util.Log.d("ExoPlayerPlugin", "Verifying track selection immediately after setTrackSelectionParameters...");
+        Tracks currentTracks = exoPlayer.getCurrentTracks();
+        if (currentTracks != null) {
+            for (Tracks.Group trackGroupCheck : currentTracks.getGroups()) {
+                if (trackGroupCheck.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
+                    for (int i = 0; i < trackGroupCheck.length; i++) {
+                        if (trackGroupCheck.isTrackSelected(i)) {
+                            androidx.media3.common.Format formatCheck = trackGroupCheck.getTrackFormat(i);
+                            String trackNameCheck = getAudioTrackDisplayName(formatCheck);
+                            android.util.Log.d("ExoPlayerPlugin", "IMMEDIATELY AFTER SELECTION - Selected audio track: " + trackNameCheck + " (index " + i + " in group)");
+                        }
+                    }
+                }
+            }
+        } else {
+            android.util.Log.d("ExoPlayerPlugin", "IMMEDIATELY AFTER SELECTION - currentTracks is null");
+        }
+        // #endregion
+
+        selectedAudioTrackIndex = globalIndex;
+
+        android.util.Log.d("ExoPlayerPlugin", "Selected audio track: " + globalIndex + " (" + trackName + ") from group " + groupIdx + ", track " + trackIdx + " - Track switching applied to ExoPlayer");
+
+        // Update UI and hide the audio list
+        getActivity().runOnUiThread(() -> {
+            // #region agent log
+            android.util.Log.d("ExoPlayerPlugin", "Updating UI after track selection - buttons count: " + audioTrackButtons.size() + ", selected index: " + globalIndex);
+            // #endregion
+            
+            // Update button colors
+            for (int i = 0; i < audioTrackButtons.size(); i++) {
+                Button btn = audioTrackButtons.get(i);
+                if (btn == null) {
+                    // #region agent log
+                    android.util.Log.w("ExoPlayerPlugin", "Button " + i + " is null!");
+                    // #endregion
+                    continue;
+                }
+                if (i == globalIndex) {
+                    btn.setTextColor(Color.YELLOW);
+                    btn.setBackgroundColor(Color.argb(100, 255, 255, 0));
+                } else {
+                    btn.setTextColor(Color.WHITE);
+                    btn.setBackgroundColor(Color.TRANSPARENT);
+                }
+                // #region agent log
+                android.util.Log.d("ExoPlayerPlugin", "Button " + i + " updated - clickable: " + btn.isClickable() + ", enabled: " + btn.isEnabled() + ", visibility: " + btn.getVisibility() + ", hasOnClick: " + btn.hasOnClickListeners());
+                // #endregion
+            }
+
+            // Update label
+            if (currentAudioTrackLabel != null) {
+                currentAudioTrackLabel.setText("Audio: " + trackName);
+            }
+            
+            // Hide the audio track list and show controls after selection
+            android.util.Log.d("ExoPlayerPlugin", "Hiding audio track list after track selection");
+            isShowingAudioTrackList = false;
+            if (audioTrackListContainer != null) {
+                audioTrackListContainer.setVisibility(View.GONE);
+                // #region agent log
+                android.util.Log.d("ExoPlayerPlugin", "Set audioTrackListContainer visibility to GONE (8) after track selection, actual visibility: " + audioTrackListContainer.getVisibility());
+                // #endregion
+            }
+            
+            // Suppress auto-show when we programmatically focus the button after selection
+            suppressAutoShowAudioList = true;
+            // #region agent log
+            android.util.Log.d("ExoPlayerPlugin", "Set suppressAutoShowAudioList = true before focusing button after track selection");
+            // #endregion
+            
+            // Show controls and focus the audio track button
+            showControls(null);
+            if (audioTrackBtn != null) {
+                // #region agent log
+                android.util.Log.d("ExoPlayerPlugin", "Requesting focus on audioTrackBtn after track selection, button focusable: " + audioTrackBtn.isFocusable());
+                // #endregion
+                boolean focusResult = audioTrackBtn.requestFocus();
+                // #region agent log
+                android.util.Log.d("ExoPlayerPlugin", "Focus request result on audioTrackBtn: " + focusResult + ", hasFocus: " + audioTrackBtn.hasFocus());
+                // #endregion
+            }
+            
+            // Re-enable auto-show after a short delay to allow focus to settle
+            audioTrackBtn.postDelayed(() -> {
+                suppressAutoShowAudioList = false;
+                // #region agent log
+                android.util.Log.d("ExoPlayerPlugin", "Set suppressAutoShowAudioList = false after delay, audioTrackBtn hasFocus: " + (audioTrackBtn != null ? audioTrackBtn.hasFocus() : "null"));
+                // Verify track buttons still have click handlers
+                android.util.Log.d("ExoPlayerPlugin", "Verifying track buttons after track selection - buttons count: " + audioTrackButtons.size());
+                for (int i = 0; i < audioTrackButtons.size(); i++) {
+                    Button btn = audioTrackButtons.get(i);
+                    if (btn != null) {
+                        android.util.Log.d("ExoPlayerPlugin", "Track button " + i + " - clickable: " + btn.isClickable() + ", enabled: " + btn.isEnabled() + ", visibility: " + btn.getVisibility() + ", hasOnClick: " + btn.hasOnClickListeners());
+                    } else {
+                        android.util.Log.w("ExoPlayerPlugin", "Track button " + i + " is NULL!");
+                    }
+                }
+                // #endregion
+            }, 300);
+        });
+    }
+
+    private void toggleAudioTrackList() {
+        if (audioTrackListContainer == null) {
+            // #region agent log
+            android.util.Log.d("ExoPlayerPlugin", "toggleAudioTrackList() called but container is null");
+            // #endregion
+            return;
+        }
+
+        getActivity().runOnUiThread(() -> {
+            // #region agent log
+            android.util.Log.d("ExoPlayerPlugin", "toggleAudioTrackList() - current visibility: " + audioTrackListContainer.getVisibility() + ", isShowingAudioTrackList: " + isShowingAudioTrackList);
+            // #endregion
+            
             if (audioTrackListContainer.getVisibility() == View.VISIBLE) {
+                // #region agent log
+                android.util.Log.d("ExoPlayerPlugin", "toggleAudioTrackList() - hiding list");
+                // #endregion
                 hideAudioTrackList();
             } else {
+                // #region agent log
+                android.util.Log.d("ExoPlayerPlugin", "toggleAudioTrackList() - showing list");
+                // #endregion
+                // Clear suppress flag when user explicitly toggles
+                suppressAutoShowAudioList = false;
                 showAudioTrackList();
             }
         });
@@ -996,16 +1707,81 @@ public class ExoPlayerPlugin extends Plugin {
 
     private void showAudioTrackList() {
         if (audioTrackListContainer == null || audioTrackList == null) {
+            // #region agent log
+            android.util.Log.d("ExoPlayerPlugin", "showAudioTrackList() called but container or list is null");
+            // #endregion
             return;
         }
 
         getActivity().runOnUiThread(() -> {
+            android.util.Log.d("ExoPlayerPlugin", "showAudioTrackList() called");
+            // #region agent log
+            android.util.Log.d("ExoPlayerPlugin", "showAudioTrackList - container visibility before: " + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null") + ", buttons count: " + audioTrackButtons.size());
+            // #endregion
+            
+            // Set flag to prevent hideControls from hiding the audio list
+            isShowingAudioTrackList = true;
+            android.util.Log.d("ExoPlayerPlugin", "Set isShowingAudioTrackList = true");
+            
+            // Hide controls when showing audio track list
+            android.util.Log.d("ExoPlayerPlugin", "Calling hideControls() to hide controls");
+            hideControls(null);
+            
+            // Clear focus from containerView so buttons can receive focus
+            if (containerView != null && containerView.hasFocus()) {
+                containerView.clearFocus();
+                android.util.Log.d("ExoPlayerPlugin", "Cleared focus from containerView");
+            }
+            
             audioTrackListContainer.setVisibility(View.VISIBLE);
+            // #region agent log
+            android.util.Log.d("ExoPlayerPlugin", "Set audioTrackListContainer visibility to VISIBLE (0), current visibility: " + audioTrackListContainer.getVisibility());
+            android.util.Log.d("ExoPlayerPlugin", "Verifying track buttons when showing list - buttons count: " + audioTrackButtons.size());
+            for (int i = 0; i < audioTrackButtons.size(); i++) {
+                Button btn = audioTrackButtons.get(i);
+                if (btn != null) {
+                    android.util.Log.d("ExoPlayerPlugin", "Track button " + i + " - clickable: " + btn.isClickable() + ", enabled: " + btn.isEnabled() + ", visibility: " + btn.getVisibility() + ", hasOnClick: " + btn.hasOnClickListeners() + ", parent: " + (btn.getParent() != null ? btn.getParent().getClass().getSimpleName() : "null"));
+                } else {
+                    android.util.Log.w("ExoPlayerPlugin", "Track button " + i + " is NULL when showing list!");
+                }
+            }
+            // #endregion
+            
             // Focus the first track button or currently selected one
             if (!audioTrackButtons.isEmpty()) {
                 int focusIndex = selectedAudioTrackIndex >= 0 && selectedAudioTrackIndex < audioTrackButtons.size()
                     ? selectedAudioTrackIndex : 0;
-                audioTrackButtons.get(focusIndex).requestFocus();
+                android.util.Log.d("ExoPlayerPlugin", "Showing audio track list, focusing button " + focusIndex + " of " + audioTrackButtons.size());
+                Button focusButton = audioTrackButtons.get(focusIndex);
+                android.util.Log.d("ExoPlayerPlugin", "Button focusable: " + focusButton.isFocusable() + ", focusableInTouchMode: " + focusButton.isFocusableInTouchMode());
+                
+                // Post the focus request to ensure it happens after the view is visible
+                // Use a longer delay to ensure hideControls animation has completed
+                focusButton.postDelayed(() -> {
+                    // Clear any focus from containerView first
+                    if (containerView != null && containerView.hasFocus()) {
+                        containerView.clearFocus();
+                        android.util.Log.d("ExoPlayerPlugin", "Cleared focus from containerView before focusing button");
+                    }
+                    
+                    boolean focusResult = focusButton.requestFocus();
+                    android.util.Log.d("ExoPlayerPlugin", "Focus request result: " + focusResult + ", button has focus: " + focusButton.hasFocus());
+                    // Also check which view currently has focus
+                    View focusedView = getActivity().getCurrentFocus();
+                    android.util.Log.d("ExoPlayerPlugin", "Current focused view: " + (focusedView != null ? focusedView.getClass().getSimpleName() : "null"));
+                    if (focusedView == focusButton) {
+                        android.util.Log.d("ExoPlayerPlugin", "SUCCESS: Track button has focus!");
+                    } else {
+                        android.util.Log.w("ExoPlayerPlugin", "WARNING: Track button does NOT have focus. Focused view: " + (focusedView != null ? focusedView.toString() : "null"));
+                        // Try one more time after a short delay
+                        focusButton.postDelayed(() -> {
+                            focusButton.requestFocus();
+                            android.util.Log.d("ExoPlayerPlugin", "Retry focus request - button has focus: " + focusButton.hasFocus());
+                        }, 100);
+                    }
+                }, 350); // Wait 350ms to ensure hideControls animation (300ms) has completed
+            } else {
+                android.util.Log.w("ExoPlayerPlugin", "No audio track buttons available to focus");
             }
         });
     }
@@ -1016,17 +1792,35 @@ public class ExoPlayerPlugin extends Plugin {
         }
 
         getActivity().runOnUiThread(() -> {
+            android.util.Log.d("ExoPlayerPlugin", "Hiding audio track list");
+            // Clear the flag since we're hiding the list
+            isShowingAudioTrackList = false;
             audioTrackListContainer.setVisibility(View.GONE);
+            
+            // Only show controls if they're not already hidden
+            // This prevents showing controls when they're being auto-hidden
+            if (controlsVisible && controlsView != null && controlsView.getVisibility() == View.VISIBLE) {
+                // Controls are already visible, just reset the timer
+                resetControlsHideTimer();
+            } else if (!controlsVisible && !isShowingAudioTrackList) {
+                // Show controls again when hiding audio track list (if controls were hidden and we're not showing the list)
+                android.util.Log.d("ExoPlayerPlugin", "Showing controls after hiding audio track list");
+                showControls(null);
+            } else if (isShowingAudioTrackList) {
+                android.util.Log.d("ExoPlayerPlugin", "NOT showing controls - isShowingAudioTrackList is true (audio list is being shown)");
+            }
         });
     }
 
     private void selectAudioTrack(int trackIndex) {
         if (exoPlayer == null || trackSelector == null) {
+            android.util.Log.w("ExoPlayerPlugin", "Cannot select audio track: exoPlayer or trackSelector is null");
             return;
         }
 
         Tracks tracks = exoPlayer.getCurrentTracks();
         if (tracks == null) {
+            android.util.Log.w("ExoPlayerPlugin", "Cannot select audio track: no tracks available");
             return;
         }
 
@@ -1040,6 +1834,7 @@ public class ExoPlayerPlugin extends Plugin {
         }
 
         if (audioTrackGroup == null || trackIndex < 0 || trackIndex >= audioTrackGroup.length) {
+            android.util.Log.w("ExoPlayerPlugin", "Cannot select audio track: invalid track index " + trackIndex + " (available: " + (audioTrackGroup != null ? audioTrackGroup.length : 0) + ")");
             return;
         }
 
@@ -1047,13 +1842,20 @@ public class ExoPlayerPlugin extends Plugin {
         final Tracks.Group finalAudioTrackGroup = audioTrackGroup;
         final int finalTrackIndex = trackIndex;
         androidx.media3.common.Format format = audioTrackGroup.getTrackFormat(trackIndex);
-        final String trackName = format.label != null ? format.label :
-            (format.language != null ? format.language : "Track " + (trackIndex + 1));
+        final String trackName = getAudioTrackDisplayName(format);
 
-        // Select the track
+        // Get the media track group for this audio track
         final TrackGroup mediaTrackGroup = audioTrackGroup.getMediaTrackGroup();
-        TrackSelectionOverride override = new TrackSelectionOverride(mediaTrackGroup, Collections.singletonList(trackIndex));
+        
+        // Get current track selection parameters
         TrackSelectionParameters currentTrackParams = exoPlayer.getTrackSelectionParameters();
+        
+        // Create the override for the selected track
+        // Note: addOverride() will automatically replace any existing override for the same TrackGroup
+        TrackSelectionOverride override = new TrackSelectionOverride(mediaTrackGroup, Collections.singletonList(trackIndex));
+        
+        // Apply the new track selection parameters
+        // addOverride() replaces any existing override for the same TrackGroup, so we don't need to manually remove it
         exoPlayer.setTrackSelectionParameters(
             currentTrackParams.buildUpon()
                 .addOverride(override)
@@ -1061,6 +1863,8 @@ public class ExoPlayerPlugin extends Plugin {
         );
 
         selectedAudioTrackIndex = trackIndex;
+
+        android.util.Log.d("ExoPlayerPlugin", "Selected audio track: " + trackIndex + " (" + trackName + ")");
 
         // Update UI
         getActivity().runOnUiThread(() -> {
@@ -1081,8 +1885,6 @@ public class ExoPlayerPlugin extends Plugin {
                 currentAudioTrackLabel.setText("Audio: " + trackName);
             }
         });
-
-        android.util.Log.d("ExoPlayerPlugin", "Selected audio track: " + trackIndex);
     }
 
     private void showAudioTrackSelectionDialog() {
@@ -1116,8 +1918,7 @@ public class ExoPlayerPlugin extends Plugin {
         String[] trackNames = new String[audioTrackGroup.length];
         for (int i = 0; i < audioTrackGroup.length; i++) {
             androidx.media3.common.Format format = audioTrackGroup.getTrackFormat(i);
-            String trackName = format.label != null ? format.label :
-                (format.language != null ? format.language : "Track " + (i + 1));
+            String trackName = getAudioTrackDisplayName(format);
             trackNames[i] = trackName;
         }
 
@@ -1145,10 +1946,12 @@ public class ExoPlayerPlugin extends Plugin {
             }
 
             if (rendererIndex >= 0) {
-                // Select the chosen track
+                // Select the chosen track using the same method as selectAudioTrack
                 TrackSelectionOverride override = new TrackSelectionOverride(mediaTrackGroup, Collections.singletonList(which));
                 // Apply the track selection override directly to ExoPlayer
                 TrackSelectionParameters currentTrackParams = exoPlayer.getTrackSelectionParameters();
+                
+                // addOverride() will automatically replace any existing override for the same TrackGroup
                 exoPlayer.setTrackSelectionParameters(
                     currentTrackParams.buildUpon()
                         .addOverride(override)
@@ -1257,8 +2060,9 @@ public class ExoPlayerPlugin extends Plugin {
                         });
                     }
 
-                    // Send event to JavaScript
-                    notifyListeners("timeupdate", timeData);
+                    // Note: timeupdate events are not currently used by JavaScript
+                    // Removed notifyListeners call to reduce log noise
+                    // If needed in the future, uncomment: notifyListeners("timeupdate", timeData);
 
                     // Schedule next update (every 250ms for smooth updates)
                     // Only schedule if not seeking and seekbar is not pressed
@@ -1427,6 +2231,84 @@ public class ExoPlayerPlugin extends Plugin {
                         }
 
                         @Override
+                        public void onTracksChanged(Tracks tracks) {
+                            android.util.Log.d(TAG, "onTracksChanged called - tracks: " + (tracks != null ? "not null" : "null"));
+                            if (tracks != null) {
+                                android.util.Log.d(TAG, "Total track groups count: " + tracks.getGroups().size());
+                                
+                                // #region agent log
+                                // Log currently selected audio track after change
+                                for (Tracks.Group trackGroup : tracks.getGroups()) {
+                                    if (trackGroup.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
+                                        for (int i = 0; i < trackGroup.length; i++) {
+                                            if (trackGroup.isTrackSelected(i)) {
+                                                androidx.media3.common.Format format = trackGroup.getTrackFormat(i);
+                                                String trackName = getAudioTrackDisplayName(format);
+                                                android.util.Log.d(TAG, "CURRENTLY SELECTED AUDIO TRACK after onTracksChanged: " + trackName + " (index " + i + " in group)");
+                                            }
+                                        }
+                                    }
+                                }
+                                // #endregion
+                                
+                                // Log details about all track types
+                                int videoTrackCount = 0;
+                                int audioTrackCount = 0;
+                                int subtitleTrackCount = 0;
+                                int otherTrackCount = 0;
+                                
+                                for (Tracks.Group trackGroup : tracks.getGroups()) {
+                                    int trackType = trackGroup.getType();
+                                    int trackLength = trackGroup.length;
+                                    
+                                    if (trackType == androidx.media3.common.C.TRACK_TYPE_VIDEO) {
+                                        videoTrackCount += trackLength;
+                                        android.util.Log.d(TAG, "Video track group found with " + trackLength + " track(s)");
+                                        for (int i = 0; i < trackLength; i++) {
+                                            androidx.media3.common.Format format = trackGroup.getTrackFormat(i);
+                                            String codec = format.codecs != null ? format.codecs : "unknown";
+                                            String resolution = format.width > 0 && format.height > 0 ? 
+                                                format.width + "x" + format.height : "unknown";
+                                            boolean isSelected = trackGroup.isTrackSelected(i);
+                                            android.util.Log.d(TAG, "  Video track " + i + ": codec=" + codec + 
+                                                ", resolution=" + resolution + ", selected=" + isSelected);
+                                        }
+                                    } else if (trackType == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
+                                        audioTrackCount += trackLength;
+                                        android.util.Log.d(TAG, "Audio track group found with " + trackLength + " track(s)");
+                                        for (int i = 0; i < trackLength; i++) {
+                                            androidx.media3.common.Format format = trackGroup.getTrackFormat(i);
+                                            String label = format.label != null ? format.label : 
+                                                (format.language != null ? format.language : "Track " + (i + 1));
+                                            String codec = format.codecs != null ? format.codecs : "unknown";
+                                            int channels = format.channelCount > 0 ? format.channelCount : 0;
+                                            boolean isSelected = trackGroup.isTrackSelected(i);
+                                            android.util.Log.d(TAG, "  Audio track " + i + ": label=" + label + 
+                                                ", codec=" + codec + ", channels=" + channels + ", selected=" + isSelected);
+                                        }
+                                    } else if (trackType == androidx.media3.common.C.TRACK_TYPE_TEXT) {
+                                        subtitleTrackCount += trackLength;
+                                        android.util.Log.d(TAG, "Subtitle/text track group found with " + trackLength + " track(s)");
+                                    } else {
+                                        otherTrackCount += trackLength;
+                                        android.util.Log.d(TAG, "Other track group (type=" + trackType + ") found with " + trackLength + " track(s)");
+                                    }
+                                }
+                                
+                                android.util.Log.d(TAG, "Track summary - Video: " + videoTrackCount + 
+                                    ", Audio: " + audioTrackCount + 
+                                    ", Subtitle: " + subtitleTrackCount + 
+                                    ", Other: " + otherTrackCount);
+                            }
+                            
+                            // Update audio track UI when tracks change
+                            updateAudioTrackUI(tracks);
+                            
+                            // Notify JavaScript about available audio tracks
+                            notifyAudioTracksDetected(tracks);
+                        }
+
+                        @Override
                         public void onPlayerError(PlaybackException error) {
                             String errorMessage = "Playback error: " + error.getMessage();
                             if (error.getCause() != null) {
@@ -1563,6 +2445,73 @@ public class ExoPlayerPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getAudioTracks(PluginCall call) {
+        if (exoPlayer == null) {
+            call.reject("ExoPlayer not initialized");
+            return;
+        }
+
+        Tracks tracks = exoPlayer.getCurrentTracks();
+        if (tracks == null) {
+            JSObject ret = new JSObject();
+            ret.put("tracks", "[]");
+            ret.put("count", 0);
+            ret.put("currentIndex", -1);
+            ret.put("hasMultiple", false);
+            call.resolve(ret);
+            return;
+        }
+
+        try {
+            // Find audio tracks
+            for (Tracks.Group trackGroup : tracks.getGroups()) {
+                if (trackGroup.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
+                    org.json.JSONArray tracksArray = new org.json.JSONArray();
+                    
+                    int currentIndex = -1;
+                    int trackCount = trackGroup.length;
+                    
+                    // Build array of track information
+                    for (int i = 0; i < trackGroup.length; i++) {
+                        androidx.media3.common.Format format = trackGroup.getTrackFormat(i);
+                        String trackName = getAudioTrackDisplayName(format);
+                        
+                        org.json.JSONObject trackInfo = new org.json.JSONObject();
+                        trackInfo.put("id", i);
+                        trackInfo.put("label", trackName);
+                        trackInfo.put("language", format.language != null ? format.language : "");
+                        trackInfo.put("enabled", trackGroup.isTrackSelected(i));
+                        
+                        tracksArray.put(trackInfo);
+                        
+                        if (trackGroup.isTrackSelected(i)) {
+                            currentIndex = i;
+                        }
+                    }
+                    
+                    JSObject ret = new JSObject();
+                    ret.put("tracks", tracksArray.toString());
+                    ret.put("count", trackCount);
+                    ret.put("currentIndex", currentIndex);
+                    ret.put("hasMultiple", trackCount > 1);
+                    call.resolve(ret);
+                    return;
+                }
+            }
+            
+            // No audio tracks found
+            JSObject ret = new JSObject();
+            ret.put("tracks", "[]");
+            ret.put("count", 0);
+            ret.put("currentIndex", -1);
+            ret.put("hasMultiple", false);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Error getting audio tracks: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void showControls(PluginCall call) {
         if (controlsView == null) {
             if (call != null) call.resolve();
@@ -1573,6 +2522,17 @@ public class ExoPlayerPlugin extends Plugin {
             // Always set visibility first (in case it was GONE)
             controlsView.setVisibility(View.VISIBLE);
             controlsVisible = true;
+
+            // Only hide audio track list when controls are shown if we're not intentionally showing it
+            // #region agent log
+            android.util.Log.d("ExoPlayerPlugin", "showControls - checking audio list: isShowingAudioTrackList=" + isShowingAudioTrackList + ", container null=" + (audioTrackListContainer == null) + ", container visibility=" + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null") + ", buttons count=" + audioTrackButtons.size());
+            // #endregion
+            if (!isShowingAudioTrackList && audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.VISIBLE) {
+                android.util.Log.d("ExoPlayerPlugin", "Hiding audio track list because controls are being shown (not showing audio list)");
+                audioTrackListContainer.setVisibility(View.GONE);
+            } else if (isShowingAudioTrackList) {
+                android.util.Log.d("ExoPlayerPlugin", "NOT hiding audio track list in showControls - isShowingAudioTrackList flag is true");
+            }
 
             // Animate alpha to visible
             controlsView.animate()
@@ -1610,12 +2570,47 @@ public class ExoPlayerPlugin extends Plugin {
                 .setDuration(300)
                 .withEndAction(() -> {
                     controlsView.setVisibility(View.GONE);
-                    // Re-request focus on containerView when controls are hidden
-                    // This ensures we can still receive D-pad key events
-                    if (containerView != null) {
-                        containerView.requestFocus();
+                    
+                    // Only hide audio track list if we're not intentionally showing it
+                    // #region agent log
+                    android.util.Log.d("ExoPlayerPlugin", "hideControls - checking audio list: isShowingAudioTrackList=" + isShowingAudioTrackList + ", container null=" + (audioTrackListContainer == null) + ", container visibility=" + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null") + ", buttons count=" + audioTrackButtons.size());
+                    // #endregion
+                    if (!isShowingAudioTrackList && audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.VISIBLE) {
+                        android.util.Log.d("ExoPlayerPlugin", "Hiding audio track list because controls are being hidden (not showing audio list)");
+                        audioTrackListContainer.setVisibility(View.GONE);
+                        // #region agent log
+                        android.util.Log.d("ExoPlayerPlugin", "Audio list hidden - checking if track buttons are still clickable");
+                        for (int i = 0; i < audioTrackButtons.size(); i++) {
+                            Button btn = audioTrackButtons.get(i);
+                            android.util.Log.d("ExoPlayerPlugin", "Track button " + i + " - clickable: " + btn.isClickable() + ", enabled: " + btn.isEnabled() + ", visibility: " + btn.getVisibility() + ", hasOnClick: " + (btn.hasOnClickListeners()));
+                        }
+                        // #endregion
+                    } else if (isShowingAudioTrackList) {
+                        android.util.Log.d("ExoPlayerPlugin", "NOT hiding audio track list - isShowingAudioTrackList flag is true");
                     }
-                    android.util.Log.d("ExoPlayerPlugin", "Controls hidden - visibility: GONE, re-requested focus on containerView");
+                    
+                    // Only re-request focus on containerView if audio list is NOT visible
+                    // If audio list is visible, let the track buttons keep focus
+                    if (!isShowingAudioTrackList && containerView != null) {
+                        // #region agent log
+                        android.util.Log.d("ExoPlayerPlugin", "Controls hidden - checking audioTrackBtn focus before re-requesting containerView focus");
+                        if (audioTrackBtn != null) {
+                            android.util.Log.d("ExoPlayerPlugin", "audioTrackBtn hasFocus: " + audioTrackBtn.hasFocus() + ", isClickable: " + audioTrackBtn.isClickable() + ", visibility: " + audioTrackBtn.getVisibility());
+                        }
+                        // #endregion
+                        
+                        containerView.post(() -> {
+                            if (containerView != null) {
+                                containerView.requestFocus();
+                                // #region agent log
+                                android.util.Log.d("ExoPlayerPlugin", "Re-requested focus on containerView, audioTrackBtn now hasFocus: " + (audioTrackBtn != null ? audioTrackBtn.hasFocus() : "null"));
+                                // #endregion
+                            }
+                        });
+                        android.util.Log.d("ExoPlayerPlugin", "Controls hidden - visibility: GONE, re-requested focus on containerView");
+                    } else if (isShowingAudioTrackList) {
+                        android.util.Log.d("ExoPlayerPlugin", "NOT re-requesting focus on containerView - audio list is visible, buttons should keep focus");
+                    }
                 })
                 .start();
         });

@@ -143,7 +143,7 @@ export class SeasonsComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    console.log("INFOO: ", this.infoStore.showInfo);
+    // console.log("INFOO: ", this.infoStore.showInfo);
 
     // this.smartTv.changeVisibility(true);
     this.infoStore.catchSideBarHover().subscribe((e: number) => {

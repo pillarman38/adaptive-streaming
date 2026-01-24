@@ -221,36 +221,5 @@
 
     </LinearLayout>
 
-    <!-- Audio Track Selection List (positioned alongside controls) -->
-    <LinearLayout
-        android:id="@+id/audioTrackListContainer"
-        android:layout_width="300dp"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="#E6000000"
-        android:padding="10dp"
-        android:layout_gravity="end|center_vertical"
-        android:layout_marginEnd="20dp"
-        android:visibility="gone"
-        android:focusable="false"
-        android:elevation="15dp">
-
-        <TextView
-            android:id="@+id/audioTrackListTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Select Audio Track"
-            android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:paddingBottom="10dp" />
-
-        <LinearLayout
-            android:id="@+id/audioTrackList"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical" />
-    </LinearLayout>
-
 </FrameLayout>
 

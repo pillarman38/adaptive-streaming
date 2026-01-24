@@ -52,6 +52,14 @@ export class PlayerComponent implements OnInit, OnDestroy {
   timeUpdateListener: any = null;
   isSeeking: boolean = false;
   wasPlayingBeforeSeek: boolean = false;
+  
+  // Audio track selection properties
+  audioTracks: any = null;
+  availableAudioTracks: any[] = [];
+  currentAudioTrackIndex: number = -1;
+  showAudioTrackList: boolean = false;
+  hasMultipleAudioTracks: boolean = false;
+  audioTracksSupported: boolean = false;
 
   @ViewChild("videoContainer") videoContainer!: ElementRef;
   @ViewChild("seekBar") seekBar!: ElementRef;
@@ -387,6 +395,15 @@ export class PlayerComponent implements OnInit, OnDestroy {
     if (this.infoStore.videoInfo.srtUrl) {
       this.subtitleUrl = this.apiConfig.transformUrl(this.infoStore.videoInfo.srtUrl);
     }
+    
+    // Reset audio track state when loading a new video
+    if (!this.useExoPlayer) {
+      this.audioTracks = null;
+      this.availableAudioTracks = [];
+      this.currentAudioTrackIndex = -1;
+      this.showAudioTrackList = false;
+      this.hasMultipleAudioTracks = false;
+    }
 
     if (this?.event?.pid) {
       this.infoStore.videoInfo.pid = this.event.pid;
@@ -519,6 +536,12 @@ export class PlayerComponent implements OnInit, OnDestroy {
               this.seekBar.nativeElement.style.width = `${percentComplete}%`;
             }
           });
+          
+          // Add event listener for metadata load to detect audio tracks
+          this.videoElem.nativeElement.addEventListener("loadedmetadata", () => {
+            this.detectAudioTracks();
+          });
+          
           this.videoElem.nativeElement.load();
           this.videoElem.nativeElement.play();
         }
@@ -529,6 +552,111 @@ export class PlayerComponent implements OnInit, OnDestroy {
     console.log("TOGGLE SUBTITLE", this.subtitle);
 
     this.subtitle = !this.subtitle;
+  }
+
+  /**
+   * Detects available audio tracks from the HTML5 video element
+   * Called after video metadata loads
+   */
+  detectAudioTracks() {
+    if (this.useExoPlayer || !this.videoElem?.nativeElement) {
+      return;
+    }
+
+    const video = this.videoElem.nativeElement;
+    console.log("VIDEO: ", video);
+    console.log("AUDIO TRACKS: ", video.audioTracks);
+    console.log("AUDIO TRACKS SUPPORTED: ", 'audioTracks' in video);
+    console.log("AUDIO TRACKS SUPPORTED: ", 'audioTracks' in video);
+    
+    // Check browser support for audioTracks API
+    if (!('audioTracks' in video)) {
+      console.warn('AudioTracks API not supported in this browser');
+      this.audioTracksSupported = false;
+      this.hasMultipleAudioTracks = false;
+      return;
+    }
+
+    this.audioTracksSupported = true;
+    this.audioTracks = video.audioTracks;
+    this.availableAudioTracks = [];
+
+    if (!this.audioTracks || this.audioTracks.length === 0) {
+      this.hasMultipleAudioTracks = false;
+      return;
+    }
+    // console.log("AUDIO TRACKS: ", this.audioTracks);
+    // Build array of available audio tracks
+    for (let i = 0; i < this.audioTracks.length; i++) {
+      const track = this.audioTracks[i];
+      const trackInfo = {
+        id: track.id || i,
+        label: track.label || '',
+        language: track.language || '',
+        enabled: track.enabled || false,
+        kind: track.kind || 'main'
+      };
+      
+      this.availableAudioTracks.push(trackInfo);
+      
+      // Track which track is currently enabled
+      if (track.enabled) {
+        this.currentAudioTrackIndex = i;
+      }
+    }
+
+    // Only show UI if there are multiple tracks
+    this.hasMultipleAudioTracks = this.availableAudioTracks.length > 1;
+    
+    console.log('Audio tracks detected:', {
+      count: this.availableAudioTracks.length,
+      tracks: this.availableAudioTracks,
+      currentIndex: this.currentAudioTrackIndex,
+      hasMultiple: this.hasMultipleAudioTracks
+    });
+  }
+
+  /**
+   * Selects an audio track by index
+   */
+  selectAudioTrack(trackIndex: number) {
+    if (!this.audioTracksSupported || !this.audioTracks) {
+      console.warn('Cannot select audio track: API not supported or tracks not available');
+      return;
+    }
+
+    if (trackIndex < 0 || trackIndex >= this.audioTracks.length) {
+      console.warn('Invalid audio track index:', trackIndex);
+      return;
+    }
+
+    // Disable all tracks first
+    for (let i = 0; i < this.audioTracks.length; i++) {
+      this.audioTracks[i].enabled = false;
+    }
+
+    // Enable the selected track
+    this.audioTracks[trackIndex].enabled = true;
+    this.currentAudioTrackIndex = trackIndex;
+
+    const selectedTrack = this.availableAudioTracks[trackIndex];
+    console.log('Selected audio track:', {
+      index: trackIndex,
+      label: selectedTrack.label || selectedTrack.language || `Track ${trackIndex + 1}`
+    });
+
+    // Hide the audio track list
+    this.showAudioTrackList = false;
+  }
+
+  /**
+   * Toggles the audio track list visibility
+   */
+  toggleAudioTrackList() {
+    if (!this.hasMultipleAudioTracks) {
+      return;
+    }
+    this.showAudioTrackList = !this.showAudioTrackList;
   }
 
   async controlsdSetup() {
