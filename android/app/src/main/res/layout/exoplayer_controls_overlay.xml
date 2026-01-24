@@ -36,7 +36,7 @@
             android:background="#66000000" />
 
         <!-- Seek Bar Progress -->
-        <ProgressBar
+        <SeekBar
             android:id="@+id/seekBar"
             android:layout_width="match_parent"
             android:layout_height="50dp"
@@ -44,7 +44,10 @@
             android:max="100"
             android:progress="0"
             android:progressTint="#FF0000"
-            style="?android:attr/progressBarStyleHorizontal" />
+            android:thumbTint="#FF0000"
+            android:splitTrack="false"
+            android:focusable="true"
+            android:focusableInTouchMode="true" />
     </LinearLayout>
 
     <!-- Center Buttons Container -->

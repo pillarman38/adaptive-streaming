@@ -65,12 +65,23 @@
     width: 100%;
     height: 50px;
     position: absolute;
+    cursor: pointer; /* Show pointer cursor to indicate it's clickable */
+    background-color: rgba(255, 255, 255, 0.1); /* Subtle background for the timeline */
 }
 
 #seekBar {
     background-color: red;
     height: 50px;
     position: absolute;
+    left: 0;
+    top: 0;
+    transition: width 0.1s linear; /* Smooth width transitions */
+    pointer-events: none; /* Prevent seekbar from blocking clicks */
+}
+
+/* Optional: Add a hover effect */
+#seekSpace:hover {
+    background-color: rgba(255, 255, 255, 0.15);
 }
 #video {
     width:100%;

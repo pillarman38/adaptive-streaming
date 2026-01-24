@@ -50,6 +50,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
   controlsTimeout: any = null;
   playPauseListener: any = null;
   timeUpdateListener: any = null;
+  isSeeking: boolean = false;
+  wasPlayingBeforeSeek: boolean = false;
 
   @ViewChild("videoContainer") videoContainer!: ElementRef;
   @ViewChild("seekBar") seekBar!: ElementRef;
@@ -196,26 +198,155 @@ export class PlayerComponent implements OnInit, OnDestroy {
     }
   }
 
-  async seekBarClick($event: any) {
-    var totalWidth = 1920;
-    var percentage = $event.pageX / totalWidth;
+  async seekBarClick($event: MouseEvent, skipReload: boolean = false) {
+    if (!this.seekBar || !this.seekBar.nativeElement) {
+      return;
+    }
+
+    const seekSpace = this.seekBar.nativeElement.parentElement;
+    if (!seekSpace) {
+      return;
+    }
+
+    // Get the actual width of the seekbar container
+    const rect = seekSpace.getBoundingClientRect();
+    const clickX = $event.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+    
     this.currentTime = Math.floor(
       this.infoStore.videoInfo.duration * percentage
     );
-    console.log("CURRENTTIME: ", this.currentTime);
+    console.log("SEEK TO: ", this.currentTime, "of", this.infoStore.videoInfo.duration);
 
     if (this.useExoPlayer) {
-      await this.exoPlayerService.pause();
       await this.exoPlayerService.seekTo(this.currentTime);
-      this.paused = true;
     } else {
-      this.videoElem.nativeElement.pause();
-      this.infoStore.videoInfo.seekTime = this.currentTime;
-      console.log("EVVENT: ", this.event, this.currentTime);
+      // For Dolby Vision files, just set currentTime directly
       if (this.event.fileformat === "dvhe" || this.event.fileformat === "dvh1") {
         this.videoElem.nativeElement.currentTime = this.currentTime;
       } else {
+        // For non-DV files, only reload if not dragging (skipReload = false)
+        if (!skipReload) {
+          this.videoElem.nativeElement.pause();
+          this.infoStore.videoInfo.seekTime = this.currentTime;
+          this.getVideo();
+        } else {
+          // During dragging, just update the visual position
+          // The actual seek will happen on mouse up
+          this.videoElem.nativeElement.pause();
+        }
+      }
+    }
+  }
+
+  onSeekBarMouseDown($event: MouseEvent) {
+    this.isSeeking = true;
+    
+    // Store whether video was playing before seeking
+    if (this.useExoPlayer) {
+      // For ExoPlayer, we'll check the paused state
+      this.wasPlayingBeforeSeek = !this.paused;
+    } else {
+      this.wasPlayingBeforeSeek = !this.videoElem.nativeElement.paused;
+    }
+    
+    // Pause playback while user is scrubbing
+    if (this.useExoPlayer) {
+      if (!this.paused) {
+        this.exoPlayerService.pause();
+        this.paused = true;
+      }
+    } else {
+      if (!this.videoElem.nativeElement.paused) {
+        this.videoElem.nativeElement.pause();
+        this.paused = true;
+      }
+    }
+    
+    this.seekBarClick($event, true); // Skip reload during drag
+  }
+
+  onSeekBarMouseMove($event: MouseEvent) {
+    if (this.isSeeking) {
+      // Update the visual position of the seekbar during dragging
+      const seekSpace = this.seekBar.nativeElement.parentElement;
+      if (seekSpace) {
+        const rect = seekSpace.getBoundingClientRect();
+        const clickX = $event.clientX - rect.left;
+        const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+        this.seekBar.nativeElement.style.width = `${percentage * 100}%`;
+      }
+      this.seekBarClick($event, true); // Skip reload during drag
+    }
+  }
+
+  async onSeekBarMouseUp($event: MouseEvent) {
+    if (this.isSeeking) {
+      this.isSeeking = false;
+      
+      // Now do the actual seek/reload for non-DV files
+      if (!this.useExoPlayer && this.event.fileformat !== "dvhe" && this.event.fileformat !== "dvh1") {
+        this.infoStore.videoInfo.seekTime = this.currentTime;
         this.getVideo();
+        // Note: getVideo() will handle playback state, but we should resume if it was playing
+        if (this.wasPlayingBeforeSeek) {
+          // Wait a bit for video to load, then resume
+          setTimeout(() => {
+            if (!this.videoElem.nativeElement.paused) {
+              this.paused = false;
+            } else if (this.wasPlayingBeforeSeek) {
+              this.videoElem.nativeElement.play();
+              this.paused = false;
+            }
+          }, 100);
+        }
+      } else if (!this.useExoPlayer) {
+        // For DV files, just set currentTime and resume if it was playing
+        this.videoElem.nativeElement.currentTime = this.currentTime;
+        if (this.wasPlayingBeforeSeek) {
+          await this.videoElem.nativeElement.play();
+          this.paused = false;
+        }
+      } else if (this.useExoPlayer) {
+        // For ExoPlayer, resume if it was playing
+        if (this.wasPlayingBeforeSeek) {
+          await this.exoPlayerService.play();
+          this.paused = false;
+        }
+      }
+    }
+  }
+
+  async onSeekBarMouseLeave() {
+    if (this.isSeeking) {
+      this.isSeeking = false;
+      
+      // Do the actual seek/reload when mouse leaves during drag
+      if (!this.useExoPlayer && this.event.fileformat !== "dvhe" && this.event.fileformat !== "dvh1") {
+        this.infoStore.videoInfo.seekTime = this.currentTime;
+        this.getVideo();
+        // Resume if it was playing
+        if (this.wasPlayingBeforeSeek) {
+          setTimeout(() => {
+            if (!this.videoElem.nativeElement.paused) {
+              this.paused = false;
+            } else if (this.wasPlayingBeforeSeek) {
+              this.videoElem.nativeElement.play();
+              this.paused = false;
+            }
+          }, 100);
+        }
+      } else if (!this.useExoPlayer) {
+        this.videoElem.nativeElement.currentTime = this.currentTime;
+        if (this.wasPlayingBeforeSeek) {
+          await this.videoElem.nativeElement.play();
+          this.paused = false;
+        }
+      } else if (this.useExoPlayer) {
+        if (this.wasPlayingBeforeSeek) {
+          await this.exoPlayerService.play();
+          this.paused = false;
+        }
       }
     }
   }
@@ -377,12 +508,16 @@ export class PlayerComponent implements OnInit, OnDestroy {
           //   "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4";
 
           this.videoElem.nativeElement.addEventListener("timeupdate", () => {
-            this.currentTime = this.videoElem.nativeElement.currentTime;
-            const percentComplete =
-              (this.currentTime / this.infoStore.videoInfo.duration) * 100;
-            // console.log("TIMEUPDATE", Math.floor(this.currentTime));
+            // Only update seekbar if user is not currently dragging
+            // This prevents the seekbar from snapping back during dragging
+            if (!this.isSeeking) {
+              this.currentTime = this.videoElem.nativeElement.currentTime;
+              const percentComplete =
+                (this.currentTime / this.infoStore.videoInfo.duration) * 100;
+              // console.log("TIMEUPDATE", Math.floor(this.currentTime));
 
-            this.seekBar.nativeElement.style.width = `${percentComplete}%`;
+              this.seekBar.nativeElement.style.width = `${percentComplete}%`;
+            }
           });
           this.videoElem.nativeElement.load();
           this.videoElem.nativeElement.play();

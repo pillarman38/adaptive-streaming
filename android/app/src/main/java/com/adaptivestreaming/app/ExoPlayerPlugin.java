@@ -11,7 +11,7 @@ import android.view.View.OnKeyListener;
 import android.view.LayoutInflater;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.ImageButton;
 import android.widget.Button;
 import android.widget.TextView;
@@ -58,7 +58,7 @@ public class ExoPlayerPlugin extends Plugin {
     private FrameLayout containerView;
     private DefaultTrackSelector trackSelector;
     private FrameLayout controlsView;
-    private ProgressBar seekBar;
+    private SeekBar seekBar;
     private ImageButton playPauseBtn;
     private ImageButton skipBack30Btn;
     private ImageButton skipBack15Btn;
@@ -81,6 +81,15 @@ public class ExoPlayerPlugin extends Plugin {
     private android.os.Handler timeUpdateHandler;
     private android.os.Handler controlsHideHandler;
     private Runnable timeUpdateRunnable;
+    private volatile boolean isSeeking = false;
+    private long pendingSeekPosition = -1;
+    private boolean wasPlayingBeforeSeek = false;
+    private SeekBar.OnSeekBarChangeListener seekBarChangeListener = null;
+    private long lastSeekTime = 0;
+    private long lastManualSkipTime = 0; // Timestamp when skip button was pressed
+    private long seekStartTime = 0; // Timestamp when seeking started
+    private static final long SEEK_COOLDOWN_MS = 300; // Don't update seekbar for 300ms after a seek
+    private static final long MANUAL_SKIP_COOLDOWN_MS = 500; // Don't let time updates override manual skips for 500ms
     // private java.util.Map<String, PluginCall> eventListeners = new java.util.HashMap<>();
 
     @PluginMethod
@@ -288,23 +297,188 @@ public class ExoPlayerPlugin extends Plugin {
         audioTrackListContainer = controlsView.findViewById(R.id.audioTrackListContainer);
         audioTrackList = controlsView.findViewById(R.id.audioTrackList);
 
-        // Set up seek bar
-        seekBar.setMax(100);
+        // Set up seek bar with high precision (10000 = 0.01% precision)
+        // This prevents rounding issues where small skips near the end don't move the seekbar
+        seekBar.setMax(10000);
         seekBar.setProgress(0);
         seekBar.getProgressDrawable().setColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN);
-
-        // Make seek bar container clickable
-        seekContainer.setOnClickListener(v -> {
-            notifyListeners("seekBarClick", new JSObject());
+        seekBar.getThumb().setColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN);
+        
+        // Make seekbar focusable for keyboard/remote navigation
+        seekBar.setFocusable(true);
+        seekBar.setFocusableInTouchMode(true);
+        
+        // Add key listener to seekbar for Enter key handling
+        seekBar.setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View v, int keyCode, KeyEvent event) {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    // Handle Enter/Select button to perform seek
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+                        // User pressed Enter on seekbar - perform the seek
+                        boolean wasSeeking = isSeeking;
+                        isSeeking = false;
+                        seekStartTime = 0;
+                        
+                        int finalProgress = seekBar.getProgress();
+                        if (exoPlayer != null) {
+                            long duration = exoPlayer.getDuration();
+                            if (duration > 0) {
+                                long seekPosition = (long) (duration * finalProgress / 10000.0);
+                                lastSeekTime = System.currentTimeMillis();
+                                exoPlayer.seekTo(seekPosition);
+                                Log.d(TAG, "Seek on Enter (seekbar listener) to: " + seekPosition + "ms (progress: " + (finalProgress/100.0) + "%)");
+                                pendingSeekPosition = -1;
+                            }
+                        }
+                        
+                        // Resume playback if it was playing before seeking
+                        if (wasSeeking && wasPlayingBeforeSeek && exoPlayer != null) {
+                            exoPlayer.play();
+                            isPaused = false;
+                            if (playPauseBtn != null) {
+                                playPauseBtn.setImageResource(android.R.drawable.ic_media_pause);
+                            }
+                        }
+                        
+                        // Restart time updates
+                        startTimeUpdates();
+                        
+                        // Restart controls auto-hide timer (5 seconds after seeking completes)
+                        resetControlsHideTimer();
+                        
+                        Log.d(TAG, "Seek completed on Enter (seekbar listener) - wasSeeking: " + wasSeeking + ", resumed: " + (wasSeeking && wasPlayingBeforeSeek));
+                        return true; // Consume the event
+                    }
+                    
+                    // Handle D-pad left/right to start seeking
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        if (!isSeeking) {
+                            isSeeking = true;
+                            seekStartTime = System.currentTimeMillis();
+                            wasPlayingBeforeSeek = exoPlayer != null && exoPlayer.isPlaying();
+                            stopTimeUpdates();
+                            
+                            // Prevent controls from auto-hiding while seeking
+                            if (controlsHideHandler != null) {
+                                controlsHideHandler.removeCallbacksAndMessages(null);
+                            }
+                            
+                            // Pause playback while user is navigating (if playing)
+                            if (exoPlayer != null && exoPlayer.isPlaying()) {
+                                exoPlayer.pause();
+                                isPaused = true;
+                                if (playPauseBtn != null) {
+                                    playPauseBtn.setImageResource(android.R.drawable.ic_media_play);
+                                }
+                            }
+                            
+                            Log.d(TAG, "Started seeking via D-pad (seekbar listener) - paused: " + isPaused + ", wasPlaying: " + wasPlayingBeforeSeek);
+                        }
+                        // Don't consume - let the seekbar handle the navigation
+                        return false;
+                    }
+                }
+                return false;
+            }
         });
+
+        // Set up seek bar change listener for scrubbing
+        seekBarChangeListener = new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                // If user is scrubbing, seek immediately to update the frame
+                if (fromUser && exoPlayer != null && isSeeking) {
+                    long duration = exoPlayer.getDuration();
+                    if (duration > 0) {
+                        long seekPosition = (long) (duration * progress / 10000.0);
+                        pendingSeekPosition = seekPosition;
+                        
+                        // Seek immediately to update the video frame while paused
+                        exoPlayer.seekTo(seekPosition);
+                        
+                        Log.d(TAG, "Seeking to position: " + seekPosition + " (progress: " + (progress/100.0) + "%)");
+                    }
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                // CRITICAL: Set isSeeking IMMEDIATELY on UI thread to ensure immediate visibility
+                // This must happen FIRST, before any other operations
+                isSeeking = true;
+                seekStartTime = System.currentTimeMillis(); // Record when seeking started
+                
+                // CRITICAL: Stop time updates IMMEDIATELY to prevent seekbar from snapping back
+                // This must happen before anything else
+                stopTimeUpdates();
+                
+                // Prevent controls from auto-hiding while seeking
+                if (controlsHideHandler != null) {
+                    controlsHideHandler.removeCallbacksAndMessages(null);
+                }
+                
+                // Store whether video was playing before seeking
+                wasPlayingBeforeSeek = exoPlayer != null && exoPlayer.isPlaying();
+                
+                // Pause playback while user is scrubbing (if playing)
+                if (exoPlayer != null && exoPlayer.isPlaying()) {
+                    exoPlayer.pause();
+                    isPaused = true;
+                    playPauseBtn.setImageResource(android.R.drawable.ic_media_play);
+                }
+                
+                Log.d(TAG, "Started seeking - isSeeking: " + isSeeking + ", paused: " + isPaused + ", wasPlaying: " + wasPlayingBeforeSeek);
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                isSeeking = false;
+                seekStartTime = 0; // Reset seek start time
+                
+                // Get the final progress directly from the seekbar since we may have removed the listener
+                // This ensures we get the exact position where the user released, even if onProgressChanged
+                // wasn't called due to listener removal
+                int finalProgress = seekBar.getProgress();
+                if (exoPlayer != null) {
+                    long duration = exoPlayer.getDuration();
+                    if (duration > 0) {
+                        long seekPosition = (long) (duration * finalProgress / 10000.0);
+                        lastSeekTime = System.currentTimeMillis();
+                        exoPlayer.seekTo(seekPosition);
+                        Log.d(TAG, "Final seek to: " + seekPosition + "ms (progress: " + (finalProgress/100.0) + "%)");
+                        pendingSeekPosition = -1;
+                    }
+                }
+                
+                // Resume playback if it was playing before seeking
+                if (wasPlayingBeforeSeek && exoPlayer != null) {
+                    exoPlayer.play();
+                    isPaused = false;
+                    playPauseBtn.setImageResource(android.R.drawable.ic_media_pause);
+                }
+                
+                // Restart time updates to reflect the new position (always, whether playing or paused)
+                startTimeUpdates();
+                
+                // Restart controls auto-hide timer (5 seconds after seeking stops)
+                resetControlsHideTimer();
+                
+                Log.d(TAG, "Stopped seeking - resumed: " + wasPlayingBeforeSeek);
+            }
+        };
+        
+        seekBar.setOnSeekBarChangeListener(seekBarChangeListener);
 
         // Set up button click listeners
         skipBack30Btn.setOnClickListener(v -> {
             skipBackward(30);
+            resetControlsHideTimer();
         });
 
         skipBack15Btn.setOnClickListener(v -> {
             skipBackward(15);
+            resetControlsHideTimer();
         });
 
         playPauseBtn.setOnClickListener(v -> {
@@ -322,28 +496,34 @@ public class ExoPlayerPlugin extends Plugin {
                         stopTimeUpdates();
                     }
                 });
+            resetControlsHideTimer();
             // sendEventToListener("playPause", new JSObject());
         });
 
         skipForward15Btn.setOnClickListener(v -> {
             skipForward(15);
+            resetControlsHideTimer();
         });
 
         skipForward30Btn.setOnClickListener(v -> {
             skipForward(30);
+            resetControlsHideTimer();
         });
 
         skipIntroBtn.setOnClickListener(v -> {
             sendEventToListener("skipIntro", new JSObject());
+            resetControlsHideTimer();
         });
 
         nextEpisodeBtn.setOnClickListener(v -> {
             sendEventToListener("getNextEp", new JSObject());
+            resetControlsHideTimer();
         });
 
         // Set up audio track selection button
         audioTrackBtn.setOnClickListener(v -> {
             toggleAudioTrackList();
+            resetControlsHideTimer();
         });
 
         // Set up focus change listener for audio track button to show/hide list
@@ -417,6 +597,34 @@ public class ExoPlayerPlugin extends Plugin {
                         keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
                         keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
                         keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        // If seekbar has focus and user is navigating left/right, set isSeeking
+                        if (seekBar != null && seekBar.hasFocus() && 
+                            (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)) {
+                            // User is navigating the seekbar - set seeking state
+                            if (!isSeeking) {
+                                isSeeking = true;
+                                seekStartTime = System.currentTimeMillis();
+                                wasPlayingBeforeSeek = exoPlayer != null && exoPlayer.isPlaying();
+                                stopTimeUpdates();
+                                
+                                // Prevent controls from auto-hiding while seeking
+                                if (controlsHideHandler != null) {
+                                    controlsHideHandler.removeCallbacksAndMessages(null);
+                                }
+                                
+                                // Pause playback while user is navigating (if playing)
+                                if (exoPlayer != null && exoPlayer.isPlaying()) {
+                                    exoPlayer.pause();
+                                    isPaused = true;
+                                    if (playPauseBtn != null) {
+                                        playPauseBtn.setImageResource(android.R.drawable.ic_media_play);
+                                    }
+                                }
+                                
+                                Log.d(TAG, "Started seeking via D-pad - paused: " + isPaused + ", wasPlaying: " + wasPlayingBeforeSeek);
+                            }
+                        }
+                        
                         // Show controls (or reset timer if already visible)
                         android.util.Log.d("ExoPlayerPlugin", "D-pad key pressed (keyCode: " + keyCode + ") - controlsVisible: " + controlsVisible + ", showing controls");
                         showControls(null);
@@ -426,6 +634,13 @@ public class ExoPlayerPlugin extends Plugin {
 
                     // Handle Enter/Select button from Nvidia Shield remote
                     if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+                        // If seekbar has focus, let it handle the Enter key (don't consume here)
+                        // The seekbar's OnKeyListener will handle it
+                        if (seekBar != null && seekBar.hasFocus()) {
+                            Log.d(TAG, "Enter pressed while seekbar has focus - letting seekbar handle it");
+                            return false; // Don't consume - let seekbar handle it
+                        }
+                        
                         // Only handle if controls are not visible
                         // If controls are visible, let the buttons handle Enter normally
                         if (!controlsVisible && exoPlayer != null) {
@@ -518,17 +733,56 @@ public class ExoPlayerPlugin extends Plugin {
         return obj;
     }
 
+    /**
+     * Resets the controls auto-hide timer to 5 seconds.
+     * Call this whenever the user interacts with any control to keep controls visible.
+     */
+    private void resetControlsHideTimer() {
+        if (controlsHideHandler != null) {
+            controlsHideHandler.removeCallbacksAndMessages(null);
+            controlsHideHandler.postDelayed(() -> hideControls(null), 5000);
+        }
+    }
+
     private void skipForward(int seconds) {
         if (exoPlayer == null) {
             return;
         }
-        long currentPosition = exoPlayer.getCurrentPosition();
+        
+        // CRITICAL: Use the ACTUAL player position after any pending seeks complete
+        // If we just called seekTo(), getCurrentPosition() may still return the old value
+        // So we need to track the target position ourselves
+        long currentPosition = pendingSeekPosition >= 0 ? pendingSeekPosition : exoPlayer.getCurrentPosition();
         long duration = exoPlayer.getDuration();
         long newPosition = currentPosition + (seconds * 1000L); // Convert seconds to milliseconds
         if (newPosition > duration) {
             newPosition = duration;
         }
+        
+        // Store this as the pending position for next rapid skip
+        pendingSeekPosition = newPosition;
+        
+        lastSeekTime = System.currentTimeMillis();
+        lastManualSkipTime = System.currentTimeMillis(); // Track manual skip for time update blocking
         exoPlayer.seekTo(newPosition);
+        
+        // Update seekbar to reflect new position IMMEDIATELY on UI thread
+        // This must happen synchronously to prevent time updates from overwriting it
+        if (seekBar != null && duration > 0) {
+            final int progress = (int) ((newPosition * 10000) / duration);
+            
+            // CRITICAL: Update immediately if we're already on UI thread, otherwise post
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                seekBar.setProgress(progress);
+            } else {
+                getActivity().runOnUiThread(() -> {
+                    if (seekBar != null) {
+                        seekBar.setProgress(progress);
+                    }
+                });
+            }
+        }
+        
         android.util.Log.d("ExoPlayerPlugin", "Skipped forward " + seconds + " seconds to position " + newPosition);
     }
 
@@ -536,12 +790,43 @@ public class ExoPlayerPlugin extends Plugin {
         if (exoPlayer == null) {
             return;
         }
-        long currentPosition = exoPlayer.getCurrentPosition();
+        
+        // CRITICAL: Use the ACTUAL player position after any pending seeks complete
+        // If we just called seekTo(), getCurrentPosition() may still return the old value
+        // So we need to track the target position ourselves
+        long currentPosition = pendingSeekPosition >= 0 ? pendingSeekPosition : exoPlayer.getCurrentPosition();
         long newPosition = currentPosition - (seconds * 1000L); // Convert seconds to milliseconds
         if (newPosition < 0) {
             newPosition = 0;
         }
+        
+        // Store this as the pending position for next rapid skip
+        pendingSeekPosition = newPosition;
+        
+        lastSeekTime = System.currentTimeMillis();
+        lastManualSkipTime = System.currentTimeMillis(); // Track manual skip for time update blocking
         exoPlayer.seekTo(newPosition);
+        
+        // Update seekbar to reflect new position IMMEDIATELY on UI thread
+        // This must happen synchronously to prevent time updates from overwriting it
+        if (seekBar != null) {
+            long duration = exoPlayer.getDuration();
+            if (duration > 0) {
+                final int progress = (int) ((newPosition * 10000) / duration);
+                
+                // CRITICAL: Update immediately if we're already on UI thread, otherwise post
+                if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                    seekBar.setProgress(progress);
+                } else {
+                    getActivity().runOnUiThread(() -> {
+                        if (seekBar != null) {
+                            seekBar.setProgress(progress);
+                        }
+                    });
+                }
+            }
+        }
+        
         android.util.Log.d("ExoPlayerPlugin", "Skipped backward " + seconds + " seconds to position " + newPosition);
     }
 
@@ -892,24 +1177,83 @@ public class ExoPlayerPlugin extends Plugin {
         timeUpdateRunnable = new Runnable() {
             @Override
             public void run() {
+                // CRITICAL: Exit immediately if user is seeking - prevents ANY updates during dragging
+                // This check must happen FIRST, before any other operations
+                if (isSeeking) {
+                    return;
+                }
+                
+                // Also check if seekbar is pressed (user is actively dragging)
+                // This provides an additional safety check
+                if (seekBar != null && seekBar.isPressed()) {
+                    return;
+                }
+                
                 if (exoPlayer != null && exoPlayer.isPlaying()) {
                     long currentPosition = exoPlayer.getCurrentPosition();
                     long duration = exoPlayer.getDuration();
+                    
+                    // Clear pendingSeekPosition once the player has caught up to it
+                    // This allows subsequent skip button presses to use the correct current position
+                    if (pendingSeekPosition >= 0 && Math.abs(currentPosition - pendingSeekPosition) < 1000) {
+                        // Player position is within 1 second of pending position, clear it
+                        pendingSeekPosition = -1;
+                    }
 
                     // Send time update event
                     JSObject timeData = new JSObject();
                     timeData.put("currentTime", currentPosition / 1000.0); // Convert to seconds
                     timeData.put("duration", duration > 0 ? duration / 1000.0 : 0); // Convert to seconds
 
-                    // Calculate progress percentage for seek bar
-                    final int progress = duration > 0 ? (int) ((currentPosition * 100) / duration) : 0;
-                    timeData.put("progress", progress);
+                    // Calculate progress percentage for seek bar (0-10000 for 0.01% precision)
+                    final int progress = duration > 0 ? (int) ((currentPosition * 10000) / duration) : 0;
+                    timeData.put("progress", progress / 100.0); // Convert back to percentage for JS
 
                     // Update seek bar on UI thread
+                    // CRITICAL: Triple-check isSeeking and isPressed on UI thread right before updating
+                    // This prevents race conditions where isSeeking becomes true or user starts dragging
+                    // after we've calculated progress but before we update the seekbar
                     if (seekBar != null) {
-                        final ProgressBar seekBarRef = seekBar; // Create final reference for lambda
+                        final SeekBar seekBarRef = seekBar; // Create final reference for lambda
+                        final int finalProgress = progress; // Final reference for progress
+                        // Capture the time when this update was calculated
+                        final long updateCalculationTime = System.currentTimeMillis();
                         getActivity().runOnUiThread(() -> {
-                            seekBarRef.setProgress(progress);
+                            // CRITICAL: Check isSeeking and isPressed AGAIN on UI thread
+                            // This is the final gate - if either is true, DO NOT UPDATE
+                            if (isSeeking || seekBarRef.isPressed()) {
+                                Log.d(TAG, "Blocked seekbar update - isSeeking: " + isSeeking + ", isPressed: " + seekBarRef.isPressed());
+                                return;
+                            }
+                            
+                            // CRITICAL: If this update was calculated before seeking started, don't apply it
+                            // This prevents queued updates from executing after user starts dragging
+                            if (seekStartTime > 0 && updateCalculationTime < seekStartTime) {
+                                Log.d(TAG, "Blocked seekbar update - calculated before seeking started. Calc time: " + updateCalculationTime + ", Seek start: " + seekStartTime);
+                                return;
+                            }
+                            
+                            // CRITICAL: Check if user has moved the seekbar manually
+                            // If the current progress differs significantly from what we calculated,
+                            // it means the user has moved it, so don't override it
+                            // This prevents the "snap back" when a queued update executes right after user starts dragging
+                            int currentSeekBarProgress = seekBarRef.getProgress();
+                            if (Math.abs(currentSeekBarProgress - finalProgress) > 3) {
+                                // User has moved the seekbar significantly - don't override
+                                // This means a queued update is trying to reset the seekbar after user started dragging
+                                Log.d(TAG, "Blocked seekbar update - user moved seekbar. Current: " + currentSeekBarProgress + ", Calculated: " + finalProgress);
+                                return;
+                            }
+                            
+                            // CRITICAL: Check both seek cooldown AND manual skip cooldown
+                            // Manual skip cooldown is longer to prevent time updates from overwriting skip button updates
+                            long timeSinceLastSeek = System.currentTimeMillis() - lastSeekTime;
+                            long timeSinceManualSkip = System.currentTimeMillis() - lastManualSkipTime;
+                            boolean shouldUpdate = timeSinceLastSeek > SEEK_COOLDOWN_MS && timeSinceManualSkip > MANUAL_SKIP_COOLDOWN_MS;
+                            
+                            if (shouldUpdate) {
+                                seekBarRef.setProgress(finalProgress);
+                            }
                         });
                     }
 
@@ -917,7 +1261,8 @@ public class ExoPlayerPlugin extends Plugin {
                     notifyListeners("timeupdate", timeData);
 
                     // Schedule next update (every 250ms for smooth updates)
-                    if (timeUpdateHandler != null) {
+                    // Only schedule if not seeking and seekbar is not pressed
+                    if (timeUpdateHandler != null && !isSeeking && (seekBar == null || !seekBar.isPressed())) {
                         timeUpdateHandler.postDelayed(this, 250);
                     }
                 }
@@ -929,9 +1274,22 @@ public class ExoPlayerPlugin extends Plugin {
     }
 
     private void stopTimeUpdates() {
-        if (timeUpdateHandler != null && timeUpdateRunnable != null) {
-            timeUpdateHandler.removeCallbacks(timeUpdateRunnable);
+        if (timeUpdateHandler != null) {
+            // Remove all pending callbacks to ensure no updates happen
+            // This is critical to prevent seekbar from snapping back during dragging
+            // Remove all messages and callbacks, including any queued runOnUiThread calls
+            timeUpdateHandler.removeCallbacksAndMessages(null);
             timeUpdateRunnable = null;
+            
+            // Also remove any pending runnables from the main thread handler
+            // This ensures no queued UI updates can execute after we stop time updates
+            getActivity().runOnUiThread(() -> {
+                // This empty runnable ensures any previously queued runOnUiThread calls
+                // from the time update handler are processed, but we've already set isSeeking = true
+                // so they will be blocked by the checks inside the lambda
+            });
+            
+            Log.d(TAG, "Time updates stopped - isSeeking: " + isSeeking);
         }
     }
 
@@ -1230,10 +1588,7 @@ public class ExoPlayerPlugin extends Plugin {
 
             // Always reset auto-hide timer (even if already visible)
             // This ensures controls stay visible for 5 seconds after any D-pad press
-            if (controlsHideHandler != null) {
-                controlsHideHandler.removeCallbacksAndMessages(null);
-                controlsHideHandler.postDelayed(() -> hideControls(null), 5000);
-            }
+            resetControlsHideTimer();
 
             android.util.Log.d("ExoPlayerPlugin", "showControls called - visibility: " + controlsView.getVisibility() + ", alpha: " + controlsView.getAlpha() + ", controlsVisible: " + controlsVisible);
         });
@@ -1277,9 +1632,22 @@ public class ExoPlayerPlugin extends Plugin {
 
         try {
             int progress = call.getInt("progress", 0);
-            getActivity().runOnUiThread(() -> {
-                seekBar.setProgress(progress);
-            });
+            // Never update if user is currently dragging (isSeeking takes absolute priority)
+            // Also check cooldown for skip operations
+            long timeSinceLastSeek = System.currentTimeMillis() - lastSeekTime;
+            boolean canUpdate = !isSeeking && !seekBar.isPressed() && timeSinceLastSeek > SEEK_COOLDOWN_MS;
+            
+            if (canUpdate) {
+                final int finalProgress = progress;
+                getActivity().runOnUiThread(() -> {
+                    // Double-check isSeeking on UI thread right before updating
+                    // This prevents race conditions where isSeeking becomes true
+                    // after we've checked but before we update the seekbar
+                    if (!isSeeking && !seekBar.isPressed()) {
+                        seekBar.setProgress(finalProgress);
+                    }
+                });
+            }
             call.resolve();
         } catch (Exception e) {
             call.reject("Error updating seek bar: " + e.getMessage());
@@ -1349,10 +1717,23 @@ public class ExoPlayerPlugin extends Plugin {
 
     private void updateSeekBarProgress(int currentTime, int duration) {
         if (seekBar != null && duration > 0) {
-            int progress = (int)((currentTime * 100.0) / duration);
-            getActivity().runOnUiThread(() -> {
-                seekBar.setProgress(progress);
-            });
+            int progress = (int)((currentTime * 10000.0) / duration);
+            // Never update if user is currently dragging (isSeeking takes absolute priority)
+            // Also check cooldown for skip operations
+            long timeSinceLastSeek = System.currentTimeMillis() - lastSeekTime;
+            boolean canUpdate = !isSeeking && !seekBar.isPressed() && timeSinceLastSeek > SEEK_COOLDOWN_MS;
+            
+            if (canUpdate) {
+                final int finalProgress = progress;
+                getActivity().runOnUiThread(() -> {
+                    // Double-check isSeeking on UI thread right before updating
+                    // This prevents race conditions where isSeeking becomes true
+                    // after we've checked but before we update the seekbar
+                    if (!isSeeking && !seekBar.isPressed()) {
+                        seekBar.setProgress(finalProgress);
+                    }
+                });
+            }
         }
     }
 

@@ -131,6 +131,7 @@ export class VideoSelectionComponent implements OnInit {
       const topRowIndex = currentColumn;
       this.smartTv.smartTv?.setCurrentIndex(topRowIndex);
       this.index = topRowIndex;
+      this.updateBorderStyling(topRowIndex);
       // console.log("Manually wrapped from bottom to top row, index:", topRowIndex);
     }
 
@@ -143,6 +144,8 @@ export class VideoSelectionComponent implements OnInit {
       // Scroll the current item into view
       if (this.smartTv.smartTv?.boxes && ind.currentIndex !== undefined) {
         this.infoStore.checkBorderOverflow(this.smartTv.smartTv.boxes, ind.currentIndex);
+        // Apply border styling based on current index
+        this.updateBorderStyling(ind.currentIndex);
       }
       await this.updateCurrentBox();
     }
@@ -305,6 +308,8 @@ export class VideoSelectionComponent implements OnInit {
                 setTimeout(() => {
                   // Restore the current index after updating the list
                   this.smartTv.smartTv?.setCurrentIndex(this.index);
+                  // Apply border styling based on current index
+                  this.updateBorderStyling(this.index);
                   // console.log("Restored index to:", this.index, "Current index:", this.smartTv.smartTv?.currentIndex);
                   // console.log("SmartTv boxes length after restore:", this.smartTv.smartTv?.boxes?.length);
                   
@@ -428,6 +433,10 @@ export class VideoSelectionComponent implements OnInit {
             listElements: this.boxes,
           });
           
+          // Clear ALL inline border styles immediately after addCurrentList
+          // This removes any leftover inline styles from the old placeBorder code
+          this.clearInlineBorderStyles(true);
+          
           // Wait a bit for addCurrentList to complete
           // setTimeout(() => {
             const safeIndex = Math.min(startingIndex, this.boxes.length - 1);
@@ -461,6 +470,9 @@ export class VideoSelectionComponent implements OnInit {
               }
               
               this.smartTv.smartTv.setCurrentIndex(safeIndex);
+              
+              // Apply border styling based on current index
+              this.updateBorderStyling(safeIndex);
               
               if (this.movies[safeIndex]) {
                 this.currentBox = this.movies[safeIndex];
@@ -553,6 +565,10 @@ export class VideoSelectionComponent implements OnInit {
               listElements: this.boxes,
             });
             
+            // Clear ALL inline border styles immediately after addCurrentList
+            // This removes any leftover inline styles from the old placeBorder code
+            this.clearInlineBorderStyles(true);
+            
             // Wait a bit for addCurrentList to complete (it's async but doesn't return a promise)
             setTimeout(() => {
               // Ensure the index is within bounds
@@ -593,9 +609,12 @@ export class VideoSelectionComponent implements OnInit {
                   }
                 }
                 
-                // Set the current index in smart-tv library (this will place the green border)
+                // Set the current index in smart-tv library
                 this.smartTv.smartTv.setCurrentIndex(safeIndex);
                 console.log("CURRENT INDEX AFTER SET: ", this.smartTv.smartTv?.currentIndex);
+                
+                // Apply border styling based on current index
+                this.updateBorderStyling(safeIndex);
                 
                 // Update current box to match the restored index
                 if (this.movies[safeIndex]) {
@@ -656,4 +675,66 @@ export class VideoSelectionComponent implements OnInit {
         });
     }
   }
+
+  /**
+   * Clears all inline border styles from boxes.
+   * This removes any leftover inline styles from the old placeBorder code.
+   * @param clearElementBorderClass - If true, also removes the elementBorder class from all boxes
+   */
+  private clearInlineBorderStyles(clearElementBorderClass: boolean = false): void {
+    if (this.smartTv.smartTv?.boxes) {
+      this.smartTv.smartTv.boxes.forEach((box: any) => {
+        if (box?.element?.nativeElement) {
+          const element = box.element.nativeElement;
+          if (element.style.border) {
+            element.style.border = '';
+            if (clearElementBorderClass) {
+              element.classList.remove('elementBorder');
+            }
+          }
+        }
+      });
+    }
+  }
+
+  /**
+   * Updates the border styling based on the current index.
+   * Removes elementBorder class from all boxes and adds it to the current one.
+   */
+  updateBorderStyling(currentIndex: number) {
+      // First, aggressively clear ALL inline border styles from ALL boxes before applying new styling
+      // This ensures no leftover inline styles from old code persist
+      this.clearInlineBorderStyles();
+      
+      // Also clear from ViewChildren boxes
+      if (this.boxes) {
+        this.boxes.forEach((box) => {
+          if (box.nativeElement && box.nativeElement.style.border) {
+            box.nativeElement.style.border = '';
+          }
+        });
+      }
+      
+      if (!this.smartTv.smartTv?.boxes || currentIndex < 0) {
+        return;
+      }
+
+      // Remove border from all boxes
+      this.smartTv.smartTv.boxes.forEach((box: any, index: number) => {
+        if (box && box.element && box.element.nativeElement) {
+          const element = box.element.nativeElement;
+          
+          // Clear inline border styles
+          if (element.style.border) {
+            element.style.border = '';
+          }
+          
+          if (index === currentIndex) {
+            element.classList.add('elementBorder');
+          } else {
+            element.classList.remove('elementBorder');
+          }
+        }
+      });
+    }
 }

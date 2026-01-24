@@ -9,7 +9,12 @@
     
     <div *ngIf="!useExoPlayer">
         <div id="controls" (mouseleave)="hideControls()">
-            <div id="seekSpace" (click)="seekBarClick($event)">
+            <div id="seekSpace" 
+                 (click)="seekBarClick($event)"
+                 (mousedown)="onSeekBarMouseDown($event)"
+                 (mousemove)="onSeekBarMouseMove($event)"
+                 (mouseup)="onSeekBarMouseUp($event)"
+                 (mouseleave)="onSeekBarMouseLeave()">
                 <div id="seekBar" #seekBar></div>
             </div>
 
