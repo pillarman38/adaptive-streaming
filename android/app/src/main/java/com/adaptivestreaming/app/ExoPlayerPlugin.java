@@ -96,7 +96,6 @@ public class ExoPlayerPlugin extends Plugin {
     private long seekStartTime = 0; // Timestamp when seeking started
     private static final long SEEK_COOLDOWN_MS = 300; // Don't update seekbar for 300ms after a seek
     private static final long MANUAL_SKIP_COOLDOWN_MS = 500; // Don't let time updates override manual skips for 500ms
-    // private java.util.Map<String, PluginCall> eventListeners = new java.util.HashMap<>();
 
     @PluginMethod
     public void initialize(PluginCall call) {
@@ -127,87 +126,6 @@ public class ExoPlayerPlugin extends Plugin {
 
                     // Initialize ExoPlayer with track selector that excludes commentary tracks
                     DefaultTrackSelector trackSelector = new DefaultTrackSelector(getContext());
-
-                    // exoPlayer = new ExoPlayer.Builder(getContext())
-                    //     .setTrackSelector(trackSelector)
-                    //     .build();
-
-                    // Store trackSelector as instance variable for later use
-                    // this.trackSelector = trackSelector;
-
-                    // Add listener to handle track selection and filter out commentary tracks
-                    // exoPlayer.addListener(new Player.Listener() {
-                    //     @Override
-                    //     public void onTracksChanged(Tracks tracks) {
-                    //         // Update audio track UI when tracks change
-                    //         updateAudioTrackUI(tracks);
-
-                    //         // When tracks are available, check if a commentary track is selected
-                    //         for (Tracks.Group trackGroup : tracks.getGroups()) {
-                    //             if (trackGroup.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
-                    //                 // Check if current selection is a commentary track
-                    //                 for (int i = 0; i < trackGroup.length; i++) {
-                    //                     if (trackGroup.isTrackSelected(i)) {
-                    //                         androidx.media3.common.Format format = trackGroup.getTrackFormat(i);
-                    //                         String label = format.label != null ? format.label.toLowerCase() : "";
-                    //                         String language = format.language != null ? format.language.toLowerCase() : "";
-
-                    //                         // Check for commentary indicators in label or language
-                    //                         if (label.contains("commentary") ||
-                    //                             label.contains("comment") ||
-                    //                             language.contains("commentary") ||
-                    //                             language.contains("comment")) {
-                    //                             // This is a commentary track - find and select a non-commentary track
-                    //                             for (int j = 0; j < trackGroup.length; j++) {
-                    //                                 if (j != i) {
-                    //                                     androidx.media3.common.Format otherFormat = trackGroup.getTrackFormat(j);
-                    //                                     String otherLabel = otherFormat.label != null ? otherFormat.label.toLowerCase() : "";
-                    //                                     String otherLanguage = otherFormat.language != null ? otherFormat.language.toLowerCase() : "";
-
-                    //                                     // If this track is not commentary, select it instead
-                    //                                     if (!otherLabel.contains("commentary") &&
-                    //                                         !otherLabel.contains("comment") &&
-                    //                                         !otherLanguage.contains("commentary") &&
-                    //                                         !otherLanguage.contains("comment")) {
-                    //                                         // Select this non-commentary track using track selector
-                    //                                         DefaultTrackSelector.Parameters currentParams = trackSelector.getParameters();
-                    //                                         DefaultTrackSelector.Parameters.Builder paramsBuilder = currentParams.buildUpon();
-
-                    //                                         // Create override to select the non-commentary track
-                    //                                         // We need to get the renderer index for audio tracks
-                    //                                         int rendererIndex = -1;
-                    //                                         for (int k = 0; k < exoPlayer.getRendererCount(); k++) {
-                    //                                             if (exoPlayer.getRendererType(k) == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
-                    //                                                 rendererIndex = k;
-                    //                                                 break;
-                    //                                             }
-                    //                                         }
-
-                    //                                         if (rendererIndex >= 0) {
-                    //                                             // Use track selection override to select the non-commentary track
-                    //                                             TrackGroup mediaTrackGroup = trackGroup.getMediaTrackGroup();
-                    //                                             TrackSelectionOverride override = new TrackSelectionOverride(mediaTrackGroup, Collections.singletonList(j));
-                    //                                             // Apply the track selection override directly to ExoPlayer
-                    //                                             TrackSelectionParameters currentTrackParams = exoPlayer.getTrackSelectionParameters();
-                    //                                             exoPlayer.setTrackSelectionParameters(
-                    //                                                 currentTrackParams.buildUpon()
-                    //                                                     .addOverride(override)
-                    //                                                     .build()
-                    //                                             );
-                    //                                             android.util.Log.d("ExoPlayerPlugin", "Switched from commentary track to main audio track");
-                    //                                             break;
-                    //                                         }
-                    //                                     }
-                    //                                 }
-                    //                             }
-                    //                         }
-                    //                     }
-                    //                 }
-                    //             }
-                    //         }
-                    //     }
-                    // });
-
                     // ExoPlayer will be initialized in loadVideo method
                     // Create PlayerView but don't set player yet (will be set in loadVideo)
                     playerView = new PlayerView(getContext());
@@ -227,32 +145,6 @@ public class ExoPlayerPlugin extends Plugin {
 
                     // Initialize handler for time updates
                     timeUpdateHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-
-                    // ExoPlayer listener will be set up in loadVideo after ExoPlayer is created
-                    // Set up ExoPlayer listener for playback state changes
-                    // exoPlayer.addListener(new Player.Listener() {
-                    //     @Override
-                    //     public void onPlaybackStateChanged(int playbackState) {
-                    //         if (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
-                    //             // Start time updates when player is ready or buffering
-                    //             startTimeUpdates();
-                    //         } else if (playbackState == Player.STATE_ENDED) {
-                    //             // Stop time updates when playback ends
-                    //             stopTimeUpdates();
-                    //         }
-                    //     }
-                    //
-                    //     @Override
-                    //     public void onIsPlayingChanged(boolean isPlaying) {
-                    //         if (isPlaying) {
-                    //             // Start time updates when playing
-                    //             startTimeUpdates();
-                    //         } else {
-                    //             // Stop time updates when paused
-                    //             stopTimeUpdates();
-                    //         }
-                    //     }
-                    // });
 
                     JSObject ret = new JSObject();
                     ret.put("success", true);
@@ -504,7 +396,6 @@ public class ExoPlayerPlugin extends Plugin {
                     }
                 });
             resetControlsHideTimer();
-            // sendEventToListener("playPause", new JSObject());
         });
 
         skipForward15Btn.setOnClickListener(v -> {
@@ -618,6 +509,9 @@ public class ExoPlayerPlugin extends Plugin {
         containerView.setOnKeyListener(new View.OnKeyListener() {
             @Override
             public boolean onKey(View v, int keyCode, KeyEvent event) {
+                // #region agent log
+                android.util.Log.d("ExoPlayerPlugin", "OnKeyListener called: keyCode=" + keyCode + ", action=" + event.getAction() + ", source=" + event.getSource() + ", flags=" + event.getFlags() + ", isSynthetic=" + (event.getFlags() & KeyEvent.FLAG_VIRTUAL_HARD_KEY) + ", focusedView=" + (getActivity().getCurrentFocus() != null ? getActivity().getCurrentFocus().getClass().getSimpleName() : "null"));
+                // #endregion
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     // Check if audio track list is visible - if so, let the buttons handle navigation
                     boolean audioListVisible = audioTrackListContainer != null && 
@@ -689,6 +583,10 @@ public class ExoPlayerPlugin extends Plugin {
                         keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
                         keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
                         keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        // #region agent log
+                        View currentFocus = getActivity().getCurrentFocus();
+                        android.util.Log.d("ExoPlayerPlugin", "D-pad navigation in OnKeyListener: keyCode=" + keyCode + ", currentFocus=" + (currentFocus != null ? currentFocus.getClass().getSimpleName() : "null") + ", containerView.hasFocus=" + containerView.hasFocus() + ", controlsVisible=" + controlsVisible);
+                        // #endregion
                         // If seekbar has focus and user is navigating left/right, set isSeeking
                         if (seekBar != null && seekBar.hasFocus() && 
                             (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)) {
@@ -2425,10 +2323,17 @@ public class ExoPlayerPlugin extends Plugin {
             return;
         }
 
-        long position = exoPlayer.getCurrentPosition();
-        JSObject ret = new JSObject();
-        ret.put("position", position / 1000.0); // Convert milliseconds to seconds
-        call.resolve(ret);
+        // ExoPlayer must be accessed on the main thread
+        getActivity().runOnUiThread(() -> {
+            try {
+                long position = exoPlayer.getCurrentPosition();
+                JSObject ret = new JSObject();
+                ret.put("position", position / 1000.0); // Convert milliseconds to seconds
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("Error getting current position: " + e.getMessage());
+            }
+        });
     }
 
     @PluginMethod
@@ -2438,10 +2343,17 @@ public class ExoPlayerPlugin extends Plugin {
             return;
         }
 
-        long duration = exoPlayer.getDuration();
-        JSObject ret = new JSObject();
-        ret.put("duration", duration / 1000.0); // Convert milliseconds to seconds
-        call.resolve(ret);
+        // ExoPlayer must be accessed on the main thread
+        getActivity().runOnUiThread(() -> {
+            try {
+                long duration = exoPlayer.getDuration();
+                JSObject ret = new JSObject();
+                ret.put("duration", duration / 1000.0); // Convert milliseconds to seconds
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("Error getting duration: " + e.getMessage());
+            }
+        });
     }
 
     @PluginMethod
@@ -2613,6 +2525,289 @@ public class ExoPlayerPlugin extends Plugin {
                     }
                 })
                 .start();
+        });
+
+        if (call != null) call.resolve();
+    }
+
+    @PluginMethod
+    public void navigateControls(PluginCall call) {
+        String direction = call.getString("direction", "up");
+        
+        if (controlsView == null || !controlsVisible) {
+            if (call != null) call.resolve();
+            return;
+        }
+
+        getActivity().runOnUiThread(() -> {
+            View targetView = null;
+            View currentFocus = getActivity().getCurrentFocus();
+            
+            // Check if audio track list is visible - if so, navigate within the list
+            boolean audioListVisible = audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.VISIBLE;
+            
+            // #region agent log
+            android.util.Log.d("ExoPlayerPlugin", "navigateControls START: direction=" + direction + ", currentFocus=" + (currentFocus != null ? currentFocus.getClass().getSimpleName() + " id=" + currentFocus.getId() : "null") + ", controlsVisible=" + controlsVisible + ", audioListVisible=" + audioListVisible);
+            // #endregion
+            if (audioListVisible && !audioTrackButtons.isEmpty()) {
+                // Navigate within audio track list
+                int currentTrackIndex = -1;
+                
+                // Find which track button currently has focus
+                for (int i = 0; i < audioTrackButtons.size(); i++) {
+                    if (audioTrackButtons.get(i) == currentFocus) {
+                        currentTrackIndex = i;
+                        break;
+                    }
+                }
+                
+                // #region agent log
+                android.util.Log.d("ExoPlayerPlugin", "navigateControls: Navigating audio track list, currentTrackIndex=" + currentTrackIndex + ", totalTracks=" + audioTrackButtons.size());
+                // #endregion
+                
+                switch (direction.toLowerCase()) {
+                    case "up":
+                        if (currentTrackIndex > 0) {
+                            targetView = audioTrackButtons.get(currentTrackIndex - 1);
+                        } else if (currentTrackIndex == -1) {
+                            // No track focused, focus the first one
+                            targetView = audioTrackButtons.get(0);
+                        }
+                        break;
+                    case "down":
+                        if (currentTrackIndex >= 0 && currentTrackIndex < audioTrackButtons.size() - 1) {
+                            targetView = audioTrackButtons.get(currentTrackIndex + 1);
+                        } else if (currentTrackIndex == -1) {
+                            // No track focused, focus the first one
+                            targetView = audioTrackButtons.get(0);
+                        }
+                        break;
+                    case "left":
+                    case "back":
+                        // Hide audio track list and focus the audio track button
+                        hideAudioTrackList();
+                        if (audioTrackBtn != null) {
+                            targetView = audioTrackBtn;
+                        }
+                        break;
+                    case "enter":
+                        // Trigger click on currently focused track button
+                        if (currentFocus != null && currentFocus.isClickable()) {
+                            currentFocus.performClick();
+                            // #region agent log
+                            android.util.Log.d("ExoPlayerPlugin", "navigateControls: Performed click on audio track button");
+                            // #endregion
+                        }
+                        resetControlsHideTimer();
+                        if (call != null) call.resolve();
+                        return;
+                    case "right":
+                        // Right doesn't make sense in a vertical list, but we could allow it to move to next track
+                        if (currentTrackIndex >= 0 && currentTrackIndex < audioTrackButtons.size() - 1) {
+                            targetView = audioTrackButtons.get(currentTrackIndex + 1);
+                        } else if (currentTrackIndex == -1) {
+                            targetView = audioTrackButtons.get(0);
+                        }
+                        break;
+                }
+            } else {
+                // Navigate main controls (existing logic)
+                // Check if seek bar has focus first
+                if (seekBar != null && seekBar == currentFocus) {
+                    // Currently on seek bar
+                    switch (direction.toLowerCase()) {
+                        case "down":
+                            // Navigate down from seek bar to play/pause button (center button)
+                            if (playPauseBtn != null) {
+                                targetView = playPauseBtn;
+                            }
+                            break;
+                        case "left":
+                        case "right":
+                            // Move seek bar thumb (same behavior as remote) - don't seek until Enter is pressed
+                            if (seekBar != null && exoPlayer != null) {
+                                long duration = exoPlayer.getDuration();
+                                
+                                if (duration > 0) {
+                                    // Start seeking mode if not already seeking
+                                    if (!isSeeking) {
+                                        isSeeking = true;
+                                        seekStartTime = System.currentTimeMillis();
+                                        wasPlayingBeforeSeek = exoPlayer.isPlaying();
+                                        stopTimeUpdates();
+                                        
+                                        // Prevent controls from auto-hiding while seeking
+                                        if (controlsHideHandler != null) {
+                                            controlsHideHandler.removeCallbacksAndMessages(null);
+                                        }
+                                        
+                                        // Pause playback while user is navigating (if playing)
+                                        if (exoPlayer.isPlaying()) {
+                                            exoPlayer.pause();
+                                            isPaused = true;
+                                            if (playPauseBtn != null) {
+                                                playPauseBtn.setImageResource(android.R.drawable.ic_media_play);
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Get current seek bar progress
+                                    int currentProgress = seekBar.getProgress();
+                                    int maxProgress = seekBar.getMax(); // Should be 10000
+                                    
+                                    // Move by approximately 1% of the range (same as Android SeekBar default behavior)
+                                    int increment = Math.max(1, maxProgress / 100); // ~1% of max
+                                    int newProgress;
+                                    
+                                    if (direction.toLowerCase().equals("left")) {
+                                        // Move backward
+                                        newProgress = Math.max(0, currentProgress - increment);
+                                    } else {
+                                        // Move forward
+                                        newProgress = Math.min(maxProgress, currentProgress + increment);
+                                    }
+                                    
+                                    // Update seek bar progress (but don't seek yet - wait for Enter)
+                                    seekBar.setProgress(newProgress);
+                                }
+                            }
+                            resetControlsHideTimer();
+                            if (call != null) call.resolve();
+                            return;
+                        case "enter":
+                            // Perform the seek when Enter is pressed (same as remote behavior)
+                            if (seekBar != null && exoPlayer != null && isSeeking) {
+                                int finalProgress = seekBar.getProgress();
+                                long duration = exoPlayer.getDuration();
+                                
+                                if (duration > 0) {
+                                    long seekPosition = (long) (duration * finalProgress / 10000.0);
+                                    lastSeekTime = System.currentTimeMillis();
+                                    exoPlayer.seekTo(seekPosition);
+                                    
+                                    // Resume playback if it was playing before seeking
+                                    if (wasPlayingBeforeSeek) {
+                                        exoPlayer.play();
+                                        isPaused = false;
+                                        if (playPauseBtn != null) {
+                                            playPauseBtn.setImageResource(android.R.drawable.ic_media_pause);
+                                        }
+                                    }
+                                    
+                                    // Reset seeking state
+                                    isSeeking = false;
+                                    seekStartTime = 0;
+                                    
+                                    // Restart time updates
+                                    startTimeUpdates();
+                                }
+                            }
+                            resetControlsHideTimer();
+                            if (call != null) call.resolve();
+                            return;
+                        case "up":
+                            // Already at top, stay on seek bar
+                            resetControlsHideTimer();
+                            if (call != null) call.resolve();
+                            return;
+                    }
+                } else if (currentFocus != null) {
+                    // On a button or other control
+                    int currentId = currentFocus.getId();
+                    
+                    // Define button order (left to right)
+                    int[] buttonOrder = {
+                        R.id.skipBack30Btn,
+                        R.id.skipBack15Btn,
+                        R.id.playPauseBtn,
+                        R.id.skipForward15Btn,
+                        R.id.skipForward30Btn,
+                        R.id.audioTrackBtn
+                    };
+                    
+                    // Find current button index
+                    int currentIndex = -1;
+                    for (int i = 0; i < buttonOrder.length; i++) {
+                        if (currentId == buttonOrder[i]) {
+                            currentIndex = i;
+                            break;
+                        }
+                    }
+                    
+                    // #region agent log
+                    android.util.Log.d("ExoPlayerPlugin", "navigateControls: Navigating main controls, currentIndex=" + currentIndex + ", currentId=" + currentId);
+                    // #endregion
+                    
+                    if (currentIndex >= 0) {
+                        switch (direction.toLowerCase()) {
+                            case "left":
+                                if (currentIndex > 0) {
+                                    targetView = controlsView.findViewById(buttonOrder[currentIndex - 1]);
+                                }
+                                break;
+                            case "right":
+                                if (currentIndex < buttonOrder.length - 1) {
+                                    targetView = controlsView.findViewById(buttonOrder[currentIndex + 1]);
+                                }
+                                break;
+                            case "up":
+                                // Navigate up to seek bar
+                                if (seekBar != null && seekBar.getVisibility() == View.VISIBLE) {
+                                    targetView = seekBar;
+                                }
+                                break;
+                            case "down":
+                                // Navigate down to bottom row buttons if visible, otherwise stay on current button
+                                // Check for bottom row buttons (skipIntroBtn, nextEpisodeBtn)
+                                if (skipIntroBtn != null && skipIntroBtn.getVisibility() == View.VISIBLE) {
+                                    targetView = skipIntroBtn;
+                                } else if (nextEpisodeBtn != null && nextEpisodeBtn.getVisibility() == View.VISIBLE) {
+                                    targetView = nextEpisodeBtn;
+                                }
+                                break;
+                            case "enter":
+                                // Trigger click on currently focused button
+                                if (currentFocus.isClickable()) {
+                                    currentFocus.performClick();
+                                    // #region agent log
+                                    android.util.Log.d("ExoPlayerPlugin", "navigateControls: Performed click on focused view");
+                                    // #endregion
+                                }
+                                resetControlsHideTimer();
+                                if (call != null) call.resolve();
+                                return;
+                        }
+                    } else {
+                        // No button has focus, focus the first one (or playPauseBtn)
+                        if (playPauseBtn != null) {
+                            targetView = playPauseBtn;
+                        } else if (buttonOrder.length > 0) {
+                            targetView = controlsView.findViewById(buttonOrder[0]);
+                        }
+                    }
+                } else {
+                    // No focus at all, focus the play/pause button
+                    if (playPauseBtn != null) {
+                        targetView = playPauseBtn;
+                    }
+                }
+            }
+            
+            // Request focus on target view
+            if (targetView != null && targetView.getVisibility() == View.VISIBLE) {
+                boolean focusResult = targetView.requestFocus();
+                // #region agent log
+                View currentFocusAfter = getActivity().getCurrentFocus();
+                android.util.Log.d("ExoPlayerPlugin", "navigateControls: Focused target view, result=" + focusResult + ", currentFocus=" + (currentFocusAfter != null ? currentFocusAfter.getClass().getSimpleName() : "null"));
+                // #endregion
+            } else {
+                // #region agent log
+                android.util.Log.w("ExoPlayerPlugin", "navigateControls: targetView is null or not visible, targetView=" + targetView);
+                // #endregion
+            }
+            
+            // Reset controls timer
+            resetControlsHideTimer();
         });
 
         if (call != null) call.resolve();

@@ -14,6 +14,7 @@ import {
 import { InfoStoreService } from "../info-store.service";
 import { HttpClient } from "@angular/common/http";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
+import { Router } from "@angular/router";
 import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 import { PlatformService } from "../services/platform.service";
 import { ExoPlayerService } from "../services/exoplayer.service";
@@ -66,38 +67,139 @@ export class PlayerComponent implements OnInit, OnDestroy {
   @ViewChildren("controls") controls!: QueryList<ElementRef>;
   @ViewChild("videoElem") videoElem!: ElementRef;
   @ViewChildren("controlBtns") controlBtns!: QueryList<ElementRef>;
+  @ViewChild("controlsContainer", { read: ElementRef }) controlsContainer!: ElementRef;
+
+  @HostListener("window:skipAction", ["$event"])
+  onSkipAction(event: CustomEvent): void {
+    if (event.detail && event.detail.action) {
+      if (event.detail.action === 'skipForward') {
+        console.log('[Player] Skip forward requested');
+        this.skipButtons(15);
+      } else if (event.detail.action === 'skipBackward') {
+        console.log('[Player] Skip backward requested');
+        this.skipButtons(-15);
+      }
+    }
+  }
 
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
     console.log("EVENT: ", event.code, event.key, event.keyCode);
 
+    // Handle back button (Escape, Backspace, or Android TV Back button)
+    const isBackKey = event.code === "Escape" || 
+                      event.code === "Backspace" || 
+                      event.key === "Escape" ||
+                      event.key === "Backspace" ||
+                      event.keyCode === 27 || // Escape
+                      event.keyCode === 8;    // Backspace
+
+    if (isBackKey) {
+      // Navigate back to overview page
+      this.router.navigateByUrl("/overview");
+      return;
+    }
+
     // Show controls when arrow keys are pressed (for Nvidia Shield remote)
     if(event.code === "ArrowUp" || event.code === "ArrowDown" || event.code === "ArrowLeft" || event.code === "ArrowRight") {
+      console.log('[Player] Arrow key pressed:', event.code, '- controlsVisible:', this.controlsVisible, 'useExoPlayer:', this.useExoPlayer, 'isAndroid:', this.isAndroid);
       if (!this.controlsVisible) {
-        // this.showControls();
+        console.log('[Player] Controls not visible, calling showControls()');
+        this.showControls();
       } else {
+        console.log('[Player] Controls already visible, resetting timeout');
         // Controls already visible - reset the timeout to keep them visible during navigation
         this.resetControlsTimeout();
       }
       
-      // For native Android controls, let them handle navigation
-      // Don't interfere with native focus navigation
+      // For native Android controls, show them and navigate them
       if (this.useExoPlayer && this.isAndroid) {
-        // Native controls handle their own focus, just keep them visible
+        // Convert JavaScript arrow key to direction string and navigate Android controls
+        let direction = '';
+        if (event.code === 'ArrowUp') direction = 'up';
+        else if (event.code === 'ArrowDown') direction = 'down';
+        else if (event.code === 'ArrowLeft') direction = 'left';
+        else if (event.code === 'ArrowRight') direction = 'right';
+        
+        if (direction) {
+          console.log('[Player] Navigating Android controls:', direction);
+          // Small delay to ensure controls are fully shown and focused before navigating
+          setTimeout(() => {
+            this.exoPlayerService.navigateControls(direction).catch((error) => {
+              console.error('[Player] Error navigating controls:', error);
+            });
+          }, 50); // 50ms delay to ensure showControls() completes
+        }
+        return; // Don't continue with web navigation logic
+      }
+
+      // Ensure controls are registered for navigation
+      if (this.smartTv.smartTv && !this.useExoPlayer && this.controlBtns.length > 0) {
+        // Check if controls list is already registered
+        if (!this.smartTv.smartTv.currentListName || this.smartTv.smartTv.currentListName !== "controlBtns") {
+          // Register controls if not already registered
+          this.smartTv.smartTv.addCurrentList({
+            startingList: true,
+            listName: "controlBtns",
+            startingIndex: 0,
+            listElements: this.controlBtns,
+          });
+          console.log('[Player] Registered controls for navigation, currentListName:', this.smartTv.smartTv.currentListName);
+        }
+      } else if (this.smartTv.smartTv && !this.useExoPlayer && this.controlBtns.length === 0) {
+        console.warn('[Player] Arrow key pressed but controlBtns are not available yet');
+      }
+    }
+    
+    // Handle Space key for play/pause
+    const isSpaceKey = event.code === "Space" || 
+                       event.key === " " ||
+                       event.keyCode === 32;
+
+    if (isSpaceKey) {
+      event.preventDefault(); // Prevent page scroll
+      console.log('[Player] Space key pressed - toggling play/pause');
+      this.playPause();
+      return;
+    }
+
+
+    // Handle Enter key to trigger selected control
+    const isEnterKey = event.code === "Enter" || 
+                       event.code === "NumpadEnter" || 
+                       event.key === "Enter" ||
+                       event.keyCode === 13;
+
+    if (isEnterKey) {
+      // For Android ExoPlayer, simulate Enter key press on currently focused control
+      if (this.useExoPlayer && this.isAndroid) {
+        console.log('[Player] Enter key pressed on Android - simulating Enter on focused control');
+        this.exoPlayerService.navigateControls('enter').catch((error) => {
+          console.error('[Player] Error triggering control:', error);
+        });
+        return;
+      }
+      
+      // If controls are registered and we're on the controlBtns list, trigger the selected control
+      if (this.smartTv.smartTv && this.smartTv.smartTv.currentListName === "controlBtns") {
+        const currentIndex = this.smartTv.smartTv.currentIndex ?? 0;
+        const selectedControl = this.controlBtns.toArray()[currentIndex];
+        if (selectedControl && selectedControl.nativeElement) {
+          // Trigger click on the selected control
+          selectedControl.nativeElement.click();
+        }
         return;
       }
     }
     
-    // Only handle navigation if controls are the current active list
-    // For spacebar, always handle it regardless of list
-    if (event.code === "Space") {
-      // this.playPause();
+    // Only handle navigation if controls are registered
+    // This is for HTML controls on web, not native Android controls
+    if (!this.smartTv.smartTv) {
       return;
     }
 
-    // Only navigate if there's an active list (controls might not be registered)
-    // This is for HTML controls on web, not native Android controls
-    if (!this.smartTv.smartTv || !this.smartTv.smartTv.currentListName) {
+    // Only navigate if there's an active list
+    if (!this.smartTv.smartTv.currentListName) {
       return;
     }
 
@@ -110,31 +212,47 @@ export class PlayerComponent implements OnInit, OnDestroy {
     }
   }
 
-  // showControls() {
-  //   this.controlsVisible = true;
+  showControls() {
+    console.log('[Player] showControls() called - controlsVisible:', this.controlsVisible, 'useExoPlayer:', this.useExoPlayer, 'isAndroid:', this.isAndroid);
+    this.controlsVisible = true;
     
-  //   // Show native Android controls if using ExoPlayer
-  //   if (this.useExoPlayer && this.isAndroid) {
-  //     this.exoPlayerService.showControls();
-  //   }
+    // Show native Android controls if using ExoPlayer
+    if (this.useExoPlayer && this.isAndroid) {
+      console.log('[Player] Calling exoPlayerService.showControls()');
+      this.exoPlayerService.showControls().catch((error) => {
+        console.error('[Player] Error calling exoPlayerService.showControls():', error);
+      });
+    } else {
+      console.log('[Player] Not calling exoPlayerService.showControls() - useExoPlayer:', this.useExoPlayer, 'isAndroid:', this.isAndroid);
+    }
     
-  //   // Clear existing timeout
-  //   if (this.controlsTimeout) {
-  //     clearTimeout(this.controlsTimeout);
-  //   }
+    // Add visible class to controls container for web player
+    if (!this.useExoPlayer && this.controlsContainer && this.controlsContainer.nativeElement) {
+      this.controlsContainer.nativeElement.classList.add('visible');
+    }
     
-  //   // Hide controls after 5 seconds of inactivity
-  //   this.controlsTimeout = setTimeout(() => {
-  //     this.hideControls();
-  //   }, 5000);
-  // }
+    // Clear existing timeout
+    if (this.controlsTimeout) {
+      clearTimeout(this.controlsTimeout);
+    }
+    
+    // Hide controls after 5 seconds of inactivity
+    this.controlsTimeout = setTimeout(() => {
+      this.hideControls();
+    }, 5000);
+  }
 
   hideControls() {
     this.controlsVisible = false;
     
     // Hide native Android controls if using ExoPlayer
     if (this.useExoPlayer && this.isAndroid) {
-      // this.exoPlayerService.hideControls();
+      this.exoPlayerService.hideControls();
+    }
+    
+    // Remove visible class from controls container for web player
+    if (!this.useExoPlayer && this.controlsContainer && this.controlsContainer.nativeElement) {
+      this.controlsContainer.nativeElement.classList.remove('visible');
     }
     
     if (this.controlsTimeout) {
@@ -145,20 +263,21 @@ export class PlayerComponent implements OnInit, OnDestroy {
   
   resetControlsTimeout() {
     // Reset the auto-hide timer - called during navigation to keep controls visible
-    // if (this.controlsVisible) {
-    //   if (this.controlsTimeout) {
-    //     clearTimeout(this.controlsTimeout);
-    //   }
-    //   this.controlsTimeout = setTimeout(() => {
-    //     // this.hideControls();
-    //   }, 5000);
-    // }
+    if (this.controlsVisible) {
+      if (this.controlsTimeout) {
+        clearTimeout(this.controlsTimeout);
+      }
+      this.controlsTimeout = setTimeout(() => {
+        this.hideControls();
+      }, 5000);
+    }
   }
 
   constructor(
     private infoStore: InfoStoreService,
     private http: HttpClient,
     private sanitizer: DomSanitizer,
+    private router: Router,
     private smartTv: SmartTvLibSingletonService,
     private platformService: PlatformService,
     private exoPlayerService: ExoPlayerService,

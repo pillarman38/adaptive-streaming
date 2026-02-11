@@ -1,0 +1,332 @@
+.controller-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  height: 100vh;
+  padding: 2vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  box-sizing: border-box;
+}
+
+#logo {
+  width: 128px;
+  height: 128px;
+  object-fit: cover;
+}
+
+.controller-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 4vh;
+  gap: 2vh;
+  flex-shrink: 0;
+}
+
+.controller-header h2 {
+  color: white;
+  font-size: clamp(2rem, 5vh, 4rem);
+  margin: 0;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  padding: 1vh 2vw;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.status-indicator {
+  width: clamp(12px, 1.5vh, 20px);
+  height: clamp(12px, 1.5vh, 20px);
+  border-radius: 50%;
+  transition: background-color 0.3s;
+}
+
+.connection-status.connected .status-indicator {
+  background-color: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+}
+
+.connection-status.disconnected .status-indicator {
+  background-color: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+.status-text {
+  color: white;
+  font-weight: 500;
+  font-size: clamp(0.9rem, 2vh, 1.5rem);
+}
+
+.controller-pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vh;
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+}
+
+.arrow-keys {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 1.5vh;
+  justify-items: center;
+}
+
+.arrow-row {
+  display: flex;
+  gap: 1.5vh;
+}
+
+.arrow-btn {
+  width: clamp(100px, 15vw, 180px);
+  height: clamp(100px, 15vw, 180px);
+  min-width: 100px;
+  min-height: 100px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #667eea;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.arrow-btn:hover:not(:disabled) {
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.arrow-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.arrow-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.arrow-btn svg {
+  width: clamp(40px, 8vw, 80px);
+  height: clamp(40px, 8vw, 80px);
+}
+
+.enter-btn, .back-btn, .volume-btn, .play-pause-btn {
+  width: clamp(240px, 50vw, 400px);
+  height: clamp(70px, 10vh, 120px);
+  min-width: 240px;
+  min-height: 70px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #667eea;
+  font-size: clamp(1.25rem, 3vh, 2.25rem);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.enter-btn:hover:not(:disabled), .back-btn:hover:not(:disabled), .volume-btn:hover:not(:disabled), .play-pause-btn:hover:not(:disabled) {
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.enter-btn:active:not(:disabled), .back-btn:active:not(:disabled), .volume-btn:active:not(:disabled), .play-pause-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.enter-btn:disabled, .back-btn:disabled, .volume-btn:disabled, .play-pause-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.enter-btn {
+  gap: 0;
+}
+
+.play-pause-btn svg {
+  width: clamp(24px, 4vw, 40px);
+  height: clamp(24px, 4vw, 40px);
+}
+
+.back-btn svg, .volume-btn svg {
+  width: clamp(24px, 4vw, 40px);
+  height: clamp(24px, 4vw, 40px);
+}
+
+.skip-controls {
+  display: flex;
+  gap: 1.5vw;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.skip-btn {
+  width: clamp(200px, 42vw, 340px);
+  height: clamp(70px, 10vh, 120px);
+  min-width: 200px;
+  min-height: 70px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #667eea;
+  font-size: clamp(1.1rem, 2.5vh, 1.9rem);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.skip-btn:hover:not(:disabled) {
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.skip-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.skip-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.skip-btn svg {
+  width: clamp(24px, 4vw, 40px);
+  height: clamp(24px, 4vw, 40px);
+}
+
+.volume-controls {
+  display: flex;
+  gap: 1.5vw;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.volume-btn {
+  width: clamp(200px, 42vw, 340px);
+  font-size: clamp(1.1rem, 2.5vh, 1.9rem);
+}
+
+@media (max-width: 480px) {
+  .controller-container {
+    padding: 2vh 2vw;
+    padding-top: 3vh;
+    min-height: 100vh;
+    height: 100vh;
+    justify-content: flex-start;
+  }
+  .controller-header {
+    margin-bottom: 3vh;
+    gap: 1.5vh;
+  }
+  .controller-header h2 {
+    font-size: clamp(1.75rem, 4vh, 3rem);
+  }
+  .connection-status {
+    padding: 1vh 2vw;
+  }
+  .status-text {
+    font-size: clamp(0.85rem, 1.8vh, 1.2rem);
+  }
+  .controller-pad {
+    gap: 2.5vh;
+  }
+  .arrow-keys, .arrow-row {
+    gap: 1.2vh;
+  }
+  .arrow-btn {
+    width: clamp(90px, 18vw, 140px);
+    height: clamp(90px, 18vw, 140px);
+  }
+  .arrow-btn svg {
+    width: clamp(35px, 7vw, 60px);
+    height: clamp(35px, 7vw, 60px);
+  }
+  .enter-btn, .back-btn, .play-pause-btn {
+    width: clamp(200px, 45vw, 320px);
+    height: clamp(60px, 9vh, 100px);
+    font-size: clamp(1.1rem, 2.5vh, 1.8rem);
+  }
+  .skip-btn {
+    width: clamp(170px, 38vw, 280px);
+    height: clamp(60px, 9vh, 100px);
+    font-size: clamp(1rem, 2.2vh, 1.6rem);
+  }
+  .volume-btn {
+    width: clamp(170px, 38vw, 280px);
+    height: clamp(60px, 9vh, 100px);
+    font-size: clamp(1rem, 2.2vh, 1.6rem);
+  }
+}
+
+@media (max-width: 375px) {
+  .controller-container {
+    padding: 1.5vh 2vw;
+    padding-top: 2.5vh;
+  }
+  .controller-header h2 {
+    font-size: clamp(1.5rem, 3.5vh, 2.5rem);
+  }
+  .arrow-btn {
+    width: clamp(80px, 16vw, 120px);
+    height: clamp(80px, 16vw, 120px);
+  }
+  .arrow-btn svg {
+    width: clamp(30px, 6vw, 50px);
+    height: clamp(30px, 6vw, 50px);
+  }
+  .enter-btn, .back-btn, .play-pause-btn {
+    width: clamp(180px, 42vw, 300px);
+    height: clamp(55px, 8vh, 90px);
+    font-size: clamp(1rem, 2.2vh, 1.6rem);
+  }
+  .skip-btn {
+    width: clamp(150px, 35vw, 260px);
+    height: clamp(55px, 8vh, 90px);
+    font-size: clamp(0.9rem, 2vh, 1.4rem);
+  }
+  .volume-btn {
+    width: clamp(150px, 35vw, 260px);
+    height: clamp(55px, 8vh, 90px);
+    font-size: clamp(0.9rem, 2vh, 1.4rem);
+  }
+}

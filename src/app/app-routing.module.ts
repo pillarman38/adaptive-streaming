@@ -6,6 +6,7 @@ import { PlayerComponent } from "./player/player.component";
 import { SearchComponent } from "./search/search.component";
 import { TvComponent } from "./tv/tv.component";
 import { SeasonsComponent } from "./seasons/seasons.component";
+import { ControllerComponent } from "./controller/controller.component";
 import { SmartTvComponent } from "smart-tv";
 
 const routes: Routes = [
@@ -19,6 +20,7 @@ const routes: Routes = [
   { path: "search", component: SearchComponent },
   { path: "tv", component: TvComponent },
   { path: "seasons", component: SeasonsComponent },
+  { path: "controller", component: ControllerComponent },
 ];
 
 @NgModule({

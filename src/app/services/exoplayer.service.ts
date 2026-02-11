@@ -13,8 +13,9 @@ export interface ExoPlayerPlugin {
   release(): Promise<{ success: boolean }>;
   addListener(eventName: string, listenerFunc: (data?: any) => void): Promise<any>;
   removeAllListeners(): Promise<void>;
-  // showControls(): Promise<void>;
-  // hideControls(): Promise<void>;
+  showControls(): Promise<void>;
+  hideControls(): Promise<void>;
+  navigateControls(options: { direction: string }): Promise<void>;
   setPaused(options: { paused: boolean }): Promise<void>;
   setShowSkipIntro(options: { show: boolean }): Promise<void>;
   setShowNextEpisode(options: { show: boolean }): Promise<void>;
@@ -223,27 +224,42 @@ export class ExoPlayerService {
     }
   }
 
-  // async showControls(): Promise<void> {
-  //   if (!this.isInitialized || !Capacitor.isNativePlatform()) {
-  //     return;
-  //   }
-  //   try {
-  //     await ExoPlayer.showControls();
-  //   } catch (error) {
-  //     console.error('Error showing controls:', error);
-  //   }
-  // }
+  async showControls(): Promise<void> {
+    console.log('[ExoPlayerService] showControls() called - isInitialized:', this.isInitialized, 'isNativePlatform:', Capacitor.isNativePlatform());
+    if (!this.isInitialized || !Capacitor.isNativePlatform()) {
+      console.warn('[ExoPlayerService] showControls() skipped - isInitialized:', this.isInitialized, 'isNativePlatform:', Capacitor.isNativePlatform());
+      return;
+    }
+    try {
+      console.log('[ExoPlayerService] Calling ExoPlayer.showControls()');
+      await ExoPlayer.showControls();
+      console.log('[ExoPlayerService] ExoPlayer.showControls() completed successfully');
+    } catch (error) {
+      console.error('[ExoPlayerService] Error showing controls:', error);
+    }
+  }
 
-  // async hideControls(): Promise<void> {
-  //   if (!this.isInitialized || !Capacitor.isNativePlatform()) {
-  //     return;
-  //   }
-  //   try {
-  //     await ExoPlayer.hideControls();
-  //   } catch (error) {
-  //     console.error('Error hiding controls:', error);
-  //   }
-  // }
+  async hideControls(): Promise<void> {
+    if (!this.isInitialized || !Capacitor.isNativePlatform()) {
+      return;
+    }
+    try {
+      await ExoPlayer.hideControls();
+    } catch (error) {
+      console.error('Error hiding controls:', error);
+    }
+  }
+
+  async navigateControls(direction: string): Promise<void> {
+    if (!this.isInitialized || !Capacitor.isNativePlatform()) {
+      return;
+    }
+    try {
+      await ExoPlayer.navigateControls({ direction });
+    } catch (error) {
+      console.error('Error navigating controls:', error);
+    }
+  }
 
   async setPaused(paused: boolean): Promise<void> {
     if (!this.isInitialized || !Capacitor.isNativePlatform()) {

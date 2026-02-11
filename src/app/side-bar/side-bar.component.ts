@@ -23,6 +23,9 @@ export class SideBarComponent implements OnInit, OnDestroy {
   scanProgress = 0;
   scanTotal = 0;
   currentFile = "";
+  tvScanProgress = 0;
+  tvScanTotal = 0;
+  tvCurrentFile = "";
   private progressInterval: any = null;
 
   // smartTv: any;
@@ -118,9 +121,15 @@ export class SideBarComponent implements OnInit, OnDestroy {
     this.scanProgress = 0;
     this.scanTotal = 0;
     this.currentFile = "";
+    this.tvScanProgress = 0;
+    this.tvScanTotal = 0;
+    this.tvCurrentFile = "";
 
+    const url = `${this.apiConfig.getBaseUrl()}/api/mov/scanLibrary`;
+    console.log('Calling scanLibrary:', url);
+    
     // Start the scan
-    this.http.get(`${this.apiConfig.getBaseUrl()}/api/mov/scanLibrary`).subscribe({
+    this.http.get(url).subscribe({
       next: (res: any) => {
         // console.log('Scan completed:', res);
       },
@@ -139,16 +148,39 @@ export class SideBarComponent implements OnInit, OnDestroy {
     this.progressInterval = setInterval(() => {
       this.http.get(`${this.apiConfig.getBaseUrl()}/api/mov/scanProgress`).subscribe({
         next: (progress: any) => {
-          if (progress.isScanning) {
-            this.scanProgress = progress.current || 0;
-            this.scanTotal = progress.total || 0;
-            this.currentFile = progress.currentFile || "";
-          } else {
-            // Scan completed
+          // Handle movies progress
+          if (progress.movies) {
+            if (progress.movies.isScanning) {
+              this.scanProgress = progress.movies.current || 0;
+              this.scanTotal = progress.movies.total || 0;
+              this.currentFile = progress.movies.currentFile || "";
+            } else {
+              this.scanProgress = progress.movies.total || 0;
+              this.scanTotal = progress.movies.total || 0;
+              this.currentFile = "";
+            }
+          }
+
+          // Handle TV shows progress
+          if (progress.tvShows) {
+            if (progress.tvShows.isScanning) {
+              this.tvScanProgress = progress.tvShows.current || 0;
+              this.tvScanTotal = progress.tvShows.total || 0;
+              this.tvCurrentFile = progress.tvShows.currentFile || "";
+            } else {
+              this.tvScanProgress = progress.tvShows.total || 0;
+              this.tvScanTotal = progress.tvShows.total || 0;
+              this.tvCurrentFile = "";
+            }
+          }
+
+          // Check if both scans are complete
+          const moviesScanning = progress.movies?.isScanning || false;
+          const tvShowsScanning = progress.tvShows?.isScanning || false;
+          
+          if (!moviesScanning && !tvShowsScanning) {
+            // Both scans completed
             this.isScanning = false;
-            this.scanProgress = progress.total || 0;
-            this.scanTotal = progress.total || 0;
-            this.currentFile = "";
             this.stopProgressPolling();
           }
         },

@@ -21,7 +21,10 @@ let scanProgress = {
   currentFile: ""
 };
 
-async function updateMoviesInDB() {
+async function updateMoviesInDB(callback) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.models.js:24',message:'updateMoviesInDB called',data:{hasCallback:!!callback},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   setTimeout(function () {
     ffstream.on("error", function () {
       console.log("Ffmpeg has been killed");
@@ -368,19 +371,26 @@ async function updateMoviesInDB() {
                 });
 
                 if (l + 1 === notIncluded.length) {
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.models.js:373',message:'Movies scan complete - all files processed',data:{hasCallback:!!callback},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
+                  // #endregion
                   // Scan complete - reset progress
                   scanProgress.isScanning = false;
                   scanProgress.current = scanProgress.total;
                   scanProgress.currentFile = "";
                   
-                  // pool.query(
-                  //   `SELECT * FROM movies ORDER BY title ASC`,
-                  //   (err, resp) => {
-                  //     // pool.query(`SELECT * from pickupwhereleftoff`, (e, r) => {
-                // callback(resp);
-                  //     // });
-                  //   }
-                  // );
+                  // Get all movies and call callback
+                  pool.query(
+                    `SELECT * FROM movies ORDER BY title ASC`,
+                    (err, resp) => {
+                      // #region agent log
+                      fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.models.js:382',message:'Calling callback after scan complete',data:{hasCallback:!!callback,hasError:!!err,resultCount:resp?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
+                      // #endregion
+                      if (callback) {
+                        callback(err, resp);
+                      }
+                    }
+                  );
                 } else {
                   l += 1;
                   await iterate();
@@ -389,6 +399,9 @@ async function updateMoviesInDB() {
             }
           );
         } else {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.models.js:394',message:'No new files to scan - completion path',data:{notIncludedLength:notIncluded.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
           // No new files to scan - reset progress
           scanProgress.isScanning = false;
           scanProgress.current = 0;
@@ -399,22 +412,13 @@ async function updateMoviesInDB() {
             movie.subtitles = JSON.parse(movie.subtitles);
             return movie;
           });
-          // pool.query(`SELECT * from pickupwhereleftoff`, (e, r) => {
-          //   res.map((movie, i) => {
-          //     let hi = r.find((mo) => mo.titleOrEpisode === movie.title);
-
-          //     movie.posterUrl = urlTransformer.transformUrl(`http://pixable.local:5012${movie.posterUrl}`);
-          //     movie.location = urlTransformer.transformUrl(`http://pixable.local:5012${movie.location}`);
-          //     movie.coverArt = urlTransformer.transformUrl(`http://pixable.local:5012${movie.coverArt}`);
-
-          //     if (hi) {
-          //       res[i].seekTime = hi ? hi.time : 0;
-          //       res[i].resumePressed = true;
-          //     }
-          //     return movie;
-          //   });
-          //   callback(err, res);
-          // });
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.models.js:400',message:'Calling callback with no new files',data:{hasCallback:!!callback},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
+          // Call callback with existing movies since no new files to scan
+          if (callback) {
+            callback(null, res);
+          }
         }
       }
       iterate();
@@ -424,7 +428,13 @@ async function updateMoviesInDB() {
 
 let routeFunctions = {
   updateMovies: (callback) => {
-    updateMoviesInDB();
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.models.js:426',message:'updateMovies called',data:{hasCallback:!!callback},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.models.js:427',message:'Calling updateMoviesInDB with callback',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    updateMoviesInDB(callback);
   },
   getScanProgress: () => {
     return scanProgress;

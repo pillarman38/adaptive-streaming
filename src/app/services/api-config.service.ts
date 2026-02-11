@@ -80,8 +80,14 @@ export class ApiConfigService {
 
   async ensureConfigLoaded(): Promise<void> {
     if (!this.configLoaded) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api-config.service.ts:81',message:'Starting config load',data:{isAndroid:this.platformService?.isAndroid(),isWeb:this.platformService?.isWeb()},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       // console.log("LOADING CONFIG");
       await this.loadConfig();
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api-config.service.ts:85',message:'Config load completed',data:{configLoaded:this.configLoaded,serverIp:this.serverIp,serverHost:this.serverHost,serverPort:this.serverPort},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
     }
     // console.log("CONFIG LOADED");
   }
@@ -91,6 +97,9 @@ export class ApiConfigService {
     const baseUrl = this.serverIp 
       ? `http://${this.serverIp}:${this.serverPort}`
       : `http://${this.serverHost}:${this.serverPort}`;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api-config.service.ts:89',message:'getBaseUrl called',data:{serverIp:this.serverIp,serverHost:this.serverHost,serverPort:this.serverPort,baseUrl,configLoaded:this.configLoaded},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     // console.log(`[ApiConfig] getBaseUrl() called - serverIp: ${this.serverIp}, returning: ${baseUrl}`);
     return baseUrl;
   }

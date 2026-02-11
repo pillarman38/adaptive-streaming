@@ -144,18 +144,42 @@ router.post("/movies", (req, res) => {
 
 router.get("/scanLibrary", (req, res) => {
   console.log("body", req.body);
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.routes.js:145',message:'scanLibrary endpoint called',data:{method:req.method,path:req.path,url:req.url,query:req.query},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
+  // #endregion
+  // First update movies
   models.updateMovies((err, results) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.routes.js:149',message:'updateMovies callback invoked',data:{hasError:!!err,hasResults:!!results},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (err) {
       res.send(err);
     } else {
-      res.send(results);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.routes.js:153',message:'About to call tv.updateTvShows',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      // Then update TV shows
+      tv.updateTvShows((tvErr, tvResults) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.routes.js:154',message:'tv.updateTvShows callback invoked',data:{hasError:!!tvErr,hasResults:!!tvResults},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        if (tvErr) {
+          res.send(tvErr);
+        } else {
+          res.send({ movies: results, tvShows: tvResults });
+        }
+      });
     }
   });
 });
 
 router.get("/scanProgress", (req, res) => {
-  const progress = models.getScanProgress();
-  res.send(progress);
+  const moviesProgress = models.getScanProgress();
+  const tvShowsProgress = tv.getScanProgress();
+  res.send({
+    movies: moviesProgress,
+    tvShows: tvShowsProgress
+  });
 });
 
 router.post("/selectedShow", (req, res) => {
@@ -375,6 +399,26 @@ router.get("/server-config", (req, res) => {
     res.json({ serverIp: config.serverIp, serverPort: config.serverPort || "5012" });
   } else {
     res.json({ serverIp: null, serverPort: "5012" });
+  }
+});
+
+// Proxy route for volume control to avoid CORS issues
+router.post("/volume", async (req, res) => {
+  try {
+    const deviceUrl = "http://10.0.0.32/fcgi-bin/request.fcgi";
+    const response = await fetch(deviceUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    });
+    
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error("Error proxying volume control request:", error);
+    res.status(500).json({ error: "Failed to send volume control request" });
   }
 });
 

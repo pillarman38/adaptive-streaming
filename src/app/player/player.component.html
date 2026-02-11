@@ -8,7 +8,7 @@
     </video>
     
     <div *ngIf="!useExoPlayer">
-        <div id="controls" (mouseleave)="hideControls()">
+        <div id="controls" #controlsContainer (mouseleave)="hideControls()">
             <div id="seekSpace" 
                  (click)="seekBarClick($event)"
                  (mousedown)="onSeekBarMouseDown($event)"

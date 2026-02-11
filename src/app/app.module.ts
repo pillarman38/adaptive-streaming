@@ -11,6 +11,7 @@ import { SearchComponent } from "./search/search.component";
 import { SideBarComponent } from "./side-bar/side-bar.component";
 import { TvComponent } from "./tv/tv.component";
 import { SeasonsComponent } from "./seasons/seasons.component";
+import { ControllerComponent } from "./controller/controller.component";
 import { SmartTvComponent, SmartTvModule } from "smart-tv";
 import { FormsModule } from "@angular/forms";
 import { SafeUrlPipe } from "./pipes/safe-url.pipe";
@@ -27,6 +28,7 @@ import { ApiUrlInterceptor } from "./interceptors/api-url.interceptor";
     SideBarComponent,
     TvComponent,
     SeasonsComponent,
+    ControllerComponent,
     SafeUrlPipe,
   ],
   imports: [

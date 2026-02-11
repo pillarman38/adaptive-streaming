@@ -379,7 +379,7 @@ export class VideoSelectionComponent implements OnInit {
     console.log("IS ANDROID:", this.platformService.isAndroid());
     console.log("USER AGENT:", navigator.userAgent);
     console.log("========================================");
-    
+
     this.isAndroid = this.platformService.isAndroid();
     // Ensure smartTv is initialized
     if (!this.smartTv.smartTv) {
@@ -495,17 +495,27 @@ export class VideoSelectionComponent implements OnInit {
       await this.apiConfig.ensureConfigLoaded();
       const baseUrl = this.apiConfig.getBaseUrl();
       const fullUrl = `${baseUrl}/api/mov/movies`;
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'video-selection.component.ts:497',message:'Making movies API request',data:{baseUrl,fullUrl,isAndroid:this.isAndroid,deviceName:this.deviceName},timestamp:Date.now(),runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       console.log(`[VideoSelection] Making request to: ${fullUrl}`);
       this.http
         .post(fullUrl, {
           pid: 0,
           offset: 0, // Always start from 0 on fresh load
         })
-        .subscribe((res: any) => {
+        .subscribe({
+          next: (res: any) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'video-selection.component.ts:505',message:'Movies API request succeeded',data:{responseType:typeof res,isArray:Array.isArray(res),length:Array.isArray(res)?res.length:null,hasMessage:!!res.message},timestamp:Date.now(),runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         console.log("RES: ", res);
         // Check if there are more movies available
         // If response has a message property, there are no more movies
         if (res.message) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'video-selection.component.ts:509',message:'Movies API returned message (no movies)',data:{message:res.message},timestamp:Date.now(),runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           // this.hasMoreMovies = false;
           this.movies = [];
         } else {
@@ -546,6 +556,10 @@ export class VideoSelectionComponent implements OnInit {
           const currentMovie: any = res[safeIndex];
           this.currentBox = currentMovie;
           this.poster = currentMovie?.posterUrl || "";
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'video-selection.component.ts:537',message:'Movies loaded successfully',data:{moviesCount:this.movies.length,offset:this.offset,index:this.index},timestamp:Date.now(),runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           
           setTimeout(() => {
             // // console.log("SMART TV VIDEO: ", this.smartTv);
@@ -644,8 +658,18 @@ export class VideoSelectionComponent implements OnInit {
           
           }, 1000);
         }
+      },
+      error: (err: any) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'video-selection.component.ts:662',message:'Movies API request failed',data:{error:err?.message,status:err?.status,statusText:err?.statusText,url:err?.url,isAndroid:this.isAndroid,deviceName:this.deviceName},timestamp:Date.now(),runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        console.error('Error in ngOnInit API call:', err);
+      }
       });
-    } catch (error) {
+    } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'video-selection.component.ts:668',message:'Exception in movies API call setup',data:{error:error?.message,isAndroid:this.isAndroid,deviceName:this.deviceName},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       console.error('Error loading config before API call:', error);
       // Fallback: try with pixable.local (might work on some networks)
       this.http

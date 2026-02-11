@@ -4,8 +4,9 @@
             <img *ngIf="!isScanning" src="assets/refresh.png" class="menuItem">
             <div *ngIf="isScanning" class="menuItem loading-container">
                 <div class="loading-spinner"></div>
-                <div class="progress-text" *ngIf="scanTotal > 0">
-                    {{ scanProgress }}/{{ scanTotal }}
+                <div class="progress-text" *ngIf="scanTotal > 0 || tvScanTotal > 0">
+                    <div *ngIf="scanTotal > 0">Movies: {{ scanProgress }}/{{ scanTotal }}</div>
+                    <div *ngIf="tvScanTotal > 0">TV Shows: {{ tvScanProgress }}/{{ tvScanTotal }}</div>
                 </div>
             </div>
         </div>

@@ -238,7 +238,17 @@ async function showInfoGrabber(show) {
   }
 
   const downloader = new Downloader();
-  const tvPoster = await downloader.getCard(show, showInfo, "tv");
+  // notIncluded, fileName, data, type
+  
+  // Get the fileName of the first episode for the show
+  let firstEpisodeFileName = null;
+  const episodesPerSeasonForFileName = countEpisodesPerSeason(show);
+  if (episodesPerSeasonForFileName[1] && episodesPerSeasonForFileName[1].files && episodesPerSeasonForFileName[1].files.length > 0) {
+    const firstEpisodePath = episodesPerSeasonForFileName[1].files[0];
+    firstEpisodeFileName = path.basename(firstEpisodePath);
+  }
+  
+  const tvCard = await downloader.getCard(show, firstEpisodeFileName, showInfo, "tv");
   const tvCoverArt = await downloader.getCoverArt(
     show,
     showInfo.results[0],

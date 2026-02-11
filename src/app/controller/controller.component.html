@@ -1,0 +1,144 @@
+<div class="controller-container">
+  <div class="controller-header">
+    <!-- <h2>Controller</h2> -->
+     <img src="assets/pixel.png" alt="Logo" id="logo">
+    <div class="connection-status" [class.connected]="isConnected" [class.disconnected]="!isConnected">
+      <span class="status-indicator"></span>
+      <span class="status-text">{{ isConnected ? 'Connected' : 'Disconnected' }}</span>
+    </div>
+  </div>
+
+  <div class="controller-pad">
+    <div class="arrow-keys">
+      <!-- Up Arrow -->
+      <button 
+        class="arrow-btn arrow-up" 
+        (click)="onArrowUp()"
+        [disabled]="!isConnected"
+        aria-label="Arrow Up">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 19V5M5 12l7-7 7 7"/>
+        </svg>
+      </button>
+
+      <!-- Left and Right Arrows -->
+      <div class="arrow-row">
+        <button 
+          class="arrow-btn arrow-left" 
+          (click)="onArrowLeft()"
+          [disabled]="!isConnected"
+          aria-label="Arrow Left">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
+
+        <button 
+          class="arrow-btn arrow-right" 
+          (click)="onArrowRight()"
+          [disabled]="!isConnected"
+          aria-label="Arrow Right">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Down Arrow -->
+      <button 
+        class="arrow-btn arrow-down" 
+        (click)="onArrowDown()"
+        [disabled]="!isConnected"
+        aria-label="Arrow Down">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12l7 7 7-7"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Skip Controls -->
+    <div class="skip-controls">
+      <button 
+        class="skip-btn skip-backward" 
+        (click)="onSkipBackward()"
+        [disabled]="!isConnected"
+        aria-label="Skip Backward">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 19 2 12 11 5 11 19"/>
+          <polygon points="22 19 13 12 22 5 22 19"/>
+        </svg>
+        <span>⏪ 15s</span>
+      </button>
+
+      <button 
+        class="skip-btn skip-forward" 
+        (click)="onSkipForward()"
+        [disabled]="!isConnected"
+        aria-label="Skip Forward">
+        <span>15s ⏩</span>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="13 19 22 12 13 5 13 19"/>
+          <polygon points="2 19 11 12 2 5 2 19"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Play/Pause Button -->
+    <button 
+      class="play-pause-btn" 
+      (click)="onPlayPause()"
+      [disabled]="!isConnected"
+      aria-label="Play/Pause">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="5 3 19 12 5 21 5 3"/>
+      </svg>
+      <span>Play/Pause</span>
+    </button>
+
+    <!-- Enter Button -->
+    <button 
+      class="enter-btn" 
+      (click)="onEnter()"
+      [disabled]="!isConnected"
+      aria-label="Enter">
+      <span>Enter</span>
+    </button>
+
+    <!-- Back Button -->
+    <button 
+      class="back-btn" 
+      (click)="onBack()"
+      [disabled]="!isConnected"
+      aria-label="Back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+      <span>Back</span>
+    </button>
+
+    <!-- Volume Controls -->
+    <div class="volume-controls">
+      <button 
+        class="volume-btn volume-up" 
+        (click)="onVolumeUp()"
+        aria-label="Volume Up">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        </svg>
+        <span>Vol +</span>
+      </button>
+
+      <button 
+        class="volume-btn volume-down" 
+        (click)="onVolumeDown()"
+        aria-label="Volume Down">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        </svg>
+        <span>Vol -</span>
+      </button>
+    </div>
+  </div>
+</div>

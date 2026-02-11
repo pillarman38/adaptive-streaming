@@ -48,13 +48,17 @@ export class ExoPlayerWeb extends WebPlugin implements ExoPlayerPlugin {
     };
   }
 
-  // async showControls(): Promise<void> {
-  //   // No-op for web - controls are handled by HTML
-  // }
+  async showControls(): Promise<void> {
+    // No-op for web - controls are handled by HTML
+  }
 
-  // async hideControls(): Promise<void> {
-  //   // No-op for web - controls are handled by HTML
-  // }
+  async hideControls(): Promise<void> {
+    // No-op for web - controls are handled by HTML
+  }
+
+  async navigateControls(options: { direction: string }): Promise<void> {
+    // No-op for web - controls are handled by HTML
+  }
 
   async setPaused(options: { paused: boolean }): Promise<void> {
     // No-op for web - state is managed by HTML video element

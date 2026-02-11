@@ -29,6 +29,15 @@ wss.on("connection", function (connection) {
         client.send(JSON.stringify(message));
       });
     }
+    
+    // Broadcast controller messages to all connected clients
+    if (message.type === "controller") {
+      clients.forEach((client) => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          client.send(JSON.stringify(message));
+        }
+      });
+    }
 
     if (message) {
       // console.log("CLIENTS LENGTH: ", clients.length);
