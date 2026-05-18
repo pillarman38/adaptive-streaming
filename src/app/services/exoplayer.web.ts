@@ -60,6 +60,10 @@ export class ExoPlayerWeb extends WebPlugin implements ExoPlayerPlugin {
     // No-op for web - controls are handled by HTML
   }
 
+  async isAudioTrackListVisible(): Promise<{ visible: boolean }> {
+    return { visible: false };
+  }
+
   async setPaused(options: { paused: boolean }): Promise<void> {
     // No-op for web - state is managed by HTML video element
   }
@@ -77,5 +81,6 @@ export class ExoPlayerWeb extends WebPlugin implements ExoPlayerPlugin {
     console.warn('launchZidooPlayer is not supported on web platform');
     return { success: false };
   }
+
 }
 

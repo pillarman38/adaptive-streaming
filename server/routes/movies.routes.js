@@ -11,6 +11,62 @@ const BonusFeatures = require("../models/bonusFeatures");
 let { search } = require("../models/search");
 const urlTransformer = require("../utils/url-transformer");
 const path = require("path");
+const { getMkvCueIndex } = require("../utils/mkv-cue-index");
+
+// #region agent log
+const DEBUG_LOG_PATH = path.join(__dirname, "../../debug-05d3d9.log");
+const streamRangeWindow = new Map();
+function appendDebugLog(payload) {
+  try {
+    fs.appendFileSync(
+      DEBUG_LOG_PATH,
+      JSON.stringify({
+        sessionId: "05d3d9",
+        timestamp: Date.now(),
+        ...payload,
+      }) + "\n"
+    );
+  } catch (e) {
+    console.error("[debug-log] write failed:", e.message);
+  }
+}
+router.post("/debug-log", (req, res) => {
+  appendDebugLog(req.body || {});
+  res.status(204).end();
+});
+// #endregion
+
+router.get("/cueIndex", (req, res) => {
+  const filePath = decodeURIComponent(req.query.path || "");
+  if (!filePath) {
+    return res.status(400).json({ error: "Missing file path" });
+  }
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "File not found" });
+  }
+  if (!filePath.toLowerCase().endsWith(".mkv")) {
+    return res.status(400).json({ error: "Not an MKV file" });
+  }
+  try {
+    const index = getMkvCueIndex(filePath);
+    // #region agent log
+    appendDebugLog({
+      location: "movies.routes.js:cueIndex",
+      message: "cue index served",
+      hypothesisId: "H",
+      data: {
+        file: path.basename(filePath),
+        cueCount: index.cues.length,
+        contentLength: index.contentLength,
+      },
+    });
+    // #endregion
+    res.json(index);
+  } catch (err) {
+    console.error("[cueIndex] failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get("/stream", (req, res) => {
   const filePath = decodeURIComponent(req.query.path); 
@@ -22,8 +78,45 @@ router.get("/stream", (req, res) => {
   } 
   const stat = fs.statSync(filePath); 
   const fileSize = stat.size; 
-  const range = req.headers.range; 
-  
+  const range = req.headers.range;
+  const fileBase = path.basename(filePath);
+
+  // #region agent log
+  if (range) {
+    const now = Date.now();
+    const prev = streamRangeWindow.get(fileBase) || {
+      count: 0,
+      windowStart: now,
+      lastStart: -1,
+    };
+    if (now - prev.windowStart > 2000) {
+      prev.count = 0;
+      prev.windowStart = now;
+    }
+    prev.count += 1;
+    const rangeMatchDbg = range.match(/bytes=(\d*)-(\d*)/);
+    const rangeStart =
+      rangeMatchDbg && rangeMatchDbg[1] ? parseInt(rangeMatchDbg[1], 10) : 0;
+    const largeJump =
+      prev.lastStart >= 0 &&
+      Math.abs(rangeStart - prev.lastStart) > 5 * 1024 * 1024;
+    prev.lastStart = rangeStart;
+    streamRangeWindow.set(fileBase, prev);
+    if (largeJump) {
+      appendDebugLog({
+        location: "movies.routes.js:stream",
+        message: "large HTTP range jump",
+        hypothesisId: "E",
+        data: {
+          file: fileBase,
+          rangeStart,
+          requestsIn2s: prev.count,
+        },
+      });
+    }
+  }
+  // #endregion
+
   // Determine optimal chunk size based on file size (larger files = larger chunks)
   // For very large files (90GB+), use larger chunks to reduce request overhead
   let CHUNK_SIZE;
@@ -144,25 +237,13 @@ router.post("/movies", (req, res) => {
 
 router.get("/scanLibrary", (req, res) => {
   console.log("body", req.body);
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.routes.js:145',message:'scanLibrary endpoint called',data:{method:req.method,path:req.path,url:req.url,query:req.query},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
-  // #endregion
   // First update movies
   models.updateMovies((err, results) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.routes.js:149',message:'updateMovies callback invoked',data:{hasError:!!err,hasResults:!!results},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     if (err) {
       res.send(err);
     } else {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.routes.js:153',message:'About to call tv.updateTvShows',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       // Then update TV shows
       tv.updateTvShows((tvErr, tvResults) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movies.routes.js:154',message:'tv.updateTvShows callback invoked',data:{hasError:!!tvErr,hasResults:!!tvResults},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         if (tvErr) {
           res.send(tvErr);
         } else {

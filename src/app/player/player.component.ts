@@ -103,18 +103,9 @@ export class PlayerComponent implements OnInit, OnDestroy {
     // Show controls when arrow keys are pressed (for Nvidia Shield remote)
     if(event.code === "ArrowUp" || event.code === "ArrowDown" || event.code === "ArrowLeft" || event.code === "ArrowRight") {
       console.log('[Player] Arrow key pressed:', event.code, '- controlsVisible:', this.controlsVisible, 'useExoPlayer:', this.useExoPlayer, 'isAndroid:', this.isAndroid);
-      if (!this.controlsVisible) {
-        console.log('[Player] Controls not visible, calling showControls()');
-        this.showControls();
-      } else {
-        console.log('[Player] Controls already visible, resetting timeout');
-        // Controls already visible - reset the timeout to keep them visible during navigation
-        this.resetControlsTimeout();
-      }
       
       // For native Android controls, show them and navigate them
       if (this.useExoPlayer && this.isAndroid) {
-        // Convert JavaScript arrow key to direction string and navigate Android controls
         let direction = '';
         if (event.code === 'ArrowUp') direction = 'up';
         else if (event.code === 'ArrowDown') direction = 'down';
@@ -122,15 +113,27 @@ export class PlayerComponent implements OnInit, OnDestroy {
         else if (event.code === 'ArrowRight') direction = 'right';
         
         if (direction) {
-          console.log('[Player] Navigating Android controls:', direction);
-          // Small delay to ensure controls are fully shown and focused before navigating
-          setTimeout(() => {
-            this.exoPlayerService.navigateControls(direction).catch((error) => {
-              console.error('[Player] Error navigating controls:', error);
-            });
-          }, 50); // 50ms delay to ensure showControls() completes
+          void (async () => {
+            const audioListOpen = await this.exoPlayerService.isAudioTrackListVisible();
+            if (!this.controlsVisible && !audioListOpen) {
+              this.showControls();
+            } else if (this.controlsVisible) {
+              this.resetControlsTimeout();
+            }
+            await this.exoPlayerService.navigateControls(direction);
+          })().catch((error) => {
+            console.error('[Player] Error navigating controls:', error);
+          });
         }
         return; // Don't continue with web navigation logic
+      }
+
+      if (!this.controlsVisible) {
+        console.log('[Player] Controls not visible, calling showControls()');
+        this.showControls();
+      } else {
+        console.log('[Player] Controls already visible, resetting timeout');
+        this.resetControlsTimeout();
       }
 
       // Ensure controls are registered for navigation
@@ -557,22 +560,12 @@ export class PlayerComponent implements OnInit, OnDestroy {
         
         // Check if Zidoo device - launch Zidoo player instead
         const isZidooDevice = this.platformService.isZidoo();
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player.component.ts:292',message:'Checking if Zidoo device',data:{isZidooDevice,deviceName:this.platformService.getDeviceName()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-        
         if (isZidooDevice) {
           console.log("Zidoo device detected - launching Zidoo player");
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player.component.ts:295',message:'Attempting to launch Zidoo player',data:{videoUrl:videoUrl.substring(0,50),title:this.infoStore.videoInfo.title},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
           try {
             const title = this.infoStore.videoInfo.title || "";
             const position = 0; // Start from beginning, could be enhanced to support resume
             const result = await this.exoPlayerService.launchZidooPlayer(videoUrl, title, position);
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player.component.ts:300',message:'Zidoo player launch result',data:{success:result.success,fallback:result.fallback},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
             if (result.success) {
               if (result.fallback) {
                 console.log("Generic video player launched (Zidoo player not installed)");
@@ -588,9 +581,6 @@ export class PlayerComponent implements OnInit, OnDestroy {
             }
           } catch (error: any) {
             const errorMessage = error?.message || error?.toString() || 'Unknown error';
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/949eafb2-bfe9-406c-822d-06a299cb45e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player.component.ts:308',message:'Zidoo player launch error',data:{errorMessage,error:JSON.stringify(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
             console.error('Error launching Zidoo player:', errorMessage);
             console.error('Full error object:', error);
             
@@ -599,13 +589,14 @@ export class PlayerComponent implements OnInit, OnDestroy {
           }
           return; // Don't continue with ExoPlayer or HTML5 video
         }
-        
+
         if (this.useExoPlayer) {
           // Use ExoPlayer for Android
           try {
             const loadSuccess = await this.exoPlayerService.loadVideo(
               videoUrl,
-              this.subtitle ? this.subtitleUrl : undefined
+              this.subtitle ? this.subtitleUrl : undefined,
+              this.infoStore.videoInfo.dolbyVision === 1
             );
             
             if (!loadSuccess) {
@@ -777,20 +768,6 @@ export class PlayerComponent implements OnInit, OnDestroy {
     }
     this.showAudioTrackList = !this.showAudioTrackList;
   }
-
-  async controlsdSetup() {
-    // this.playPauseListener = await this.exoPlayerService.addListener('playPause', (data?: any) => {
-    //   console.log('[PlayerComponent] === playPause event received from native ===');
-    //   console.log('[PlayerComponent] playPause callback data:', data); 
-    //   this.playPause();
-    // });
-    // this.timeUpdateListener = await this.exoPlayerService.addListener('timeupdate', (data?: any) => {
-    //   // console.log('[PlayerComponent] === timeupdate event received from native ===');
-    //   // console.log('[PlayerComponent] timeupdate callback data:', data); 
-    //   this.currentTime = data.currentTime;
-    // }); 
-  }
-
   async ngOnInit(): Promise<void> {
     // console.log("INFO STORE: ", this.infoStore.videoInfo);
     // this.location = this.infoStore.videoInfo.location
@@ -803,26 +780,27 @@ export class PlayerComponent implements OnInit, OnDestroy {
         const initialized = await this.exoPlayerService.initialize("videoContainer");
         
         console.log("INITIALIZED: " , initialized);
-        
         if (!initialized) {
-          console.warn("ExoPlayer initialization failed, falling back to HTML5 video");
+          console.error("ExoPlayer initialization failed");
+          if (this.infoStore.videoInfo?.dolbyVision === 1) {
+            console.error("Dolby Vision requires native ExoPlayer; rebuild with cap:sync and reinstall the app.");
+            return;
+          }
           this.useExoPlayer = false;
-          // Continue to getVideo() with HTML5 fallback
           this.getVideo();
         } else {
           console.log("=== Setting up native control listeners... ===");
-          
-          await this.controlsdSetup();
-          
+
           // Only call getVideo() after successful initialization
           this.getVideo();
         }
       } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
         console.error("Error initializing ExoPlayer:", error);
-        console.error("Error details:", error instanceof Error ? error.message : String(error));
-        // Fall back to HTML5 video if ExoPlayer fails
+        if (this.infoStore.videoInfo?.dolbyVision === 1) {
+          return;
+        }
         this.useExoPlayer = false;
-        // Continue to getVideo() with HTML5 fallback
         this.getVideo();
       }
     } else {

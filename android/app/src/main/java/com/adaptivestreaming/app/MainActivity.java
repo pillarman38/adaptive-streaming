@@ -3,9 +3,12 @@ package com.adaptivestreaming.app;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.KeyEvent;
 import android.webkit.WebView;
-import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Bridge;
+import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginHandle;
 
 public class MainActivity extends BridgeActivity {
     private static final int MIXED_CONTENT_ALWAYS_ALLOW = 2;
@@ -13,9 +16,29 @@ public class MainActivity extends BridgeActivity {
     
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(ExoPlayerPlugin.class);
         super.onCreate(savedInstanceState);
         // Set up mixed content immediately
         setupWebViewSettings();
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            Bridge bridge = getBridge();
+            if (bridge != null) {
+                PluginHandle handle = bridge.getPlugin("ExoPlayer");
+                if (handle != null) {
+                    Plugin plugin = handle.getInstance();
+                    if (plugin instanceof ExoPlayerPlugin) {
+                        if (((ExoPlayerPlugin) plugin).handleAudioListKey(event.getKeyCode())) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event);
     }
     
     @Override

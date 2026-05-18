@@ -63,7 +63,7 @@ const transcoder = {
         browser: movieTitle["browser"] || "Android",
         pid: 0, // No transcoding process
         duration: movieTitle["duration"],
-        fileformat: movieTitle["fileformat"] || "mkv",
+        fileformat: movieTitle["fileformat"] || fileExt,
         location: urlTransformer.transformUrl(streamUrl),
         title: movieTitle["title"],
         subtitleFile: movieTitle["srtLocation"] 
@@ -112,7 +112,7 @@ const transcoder = {
         browser: movieTitle["browser"] || "Android",
         pid: 0, // No transcoding process
         duration: movieTitle["duration"],
-        fileformat: movieTitle["fileformat"] || "mkv",
+        fileformat: movieTitle["fileformat"] || fileExt,
         location: zidooPath, // Return Zidoo SMB mount path
         title: movieTitle["title"],
         subtitleFile: movieTitle["srtLocation"] || undefined,

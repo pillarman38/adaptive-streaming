@@ -2,7 +2,9 @@ package com.adaptivestreaming.app;
 
 import android.net.Uri;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.KeyEvent;
@@ -15,6 +17,7 @@ import android.widget.SeekBar;
 import android.widget.ImageButton;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.graphics.drawable.ColorDrawable;
@@ -23,21 +26,39 @@ import android.graphics.PorterDuff;
 import android.graphics.Color;
 import android.view.Gravity;
 import android.util.DisplayMetrics;
+import android.webkit.WebView;
+import com.getcapacitor.Bridge;
+import androidx.media3.exoplayer.SeekParameters;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
+import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.MimeTypes;
 import androidx.media3.common.Player;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.TrackGroup;
 import androidx.media3.common.TrackSelectionOverride;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import android.util.Log;
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector.SelectionOverride;
 import androidx.media3.ui.PlayerView;
+import androidx.media3.datasource.DataSource;
+import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.HttpDataSource;
+import androidx.media3.datasource.cache.CacheDataSource;
+import java.io.IOException;
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
+import androidx.media3.datasource.cache.SimpleCache;
+import androidx.media3.database.StandaloneDatabaseProvider;
+import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import java.io.File;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import java.util.Collections;
@@ -53,10 +74,15 @@ import org.json.JSONObject;
 import org.json.JSONArray;
 import com.adaptivestreaming.app.R;
 import androidx.core.content.FileProvider;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
 @CapacitorPlugin(name = "ExoPlayer")
 public class ExoPlayerPlugin extends Plugin {
     private static final String TAG = "ExoPlayerPlugin";
+    private String agentDebugUrl = "http://10.0.0.13:5012/api/mov/debug-log";
     private ExoPlayer exoPlayer;
     private PlayerView playerView;
     private FrameLayout containerView;
@@ -75,8 +101,14 @@ public class ExoPlayerPlugin extends Plugin {
     private LinearLayout audioTrackRow;
     private LinearLayout audioTrackListContainer;
     private LinearLayout audioTrackList;
+    private android.widget.ScrollView audioTrackScrollView;
     private java.util.List<Button> audioTrackButtons = new java.util.ArrayList<>();
     private int selectedAudioTrackIndex = -1;
+    private int focusedAudioTrackIndex = -1;
+    private Runnable pendingAudioTrackListFocusRunnable;
+    private int lastWorkingAudioGroupIdx = -1;
+    private int lastWorkingAudioTrackIdx = -1;
+    private int lastWorkingAudioGlobalIndex = -1;
     private boolean controlsVisible = false;
     private volatile boolean isShowingAudioTrackList = false; // Flag to prevent hideControls from hiding audio list
     private volatile boolean suppressAutoShowAudioList = false; // Flag to prevent auto-showing list when button gets focus programmatically
@@ -95,6 +127,754 @@ public class ExoPlayerPlugin extends Plugin {
     private long lastManualSkipTime = 0; // Timestamp when skip button was pressed
     private long seekStartTime = 0; // Timestamp when seeking started
     private static final long SEEK_COOLDOWN_MS = 300; // Don't update seekbar for 300ms after a seek
+    private boolean hasAutoSelectedAudio = false;
+    private boolean userLockedAudioTrack = false;
+    private boolean currentContentIsDolbyVision = false;
+    private boolean hasAppliedHdrDisplayMode = false;
+    private boolean pendingDvHdrDisplayMode = false;
+    private SimpleCache mediaCache;
+    private CacheDataSource.Factory activeCacheDataSourceFactory;
+    private String currentStreamUrl;
+    private volatile boolean indexTailPrewarmed = false;
+    private volatile boolean indexTailPrewarmInProgress = false;
+    private long streamContentLength = -1;
+    private long[][] mkvCueIndex = null;
+    private long lastCachedPrefetchStart = -1;
+    private long lastCachedPrefetchEnd = -1;
+    private static final long SEEK_CLUSTER_PREFETCH_BYTES = 12L * 1024 * 1024;
+    private static final SeekParameters DV_SEEK_PARAMETERS = new SeekParameters(3000, 3000);
+
+    private void setHdrDisplayMode(boolean enabled) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || getActivity() == null) {
+            return;
+        }
+        int targetMode = enabled ? ActivityInfo.COLOR_MODE_HDR : ActivityInfo.COLOR_MODE_DEFAULT;
+        int beforeMode = getActivity().getWindow().getColorMode();
+        if (beforeMode == targetMode) {
+            // #region agent log
+            try {
+                JSONObject data = new JSONObject();
+                data.put("enabled", enabled);
+                data.put("targetMode", targetMode);
+                data.put("skipped", true);
+                agentLog("ExoPlayerPlugin.java:setHdrDisplayMode", "skipped duplicate color mode", "B", data);
+            } catch (JSONException ignored) {
+            }
+            // #endregion
+            return;
+        }
+        getActivity().getWindow().setColorMode(targetMode);
+        // #region agent log
+        try {
+            JSONObject data = new JSONObject();
+            data.put("enabled", enabled);
+            data.put("targetMode", targetMode);
+            data.put("beforeMode", beforeMode);
+            data.put("afterMode", getActivity().getWindow().getColorMode());
+            data.put("hasAppliedHdrDisplayMode", hasAppliedHdrDisplayMode);
+            agentLog("ExoPlayerPlugin.java:setHdrDisplayMode", "window color mode", "B", data);
+        } catch (JSONException ignored) {
+        }
+        // #endregion
+    }
+
+    private void applyPendingDvHdrDisplayMode() {
+        // #region agent log
+        try {
+            JSONObject data = new JSONObject();
+            data.put("pendingDvHdrDisplayMode", pendingDvHdrDisplayMode);
+            data.put("hasAppliedHdrDisplayMode", hasAppliedHdrDisplayMode);
+            agentLog("ExoPlayerPlugin.java:applyPendingDvHdrDisplayMode", "check", "A", data);
+        } catch (JSONException ignored) {
+        }
+        // #endregion
+        if (!pendingDvHdrDisplayMode || hasAppliedHdrDisplayMode) {
+            if (hasAppliedHdrDisplayMode) {
+                pendingDvHdrDisplayMode = false;
+            }
+            return;
+        }
+        setHdrDisplayMode(true);
+        hasAppliedHdrDisplayMode = true;
+        pendingDvHdrDisplayMode = false;
+    }
+
+    private CacheDataSource.Factory buildCacheDataSourceFactory(DefaultHttpDataSource.Factory upstream) {
+        if (mediaCache == null) {
+            File cacheDir = new File(getContext().getCacheDir(), "exo_media_cache");
+            mediaCache = new SimpleCache(
+                cacheDir,
+                new LeastRecentlyUsedCacheEvictor(1024L * 1024 * 1024),
+                new StandaloneDatabaseProvider(getContext()));
+        }
+        return new CacheDataSource.Factory()
+            .setCache(mediaCache)
+            .setUpstreamDataSourceFactory(upstream)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
+    }
+
+    private void applySeekParametersForContent() {
+        if (exoPlayer == null) {
+            return;
+        }
+        if (currentContentIsDolbyVision) {
+            exoPlayer.setSeekParameters(DV_SEEK_PARAMETERS);
+        } else {
+            exoPlayer.setSeekParameters(SeekParameters.CLOSEST_SYNC);
+        }
+    }
+
+    private DefaultLoadControl buildLoadControl() {
+        return new DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                50_000,
+                120_000,
+                2_500,
+                5_000)
+            .setBackBuffer(30_000, true)
+            .build();
+    }
+
+    private long probeContentLength(String urlString) throws IOException {
+        HttpURLConnection conn = (HttpURLConnection) new URL(urlString).openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("Range", "bytes=0-0");
+        conn.connect();
+        try {
+            int code = conn.getResponseCode();
+            if (code == 206) {
+                String contentRange = conn.getHeaderField("Content-Range");
+                if (contentRange != null) {
+                    int slash = contentRange.lastIndexOf('/');
+                    if (slash >= 0) {
+                        return Long.parseLong(contentRange.substring(slash + 1).trim());
+                    }
+                }
+            }
+            return conn.getContentLengthLong();
+        } finally {
+            conn.disconnect();
+        }
+    }
+
+    private void prewarmMatroskaIndexTail(String url, CacheDataSource.Factory cacheFactory) {
+        if (indexTailPrewarmed || indexTailPrewarmInProgress || cacheFactory == null) {
+            return;
+        }
+        indexTailPrewarmInProgress = true;
+        // #region agent log
+        try {
+            JSONObject data = new JSONObject();
+            data.put("urlTail", url.length() > 80 ? url.substring(url.length() - 80) : url);
+            agentLog("ExoPlayerPlugin.java:prewarmMatroskaIndexTail", "prewarm started", "F", data);
+        } catch (JSONException ignored) {
+        }
+        // #endregion
+        new Thread(() -> {
+            long bytesRead = 0;
+            long tailStart = -1;
+            try {
+                long contentLength = probeContentLength(url);
+                if (contentLength <= 0) {
+                    return;
+                }
+                streamContentLength = contentLength;
+                long tailSize = Math.min(16L * 1024 * 1024, contentLength);
+                tailStart = contentLength - tailSize;
+                DataSpec dataSpec = new DataSpec.Builder()
+                    .setUri(Uri.parse(url))
+                    .setPosition(tailStart)
+                    .setLength(tailSize)
+                    .build();
+                DataSource dataSource = cacheFactory.createDataSource();
+                try {
+                    dataSource.open(dataSpec);
+                    byte[] buffer = new byte[128 * 1024];
+                    int read;
+                    while ((read = dataSource.read(buffer, 0, buffer.length)) != -1) {
+                        bytesRead += read;
+                    }
+                } finally {
+                    dataSource.close();
+                }
+                indexTailPrewarmed = true;
+            } catch (Exception e) {
+                Log.w(TAG, "MKV index prewarm failed: " + e.getMessage());
+            } finally {
+                indexTailPrewarmInProgress = false;
+                final long finalBytesRead = bytesRead;
+                final long finalTailStart = tailStart;
+                // #region agent log
+                try {
+                    JSONObject data = new JSONObject();
+                    data.put("bytesRead", finalBytesRead);
+                    data.put("tailStart", finalTailStart);
+                    data.put("success", indexTailPrewarmed);
+                    data.put("runId", "post-fix-v2");
+                    agentLog("ExoPlayerPlugin.java:prewarmMatroskaIndexTail", "prewarm finished", "F", data);
+                } catch (JSONException ignored) {
+                }
+                // #endregion
+            }
+        }, "mkv-index-prewarm").start();
+    }
+
+    private long readRangeIntoCache(
+            String url,
+            CacheDataSource.Factory cacheFactory,
+            long start,
+            long length) throws IOException {
+        DataSpec dataSpec = new DataSpec.Builder()
+            .setUri(Uri.parse(url))
+            .setPosition(start)
+            .setLength(length)
+            .build();
+        DataSource dataSource = cacheFactory.createDataSource();
+        try {
+            dataSource.open(dataSpec);
+            byte[] buffer = new byte[128 * 1024];
+            long total = 0;
+            int read;
+            while ((read = dataSource.read(buffer, 0, buffer.length)) != -1) {
+                total += read;
+            }
+            return total;
+        } finally {
+            dataSource.close();
+        }
+    }
+
+    private long byteOffsetForTimeMs(long positionMs) {
+        if (mkvCueIndex == null || mkvCueIndex.length == 0) {
+            return -1;
+        }
+        int best = 0;
+        int lo = 0;
+        int hi = mkvCueIndex.length - 1;
+        while (lo <= hi) {
+            int mid = (lo + hi) >>> 1;
+            if (mkvCueIndex[mid][0] <= positionMs) {
+                best = mid;
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return mkvCueIndex[best][1];
+    }
+
+    private void fetchMkvCueIndexAsync(String videoUrl) {
+        mkvCueIndex = null;
+        new Thread(() -> {
+            try {
+                Uri uri = Uri.parse(videoUrl);
+                String filePath = uri.getQueryParameter("path");
+                if (filePath == null) {
+                    return;
+                }
+                String host = uri.getHost();
+                if (host == null || host.isEmpty()) {
+                    return;
+                }
+                int port = uri.getPort() > 0 ? uri.getPort() : 5012;
+                String indexUrl = "http://" + host + ":" + port + "/api/mov/cueIndex?path="
+                    + java.net.URLEncoder.encode(filePath, "UTF-8");
+                HttpURLConnection conn = (HttpURLConnection) new URL(indexUrl).openConnection();
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(60000);
+                conn.setRequestMethod("GET");
+                int code = conn.getResponseCode();
+                if (code != 200) {
+                    return;
+                }
+                java.io.InputStream is = conn.getInputStream();
+                java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = is.read(buf)) != -1) {
+                    bos.write(buf, 0, n);
+                }
+                is.close();
+                conn.disconnect();
+                JSONObject json = new JSONObject(bos.toString(StandardCharsets.UTF_8.name()));
+                streamContentLength = json.optLong("contentLength", streamContentLength);
+                JSONArray cues = json.optJSONArray("cues");
+                if (cues == null || cues.length() == 0) {
+                    return;
+                }
+                long[][] parsed = new long[cues.length()][2];
+                for (int i = 0; i < cues.length(); i++) {
+                    JSONObject cue = cues.getJSONObject(i);
+                    parsed[i][0] = cue.getLong("timeMs");
+                    parsed[i][1] = cue.getLong("position");
+                }
+                mkvCueIndex = parsed;
+                // #region agent log
+                JSONObject data = new JSONObject();
+                data.put("cueCount", parsed.length);
+                data.put("contentLength", streamContentLength);
+                data.put("runId", "post-fix-v6");
+                agentLog("ExoPlayerPlugin.java:fetchMkvCueIndexAsync", "cue index loaded", "H", data);
+                // #endregion
+            } catch (Exception e) {
+                Log.w(TAG, "MKV cue index fetch failed: " + e.getMessage());
+            }
+        }, "mkv-cue-index-fetch").start();
+    }
+
+    private long prefetchClusterAroundTimeMs(long positionMs, long durationMs) {
+        if (currentStreamUrl == null
+                || activeCacheDataSourceFactory == null
+                || streamContentLength <= 0) {
+            return 0;
+        }
+        long linearByte = durationMs > 0
+            ? (positionMs * streamContentLength) / durationMs
+            : -1;
+        long cueByte = byteOffsetForTimeMs(positionMs);
+        long byteOffset = linearByte;
+        boolean usedCueIndex = false;
+        if (cueByte >= 0 && linearByte >= 0 && streamContentLength > 0) {
+            double drift = Math.abs(cueByte - linearByte) / (double) streamContentLength;
+            if (drift < 0.15) {
+                byteOffset = cueByte;
+                usedCueIndex = true;
+            }
+        }
+        if (byteOffset < 0) {
+            return 0;
+        }
+        long backwardBytes = SEEK_CLUSTER_PREFETCH_BYTES / 2;
+        if (streamContentLength > 30L * 1024 * 1024 * 1024) {
+            backwardBytes = 320L * 1024 * 1024;
+        } else if (streamContentLength > 10L * 1024 * 1024 * 1024) {
+            backwardBytes = 128L * 1024 * 1024;
+        }
+        long forwardBytes = SEEK_CLUSTER_PREFETCH_BYTES / 2;
+        if (streamContentLength > 30L * 1024 * 1024 * 1024) {
+            forwardBytes = 128L * 1024 * 1024;
+        } else if (streamContentLength > 10L * 1024 * 1024 * 1024) {
+            forwardBytes = 32L * 1024 * 1024;
+        }
+        long start = Math.max(0, byteOffset - backwardBytes);
+        long end = Math.min(streamContentLength, byteOffset + forwardBytes);
+        if (lastCachedPrefetchStart >= 0
+                && byteOffset >= lastCachedPrefetchStart
+                && byteOffset <= lastCachedPrefetchEnd) {
+            // #region agent log
+            try {
+                JSONObject data = new JSONObject();
+                data.put("positionMs", positionMs);
+                data.put("byteOffset", byteOffset);
+                data.put("skipped", true);
+                data.put("cachedStart", lastCachedPrefetchStart);
+                data.put("cachedEnd", lastCachedPrefetchEnd);
+                data.put("runId", "post-fix-v6");
+                agentLog("ExoPlayerPlugin.java:prefetchClusterAroundTimeMs", "skipped cached window", "G", data);
+            } catch (JSONException ignored) {
+            }
+            // #endregion
+            return 0;
+        }
+        long length = end - start;
+        if (length <= 0) {
+            return 0;
+        }
+        try {
+            long bytesRead = readRangeIntoCache(
+                currentStreamUrl, activeCacheDataSourceFactory, start, length);
+            lastCachedPrefetchStart = lastCachedPrefetchStart < 0
+                ? start
+                : Math.min(lastCachedPrefetchStart, start);
+            lastCachedPrefetchEnd = Math.max(lastCachedPrefetchEnd, end);
+            // #region agent log
+            try {
+                JSONObject data = new JSONObject();
+                data.put("positionMs", positionMs);
+                data.put("byteOffset", byteOffset);
+                data.put("linearByte", linearByte);
+                data.put("cueByte", cueByte);
+                data.put("usedCueIndex", usedCueIndex);
+                data.put("backwardBytes", backwardBytes);
+                data.put("forwardBytes", forwardBytes);
+                data.put("prefetchStart", start);
+                data.put("prefetchEnd", end);
+                data.put("prefetchLength", length);
+                data.put("bytesRead", bytesRead);
+                data.put("runId", "post-fix-v6");
+                agentLog("ExoPlayerPlugin.java:prefetchClusterAroundTimeMs", "cluster prefetch", "G", data);
+            } catch (JSONException ignored) {
+            }
+            // #endregion
+            return bytesRead;
+        } catch (IOException e) {
+            Log.w(TAG, "Cluster prefetch failed: " + e.getMessage());
+            return 0;
+        }
+    }
+
+    // #region agent log
+    private void updateAgentDebugUrlFromVideoUrl(String videoUrl) {
+        if (videoUrl == null || videoUrl.isEmpty()) {
+            return;
+        }
+        try {
+            Uri uri = Uri.parse(videoUrl);
+            String host = uri.getHost();
+            if (host == null || host.isEmpty()) {
+                return;
+            }
+            int port = uri.getPort() > 0 ? uri.getPort() : 5012;
+            agentDebugUrl = "http://" + host + ":" + port + "/api/mov/debug-log";
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void agentLog(String location, String message, String hypothesisId, JSONObject data) {
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("sessionId", "05d3d9");
+            payload.put("location", location);
+            payload.put("message", message);
+            payload.put("hypothesisId", hypothesisId);
+            payload.put("timestamp", System.currentTimeMillis());
+            payload.put("data", data != null ? data : new JSONObject());
+            final byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
+            new Thread(() -> {
+                HttpURLConnection conn = null;
+                try {
+                    conn = (HttpURLConnection) new URL(agentDebugUrl).openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setDoOutput(true);
+                    conn.setFixedLengthStreamingMode(body.length);
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(body);
+                    }
+                    conn.getResponseCode();
+                } catch (Exception e) {
+                    Log.w(TAG, "agentLog failed: " + e.getMessage());
+                } finally {
+                    if (conn != null) {
+                        conn.disconnect();
+                    }
+                }
+            }).start();
+        } catch (JSONException ignored) {
+        }
+    }
+    // #endregion
+
+    private void updateHdrModeFromVideoFormat(Format format) {
+        if (format == null || hasAppliedHdrDisplayMode) {
+            return;
+        }
+        boolean isHdr = currentContentIsDolbyVision;
+        if (format.colorInfo != null) {
+            int transfer = format.colorInfo.colorTransfer;
+            if (transfer == C.COLOR_TRANSFER_ST2084 || transfer == C.COLOR_TRANSFER_HLG) {
+                isHdr = true;
+            }
+        }
+        String codec = format.codecs != null ? format.codecs.toLowerCase() : "";
+        if (codec.contains("dvhe") || codec.contains("dvh1") || codec.contains("dovi")) {
+            isHdr = true;
+        }
+        setHdrDisplayMode(isHdr);
+        hasAppliedHdrDisplayMode = true;
+    }
+
+    private void releaseExoPlayer() {
+        releaseExoPlayer(true);
+    }
+
+    private void releaseExoPlayer(boolean resetDisplayEnvironment) {
+        stopTimeUpdates();
+        if (exoPlayer != null) {
+            exoPlayer.stop();
+            exoPlayer.clearMediaItems();
+            if (playerView != null) {
+                playerView.setPlayer(null);
+            }
+            exoPlayer.release();
+            exoPlayer = null;
+        }
+        hasAutoSelectedAudio = false;
+        userLockedAudioTrack = false;
+        hasAppliedHdrDisplayMode = false;
+        pendingDvHdrDisplayMode = false;
+        currentContentIsDolbyVision = false;
+        if (resetDisplayEnvironment) {
+            setHdrDisplayMode(false);
+            setWebViewObscured(false);
+        }
+    }
+
+    private void setWebViewObscured(boolean obscured) {
+        if (getActivity() == null) {
+            return;
+        }
+        Bridge bridge = getBridge();
+        if (bridge != null && bridge.getWebView() != null) {
+            bridge.getWebView().setVisibility(obscured ? View.INVISIBLE : View.VISIBLE);
+        }
+        if (containerView != null) {
+            containerView.setBackgroundColor(Color.BLACK);
+            containerView.setElevation(obscured ? 20f : 1f);
+        }
+    }
+
+    private boolean isAudioFormatLikelyPlayable(Format format) {
+        if (format == null) {
+            return false;
+        }
+        String mime = format.sampleMimeType;
+        if (mime == null || mime.isEmpty()) {
+            return true;
+        }
+        try {
+            if (!MediaCodecUtil.getDecoderInfos(mime, false, false).isEmpty()) {
+                return true;
+            }
+        } catch (MediaCodecUtil.DecoderQueryException e) {
+            Log.w(TAG, "Decoder query failed for " + mime + ": " + e.getMessage());
+        }
+        String mimeLower = mime.toLowerCase();
+        // TrueHD / Dolby Digital+ may use HDMI bitstream passthrough without a software decoder.
+        return mimeLower.contains("true-hd") || mimeLower.contains("truehd") || mimeLower.contains("mlp")
+                || mimeLower.contains("eac3") || mimeLower.contains("ec-3")
+                || mimeLower.contains("ac3") || mimeLower.contains("ac-3");
+    }
+
+    private int getAudioCodecPriority(Format format) {
+        if (format == null || !isAudioFormatLikelyPlayable(format)) {
+            return 0;
+        }
+        String mime = format.sampleMimeType != null ? format.sampleMimeType.toLowerCase() : "";
+        String codecs = format.codecs != null ? format.codecs.toLowerCase() : "";
+        int channels = Math.max(format.channelCount, 0);
+        if (mime.contains("true-hd") || mime.contains("truehd") || mime.contains("mlp")
+                || codecs.contains("truehd") || codecs.contains("mlp")) {
+            return 150 + channels;
+        }
+        if (mime.contains("eac3") || mime.contains("ec-3") || codecs.contains("eac3") || codecs.contains("ec-3")) {
+            return 110 + channels;
+        }
+        if (mime.contains("ac3") || mime.contains("ac-3") || codecs.contains("ac3") || codecs.contains("ac-3")) {
+            return 90 + channels;
+        }
+        if (mime.contains("dts-hd") || codecs.contains("dts-hd") || codecs.contains("dtshd")) {
+            return 50 + channels;
+        }
+        if (mime.contains("dts") || codecs.contains("dts")) {
+            return 40 + channels;
+        }
+        if (mime.contains("aac") || mime.contains("mpeg")) {
+            return 60;
+        }
+        return 40;
+    }
+
+    private java.util.List<Tracks.Group> collectAudioTrackGroups(Tracks tracks) {
+        java.util.List<Tracks.Group> audioTrackGroups = new java.util.ArrayList<>();
+        if (tracks == null) {
+            return audioTrackGroups;
+        }
+        for (Tracks.Group trackGroup : tracks.getGroups()) {
+            if (trackGroup.getType() == C.TRACK_TYPE_AUDIO) {
+                audioTrackGroups.add(trackGroup);
+            }
+        }
+        return audioTrackGroups;
+    }
+
+    private void captureLastWorkingAudioSelection(Tracks tracks) {
+        java.util.List<Tracks.Group> audioTrackGroups = collectAudioTrackGroups(tracks);
+        int globalIndex = 0;
+        for (int groupIdx = 0; groupIdx < audioTrackGroups.size(); groupIdx++) {
+            Tracks.Group trackGroup = audioTrackGroups.get(groupIdx);
+            for (int trackIdx = 0; trackIdx < trackGroup.length; trackIdx++) {
+                if (trackGroup.isTrackSelected(trackIdx)) {
+                    lastWorkingAudioGroupIdx = groupIdx;
+                    lastWorkingAudioTrackIdx = trackIdx;
+                    lastWorkingAudioGlobalIndex = globalIndex;
+                    return;
+                }
+                globalIndex++;
+            }
+        }
+    }
+
+    private void revertToLastWorkingAudioTrack(String failedTrackName) {
+        if (exoPlayer == null || lastWorkingAudioGroupIdx < 0 || lastWorkingAudioTrackIdx < 0) {
+            return;
+        }
+        java.util.List<Tracks.Group> audioTrackGroups = collectAudioTrackGroups(exoPlayer.getCurrentTracks());
+        if (lastWorkingAudioGroupIdx >= audioTrackGroups.size()) {
+            return;
+        }
+        Log.w(TAG, "Reverting audio from unsupported track: " + failedTrackName);
+        selectAudioTrackFromMultipleGroups(
+                audioTrackGroups,
+                lastWorkingAudioGlobalIndex,
+                lastWorkingAudioGroupIdx,
+                lastWorkingAudioTrackIdx,
+                false);
+        if (getActivity() != null) {
+            Toast.makeText(
+                    getContext(),
+                    "Audio format not supported: " + failedTrackName,
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void autoSelectPreferredAudioTrack(Tracks tracks) {
+        if (hasAutoSelectedAudio || userLockedAudioTrack || exoPlayer == null || tracks == null) {
+            return;
+        }
+
+        java.util.List<Tracks.Group> audioTrackGroups = new java.util.ArrayList<>();
+        for (Tracks.Group trackGroup : tracks.getGroups()) {
+            if (trackGroup.getType() == C.TRACK_TYPE_AUDIO) {
+                audioTrackGroups.add(trackGroup);
+            }
+        }
+        if (audioTrackGroups.isEmpty()) {
+            return;
+        }
+
+        int currentGroup = -1;
+        int currentTrack = -1;
+        int currentPriority = -1;
+        int globalIndex = 0;
+        int currentGlobalIndex = -1;
+
+        for (int groupIdx = 0; groupIdx < audioTrackGroups.size(); groupIdx++) {
+            Tracks.Group trackGroup = audioTrackGroups.get(groupIdx);
+            for (int trackIdx = 0; trackIdx < trackGroup.length; trackIdx++) {
+                if (trackGroup.isTrackSelected(trackIdx)) {
+                    currentGroup = groupIdx;
+                    currentTrack = trackIdx;
+                    currentGlobalIndex = globalIndex;
+                    currentPriority = getAudioCodecPriority(trackGroup.getTrackFormat(trackIdx));
+                }
+                globalIndex++;
+            }
+        }
+
+        int bestGroup = -1;
+        int bestTrack = -1;
+        int bestGlobalIndex = -1;
+        int bestPriority = -1;
+        globalIndex = 0;
+        for (int groupIdx = 0; groupIdx < audioTrackGroups.size(); groupIdx++) {
+            Tracks.Group trackGroup = audioTrackGroups.get(groupIdx);
+            for (int trackIdx = 0; trackIdx < trackGroup.length; trackIdx++) {
+                Format candidateFormat = trackGroup.getTrackFormat(trackIdx);
+                int priority = getAudioCodecPriority(candidateFormat);
+                if (priority > bestPriority) {
+                    bestPriority = priority;
+                    bestGroup = groupIdx;
+                    bestTrack = trackIdx;
+                    bestGlobalIndex = globalIndex;
+                }
+                globalIndex++;
+            }
+        }
+
+        if (bestGroup < 0) {
+            hasAutoSelectedAudio = true;
+            return;
+        }
+
+        boolean shouldSwitch = currentGlobalIndex < 0 || bestPriority > currentPriority;
+        hasAutoSelectedAudio = true;
+
+        if (shouldSwitch) {
+            selectAudioTrackFromMultipleGroups(audioTrackGroups, bestGlobalIndex, bestGroup, bestTrack, false);
+        }
+    }
+
+    private DefaultTrackSelector buildTrackSelector() {
+        DefaultTrackSelector selector = new DefaultTrackSelector(getContext());
+        selector.setParameters(
+            selector.buildUponParameters()
+                .setPreferredAudioMimeTypes(
+                    MimeTypes.AUDIO_TRUEHD,
+                    MimeTypes.AUDIO_E_AC3,
+                    MimeTypes.AUDIO_AC3,
+                    MimeTypes.AUDIO_AAC,
+                    MimeTypes.AUDIO_MPEG)
+                .setTunnelingEnabled(false)
+                .build());
+        return selector;
+    }
+
+    private void performSeek(long positionMs, String source) {
+        if (exoPlayer == null) {
+            return;
+        }
+        long currentPosition = exoPlayer.getCurrentPosition();
+        long duration = exoPlayer.getDuration();
+        if (Math.abs(positionMs - currentPosition) < 500) {
+            // #region agent log
+            try {
+                JSONObject data = new JSONObject();
+                data.put("source", source);
+                data.put("positionMs", positionMs);
+                data.put("currentPosition", currentPosition);
+                data.put("skipped", true);
+                agentLog("ExoPlayerPlugin.java:performSeek", "skipped near-duplicate seek", "C", data);
+            } catch (JSONException ignored) {
+            }
+            // #endregion
+            return;
+        }
+        final boolean shouldPrefetchCluster =
+            currentStreamUrl != null
+                && currentStreamUrl.toLowerCase().contains(".mkv")
+                && streamContentLength > 0
+                && duration > 0;
+        new Thread(() -> {
+            if (shouldPrefetchCluster) {
+                prefetchClusterAroundTimeMs(positionMs, duration);
+            }
+            if (getActivity() == null) {
+                return;
+            }
+            getActivity().runOnUiThread(() -> {
+                if (exoPlayer == null) {
+                    return;
+                }
+                // #region agent log
+                try {
+                    JSONObject data = new JSONObject();
+                    data.put("source", source);
+                    data.put("positionMs", positionMs);
+                    data.put("currentPosition", exoPlayer.getCurrentPosition());
+                    data.put("isSeeking", isSeeking);
+                    data.put("playbackState", exoPlayer.getPlaybackState());
+                    data.put("runId", "post-fix-v6");
+                    data.put("indexTailPrewarmed", indexTailPrewarmed);
+                    data.put("streamContentLength", streamContentLength);
+                    data.put("mkvCueCount", mkvCueIndex != null ? mkvCueIndex.length : 0);
+                    data.put("clusterPrefetched", shouldPrefetchCluster);
+                    data.put("seekParameters", currentContentIsDolbyVision ? "dv_tolerant" : "closest_sync");
+                    agentLog("ExoPlayerPlugin.java:performSeek", "exoPlayer.seekTo", "C", data);
+                } catch (JSONException ignored) {
+                }
+                // #endregion
+                applySeekParametersForContent();
+                int mediaItemIndex = exoPlayer.getCurrentMediaItemIndex();
+                if (mediaItemIndex < 0) {
+                    exoPlayer.seekTo(positionMs);
+                } else {
+                    exoPlayer.seekTo(mediaItemIndex, positionMs);
+                }
+            });
+        }, "seek-with-prefetch").start();
+    }
+
     private static final long MANUAL_SKIP_COOLDOWN_MS = 500; // Don't let time updates override manual skips for 500ms
 
     @PluginMethod
@@ -104,6 +884,13 @@ public class ExoPlayerPlugin extends Plugin {
 
             getActivity().runOnUiThread(() -> {
                 try {
+                    if (containerView != null && playerView != null) {
+                        JSObject ret = new JSObject();
+                        ret.put("success", true);
+                        ret.put("alreadyInitialized", true);
+                        call.resolve(ret);
+                        return;
+                    }
                     // Get the root view of the activity
                     ViewGroup rootView = (ViewGroup) getActivity().findViewById(android.R.id.content);
 
@@ -131,6 +918,8 @@ public class ExoPlayerPlugin extends Plugin {
                     playerView = new PlayerView(getContext());
                     // playerView.setPlayer(exoPlayer); // Will be set after ExoPlayer is created
                     playerView.setUseController(false);
+                    playerView.setKeepContentOnPlayerReset(true);
+                    // Default surface is SurfaceView (required for HDR; do not switch to TextureView)
                     // Ensure PlayerView fills its container
                     playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL);
 
@@ -225,7 +1014,7 @@ public class ExoPlayerPlugin extends Plugin {
                             if (duration > 0) {
                                 long seekPosition = (long) (duration * finalProgress / 10000.0);
                                 lastSeekTime = System.currentTimeMillis();
-                                exoPlayer.seekTo(seekPosition);
+                                performSeek(seekPosition, "seekbar_enter");
                                 Log.d(TAG, "Seek on Enter (seekbar listener) to: " + seekPosition + "ms (progress: " + (finalProgress/100.0) + "%)");
                                 pendingSeekPosition = -1;
                             }
@@ -286,17 +1075,14 @@ public class ExoPlayerPlugin extends Plugin {
         seekBarChangeListener = new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                // If user is scrubbing, seek immediately to update the frame
+                // Update target position only while scrubbing; seek once on release/Enter.
+                // Calling seekTo per progress step re-triggers Dolby Vision on LG TVs.
                 if (fromUser && exoPlayer != null && isSeeking) {
                     long duration = exoPlayer.getDuration();
                     if (duration > 0) {
                         long seekPosition = (long) (duration * progress / 10000.0);
                         pendingSeekPosition = seekPosition;
-                        
-                        // Seek immediately to update the video frame while paused
-                        exoPlayer.seekTo(seekPosition);
-                        
-                        Log.d(TAG, "Seeking to position: " + seekPosition + " (progress: " + (progress/100.0) + "%)");
+                        Log.d(TAG, "Scrub preview position (deferred seek): " + seekPosition + " (progress: " + (progress/100.0) + "%)");
                     }
                 }
             }
@@ -344,7 +1130,7 @@ public class ExoPlayerPlugin extends Plugin {
                     if (duration > 0) {
                         long seekPosition = (long) (duration * finalProgress / 10000.0);
                         lastSeekTime = System.currentTimeMillis();
-                        exoPlayer.seekTo(seekPosition);
+                        performSeek(seekPosition, "seekbar_release");
                         Log.d(TAG, "Final seek to: " + seekPosition + "ms (progress: " + (finalProgress/100.0) + "%)");
                         pendingSeekPosition = -1;
                     }
@@ -420,10 +1206,7 @@ public class ExoPlayerPlugin extends Plugin {
 
         // Set up audio track selection button
         audioTrackBtn.setOnClickListener(v -> {
-            // #region agent log
-            android.util.Log.d("ExoPlayerPlugin", "Audio track button clicked - calling toggleAudioTrackList()");
-            // #endregion
-            toggleAudioTrackList();
+toggleAudioTrackList();
             resetControlsHideTimer();
         });
 
@@ -431,23 +1214,13 @@ public class ExoPlayerPlugin extends Plugin {
         audioTrackBtn.setOnFocusChangeListener(new OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
-                // #region agent log
-                android.util.Log.d("ExoPlayerPlugin", "Audio track button focus changed: " + hasFocus + ", suppressAutoShow: " + suppressAutoShowAudioList + ", listVisible: " + (audioTrackListContainer != null ? (audioTrackListContainer.getVisibility() == View.VISIBLE) : "null"));
-                // #endregion
-                
-                if (hasFocus && audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.GONE) {
+if (hasFocus && audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.GONE) {
                     // When button gets focus, show the track list (unless we're suppressing auto-show)
                     // Only auto-show if button is visible (controls might be hidden but button could still be accessible)
                     if (!suppressAutoShowAudioList && audioTrackBtn.getVisibility() == View.VISIBLE) {
-                        // #region agent log
-                        android.util.Log.d("ExoPlayerPlugin", "Auto-showing audio track list due to focus change - controlsVisible: " + controlsVisible);
-                        // #endregion
-                        showAudioTrackList();
+showAudioTrackList();
                     } else {
-                        // #region agent log
-                        android.util.Log.d("ExoPlayerPlugin", "Suppressed auto-show of audio track list - suppressAutoShow: " + suppressAutoShowAudioList + ", buttonVisibility: " + audioTrackBtn.getVisibility());
-                        // #endregion
-                    }
+}
                 } else if (!hasFocus && audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.VISIBLE) {
                     // When button loses focus and no item in list is focused, hide the list
                     boolean listItemFocused = false;
@@ -458,10 +1231,7 @@ public class ExoPlayerPlugin extends Plugin {
                         }
                     }
                     if (!listItemFocused) {
-                        // #region agent log
-                        android.util.Log.d("ExoPlayerPlugin", "Hiding audio track list because button lost focus and no list item has focus");
-                        // #endregion
-                        hideAudioTrackList();
+hideAudioTrackList();
                     }
                 }
             }
@@ -509,10 +1279,7 @@ public class ExoPlayerPlugin extends Plugin {
         containerView.setOnKeyListener(new View.OnKeyListener() {
             @Override
             public boolean onKey(View v, int keyCode, KeyEvent event) {
-                // #region agent log
-                android.util.Log.d("ExoPlayerPlugin", "OnKeyListener called: keyCode=" + keyCode + ", action=" + event.getAction() + ", source=" + event.getSource() + ", flags=" + event.getFlags() + ", isSynthetic=" + (event.getFlags() & KeyEvent.FLAG_VIRTUAL_HARD_KEY) + ", focusedView=" + (getActivity().getCurrentFocus() != null ? getActivity().getCurrentFocus().getClass().getSimpleName() : "null"));
-                // #endregion
-                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     // Check if audio track list is visible - if so, let the buttons handle navigation
                     boolean audioListVisible = audioTrackListContainer != null && 
                         audioTrackListContainer.getVisibility() == View.VISIBLE;
@@ -583,11 +1350,7 @@ public class ExoPlayerPlugin extends Plugin {
                         keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
                         keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
                         keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                        // #region agent log
-                        View currentFocus = getActivity().getCurrentFocus();
-                        android.util.Log.d("ExoPlayerPlugin", "D-pad navigation in OnKeyListener: keyCode=" + keyCode + ", currentFocus=" + (currentFocus != null ? currentFocus.getClass().getSimpleName() : "null") + ", containerView.hasFocus=" + containerView.hasFocus() + ", controlsVisible=" + controlsVisible);
-                        // #endregion
-                        // If seekbar has focus and user is navigating left/right, set isSeeking
+// If seekbar has focus and user is navigating left/right, set isSeeking
                         if (seekBar != null && seekBar.hasFocus() && 
                             (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)) {
                             // User is navigating the seekbar - set seeking state
@@ -742,16 +1505,17 @@ public class ExoPlayerPlugin extends Plugin {
         titleView.setLayoutParams(titleParams);
         
         // Create ScrollView to wrap the track list for scrollability
-        android.widget.ScrollView scrollView = new android.widget.ScrollView(getContext());
+        audioTrackScrollView = new android.widget.ScrollView(getContext());
         LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             0, // Will use weight
             1.0f // Weight to fill remaining space
         );
-        scrollView.setLayoutParams(scrollParams);
-        scrollView.setFillViewport(true); // Ensure content fills the viewport
-        scrollView.setFocusable(false); // Don't intercept focus - let buttons handle it
-        scrollView.setFocusableInTouchMode(false);
+        audioTrackScrollView.setLayoutParams(scrollParams);
+        audioTrackScrollView.setFillViewport(true);
+        audioTrackScrollView.setFocusable(false);
+        audioTrackScrollView.setFocusableInTouchMode(false);
+        audioTrackScrollView.setDescendantFocusability(android.widget.ScrollView.FOCUS_AFTER_DESCENDANTS);
         
         // Create the track list LinearLayout
         audioTrackList = new LinearLayout(getContext());
@@ -763,11 +1527,11 @@ public class ExoPlayerPlugin extends Plugin {
         audioTrackList.setLayoutParams(listParams);
         
         // Add track list to ScrollView
-        scrollView.addView(audioTrackList);
+        audioTrackScrollView.addView(audioTrackList);
         
         // Add views to hierarchy
         innerContainer.addView(titleView);
-        innerContainer.addView(scrollView);
+        innerContainer.addView(audioTrackScrollView);
         audioTrackListContainer.addView(innerContainer);
         
         // Add to the main container (full screen)
@@ -778,6 +1542,143 @@ public class ExoPlayerPlugin extends Plugin {
         JSObject obj = new JSObject();
         obj.put("skipBy", seconds);
         return obj;
+    }
+
+    private void scrollAudioTrackIntoView(View trackButton) {
+        if (audioTrackScrollView == null || trackButton == null) {
+            return;
+        }
+        audioTrackScrollView.post(() -> {
+            int buttonTop = trackButton.getTop();
+            int buttonBottom = trackButton.getBottom();
+            int scrollY = audioTrackScrollView.getScrollY();
+            int height = audioTrackScrollView.getHeight();
+            if (buttonTop < scrollY) {
+                audioTrackScrollView.smoothScrollTo(0, buttonTop);
+            } else if (buttonBottom > scrollY + height) {
+                audioTrackScrollView.smoothScrollTo(0, buttonBottom - height);
+            }
+        });
+    }
+
+    private void cancelPendingAudioTrackListFocus() {
+        if (pendingAudioTrackListFocusRunnable != null && audioTrackList != null) {
+            audioTrackList.removeCallbacks(pendingAudioTrackListFocusRunnable);
+            pendingAudioTrackListFocusRunnable = null;
+        }
+    }
+
+    private boolean isAudioTrackListVisible() {
+        return isShowingAudioTrackList
+                || (audioTrackListContainer != null
+                && audioTrackListContainer.getVisibility() == View.VISIBLE);
+    }
+
+    private void refreshAudioTrackListSelectionStyles() {
+        for (int i = 0; i < audioTrackButtons.size(); i++) {
+            Button btn = audioTrackButtons.get(i);
+            if (btn == null) {
+                continue;
+            }
+            boolean isPlaying = i == selectedAudioTrackIndex;
+            boolean isHighlighted = i == focusedAudioTrackIndex;
+            if (isHighlighted) {
+                btn.setBackgroundColor(Color.argb(150, 255, 255, 255));
+                btn.setTextColor(Color.WHITE);
+            } else if (isPlaying) {
+                btn.setBackgroundColor(Color.argb(100, 255, 255, 0));
+                btn.setTextColor(Color.YELLOW);
+            } else {
+                btn.setBackgroundColor(Color.TRANSPARENT);
+                btn.setTextColor(Color.WHITE);
+            }
+        }
+    }
+
+    private void highlightAudioTrackAtIndex(int index) {
+        if (index < 0 || index >= audioTrackButtons.size()) {
+            return;
+        }
+        cancelPendingAudioTrackListFocus();
+        focusedAudioTrackIndex = index;
+        scrollAudioTrackIntoView(audioTrackButtons.get(index));
+        refreshAudioTrackListSelectionStyles();
+    }
+
+    private void focusAudioTrackButton(int index) {
+        highlightAudioTrackAtIndex(index);
+        if (index >= 0 && index < audioTrackButtons.size()) {
+            audioTrackButtons.get(index).requestFocus();
+        }
+    }
+
+    /**
+     * Handles D-pad keys at Activity level while the audio track list is open.
+     * Capacitor keeps focus on the WebView, so keys never reach native buttons or navigateControls.
+     */
+    public boolean handleAudioListKey(int keyCode) {
+        if (!isAudioTrackListVisible() || audioTrackButtons.isEmpty() || getActivity() == null) {
+            return false;
+        }
+
+        int currentIndex = resolveAudioTrackListFocusIndex(null);
+        int newIndex = currentIndex;
+        boolean handled = true;
+
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                if (currentIndex < audioTrackButtons.size() - 1) {
+                    newIndex = currentIndex + 1;
+                }
+                break;
+            case KeyEvent.KEYCODE_DPAD_UP:
+                if (currentIndex > 0) {
+                    newIndex = currentIndex - 1;
+                }
+                break;
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                final int selectIndex = currentIndex;
+                getActivity().runOnUiThread(() -> {
+                    if (selectIndex >= 0 && selectIndex < audioTrackButtons.size()) {
+                        audioTrackButtons.get(selectIndex).performClick();
+                    }
+                });
+return true;
+            case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                getActivity().runOnUiThread(this::hideAudioTrackList);
+                return true;
+            default:
+                handled = false;
+                break;
+        }
+
+        if (!handled) {
+            return false;
+        }
+
+        if (newIndex != currentIndex) {
+            final int targetIndex = newIndex;
+            getActivity().runOnUiThread(() -> highlightAudioTrackAtIndex(targetIndex));
+        }
+return true;
+    }
+
+    /** WebView keeps focus on Capacitor; track navigation uses this index instead. */
+    private int resolveAudioTrackListFocusIndex(View currentFocus) {
+        if (focusedAudioTrackIndex >= 0 && focusedAudioTrackIndex < audioTrackButtons.size()) {
+            return focusedAudioTrackIndex;
+        }
+        for (int i = 0; i < audioTrackButtons.size(); i++) {
+            if (audioTrackButtons.get(i) == currentFocus) {
+                return i;
+            }
+        }
+        if (selectedAudioTrackIndex >= 0 && selectedAudioTrackIndex < audioTrackButtons.size()) {
+            return selectedAudioTrackIndex;
+        }
+        return 0;
     }
 
     /**
@@ -811,7 +1712,7 @@ public class ExoPlayerPlugin extends Plugin {
         
         lastSeekTime = System.currentTimeMillis();
         lastManualSkipTime = System.currentTimeMillis(); // Track manual skip for time update blocking
-        exoPlayer.seekTo(newPosition);
+        performSeek(newPosition, "skip_forward");
         
         // Update seekbar to reflect new position IMMEDIATELY on UI thread
         // This must happen synchronously to prevent time updates from overwriting it
@@ -852,7 +1753,7 @@ public class ExoPlayerPlugin extends Plugin {
         
         lastSeekTime = System.currentTimeMillis();
         lastManualSkipTime = System.currentTimeMillis(); // Track manual skip for time update blocking
-        exoPlayer.seekTo(newPosition);
+        performSeek(newPosition, "skip_backward");
         
         // Update seekbar to reflect new position IMMEDIATELY on UI thread
         // This must happen synchronously to prevent time updates from overwriting it
@@ -1130,6 +2031,17 @@ public class ExoPlayerPlugin extends Plugin {
                     selectedAudioTrackIndex = globalIndex;
                 }
 
+                if (isShowingAudioTrackList) {
+                    if (currentAudioTrackLabel != null && currentTrackGroupIndex >= 0 && currentTrackIndexInGroup >= 0) {
+                        Tracks.Group selectedGroup = audioTrackGroups.get(currentTrackGroupIndex);
+                        String trackName = getAudioTrackDisplayName(
+                                selectedGroup.getTrackFormat(currentTrackIndexInGroup));
+                        currentAudioTrackLabel.setText("Audio: " + trackName);
+                    }
+                    refreshAudioTrackListSelectionStyles();
+                    return;
+                }
+
                 // Populate audio track list with all tracks from all groups
                 populateAudioTrackListFromMultipleGroups(audioTrackGroups, selectedAudioTrackIndex);
             } else {
@@ -1263,10 +2175,17 @@ public class ExoPlayerPlugin extends Plugin {
                 for (int trackIdx = 0; trackIdx < trackGroup.length; trackIdx++) {
                     androidx.media3.common.Format format = trackGroup.getTrackFormat(trackIdx);
                     String trackName = getAudioTrackDisplayName(format);
+                    boolean playable = isAudioFormatLikelyPlayable(format);
+                    if (!playable) {
+                        trackName = trackName + " (unsupported)";
+                    }
                     boolean isSelected = (globalIndex == selectedGlobalIndex);
 
                     Button trackButton = new Button(getContext());
                     trackButton.setText(trackName);
+                    if (!playable) {
+                        trackButton.setAlpha(0.55f);
+                    }
                     trackButton.setTextColor(isSelected ? Color.YELLOW : Color.WHITE);
                     trackButton.setBackgroundColor(isSelected ? Color.argb(100, 255, 255, 0) : Color.TRANSPARENT);
                     trackButton.setPadding((int)(20 * getContext().getResources().getDisplayMetrics().density),
@@ -1283,37 +2202,24 @@ public class ExoPlayerPlugin extends Plugin {
 
                     trackButton.setFocusable(true);
                     trackButton.setFocusableInTouchMode(true);
-                    setupButtonFocus(trackButton);
 
                     final int finalGlobalIndex = globalIndex;
                     final int finalGroupIdx = groupIdx;
                     final int finalTrackIdx = trackIdx;
                     
                     trackButton.setOnClickListener(v -> {
-                        // #region agent log
-                        android.util.Log.d("ExoPlayerPlugin", "Track button " + finalGlobalIndex + " clicked - calling selectAudioTrackFromMultipleGroups");
-                        android.util.Log.d("ExoPlayerPlugin", "  - controlsVisible: " + controlsVisible);
-                        android.util.Log.d("ExoPlayerPlugin", "  - isShowingAudioTrackList: " + isShowingAudioTrackList);
-                        android.util.Log.d("ExoPlayerPlugin", "  - button clickable: " + trackButton.isClickable() + ", enabled: " + trackButton.isEnabled() + ", visibility: " + trackButton.getVisibility());
-                        android.util.Log.d("ExoPlayerPlugin", "  - container visibility: " + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null"));
-                        // #endregion
-                        selectAudioTrackFromMultipleGroups(audioTrackGroups, finalGlobalIndex, finalGroupIdx, finalTrackIdx);
+selectAudioTrackFromMultipleGroups(audioTrackGroups, finalGlobalIndex, finalGroupIdx, finalTrackIdx);
                     });
 
                     // Set up focus change listener to update selection
                     trackButton.setOnFocusChangeListener(new OnFocusChangeListener() {
                         @Override
                         public void onFocusChange(View v, boolean hasFocus) {
-                            android.util.Log.d("ExoPlayerPlugin", "Track button " + finalGlobalIndex + " focus changed: " + hasFocus);
                             if (hasFocus) {
-                                // Highlight focused item
-                                trackButton.setBackgroundColor(Color.argb(150, 255, 255, 255));
-                            } else {
-                                // Reset to normal or selected state
-                                boolean isCurrentlySelected = finalGlobalIndex == selectedAudioTrackIndex;
-                                trackButton.setBackgroundColor(isCurrentlySelected ? Color.argb(100, 255, 255, 0) : Color.TRANSPARENT);
-                                trackButton.setTextColor(isCurrentlySelected ? Color.YELLOW : Color.WHITE);
+                                focusedAudioTrackIndex = finalGlobalIndex;
+                                cancelPendingAudioTrackListFocus();
                             }
+                            refreshAudioTrackListSelectionStyles();
                         }
                     });
 
@@ -1321,32 +2227,19 @@ public class ExoPlayerPlugin extends Plugin {
                     trackButton.setOnKeyListener(new View.OnKeyListener() {
                         @Override
                         public boolean onKey(View v, int keyCode, KeyEvent event) {
-                            // #region agent log
-                            android.util.Log.d("ExoPlayerPlugin", "Track button " + finalGlobalIndex + " key listener - keyCode: " + keyCode + ", action: " + event.getAction());
-                            android.util.Log.d("ExoPlayerPlugin", "  - button hasFocus: " + trackButton.hasFocus() + ", isFocused: " + trackButton.isFocused());
-                            android.util.Log.d("ExoPlayerPlugin", "  - container visibility: " + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null"));
-                            android.util.Log.d("ExoPlayerPlugin", "  - button parent: " + (trackButton.getParent() != null ? trackButton.getParent().getClass().getSimpleName() : "null"));
-                            // #endregion
-                            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+if (event.getAction() == KeyEvent.ACTION_DOWN) {
                                 if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
                                     android.util.Log.d("ExoPlayerPlugin", "DPAD_UP on track " + finalGlobalIndex);
-                                    // Move focus to previous item or back to button
                                     if (finalGlobalIndex > 0) {
-                                        android.util.Log.d("ExoPlayerPlugin", "Moving focus to track " + (finalGlobalIndex - 1));
-                                        audioTrackButtons.get(finalGlobalIndex - 1).requestFocus();
-                                    } else {
-                                        android.util.Log.d("ExoPlayerPlugin", "Moving focus to audio track button");
+                                        focusAudioTrackButton(finalGlobalIndex - 1);
+                                    } else if (audioTrackBtn != null) {
                                         audioTrackBtn.requestFocus();
                                     }
                                     return true;
                                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                                     android.util.Log.d("ExoPlayerPlugin", "DPAD_DOWN on track " + finalGlobalIndex);
-                                    // Move focus to next item
                                     if (finalGlobalIndex < audioTrackButtons.size() - 1) {
-                                        android.util.Log.d("ExoPlayerPlugin", "Moving focus to track " + (finalGlobalIndex + 1));
-                                        audioTrackButtons.get(finalGlobalIndex + 1).requestFocus();
-                                    } else {
-                                        android.util.Log.d("ExoPlayerPlugin", "Already at last track");
+                                        focusAudioTrackButton(finalGlobalIndex + 1);
                                     }
                                     return true;
                                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_BACK) {
@@ -1356,14 +2249,7 @@ public class ExoPlayerPlugin extends Plugin {
                                     hideAudioTrackList();
                                     return true;
                                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-                                    // #region agent log
-                                    android.util.Log.d("ExoPlayerPlugin", "Enter pressed on track " + finalGlobalIndex + " - selecting track");
-                                    android.util.Log.d("ExoPlayerPlugin", "  - button clickable: " + trackButton.isClickable() + ", enabled: " + trackButton.isEnabled() + ", visibility: " + trackButton.getVisibility());
-                                    android.util.Log.d("ExoPlayerPlugin", "  - container visibility: " + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null"));
-                                    android.util.Log.d("ExoPlayerPlugin", "  - isShowingAudioTrackList: " + isShowingAudioTrackList);
-                                    android.util.Log.d("ExoPlayerPlugin", "  - audioTrackGroups size: " + (audioTrackGroups != null ? audioTrackGroups.size() : "null"));
-                                    // #endregion
-                                    // Select this track
+// Select this track
                                     selectAudioTrackFromMultipleGroups(audioTrackGroups, finalGlobalIndex, finalGroupIdx, finalTrackIdx);
                                     return true;
                                 }
@@ -1379,12 +2265,87 @@ public class ExoPlayerPlugin extends Plugin {
                     globalIndex++;
                 }
             }
+
+            for (int i = 0; i < audioTrackButtons.size(); i++) {
+                Button btn = audioTrackButtons.get(i);
+                btn.setId(View.generateViewId());
+                if (i > 0) {
+                    btn.setNextFocusUpId(audioTrackButtons.get(i - 1).getId());
+                }
+                if (i < audioTrackButtons.size() - 1) {
+                    btn.setNextFocusDownId(audioTrackButtons.get(i + 1).getId());
+                }
+            }
+            refreshAudioTrackListSelectionStyles();
             
             android.util.Log.d("ExoPlayerPlugin", "Populated " + globalIndex + " audio track buttons from " + audioTrackGroups.size() + " groups");
         });
     }
 
-    private void selectAudioTrackFromMultipleGroups(java.util.List<Tracks.Group> audioTrackGroups, int globalIndex, int groupIdx, int trackIdx) {
+    private void applyAudioTrackSelectionUi(
+            TrackSelectionParameters newParams,
+            int globalIndex,
+            String trackName,
+            int groupIdx,
+            int trackIdx) {
+        if (exoPlayer == null || getActivity() == null) {
+            return;
+        }
+        exoPlayer.setTrackSelectionParameters(newParams);
+        selectedAudioTrackIndex = globalIndex;
+        android.util.Log.d(
+            "ExoPlayerPlugin",
+            "Selected audio track: " + globalIndex + " (" + trackName + ") from group "
+                + groupIdx + ", track " + trackIdx + " - Track switching applied to ExoPlayer");
+        getActivity().runOnUiThread(() -> {
+            for (int i = 0; i < audioTrackButtons.size(); i++) {
+                Button btn = audioTrackButtons.get(i);
+                if (btn == null) {
+                    continue;
+                }
+                if (i == globalIndex) {
+                    btn.setTextColor(Color.YELLOW);
+                    btn.setBackgroundColor(Color.argb(100, 255, 255, 0));
+                } else {
+                    btn.setTextColor(Color.WHITE);
+                    btn.setBackgroundColor(Color.TRANSPARENT);
+                }
+            }
+            if (currentAudioTrackLabel != null) {
+                currentAudioTrackLabel.setText("Audio: " + trackName);
+            }
+            isShowingAudioTrackList = false;
+            if (audioTrackListContainer != null) {
+                audioTrackListContainer.setVisibility(View.GONE);
+            }
+            suppressAutoShowAudioList = true;
+            showControls(null);
+            if (audioTrackBtn != null) {
+                audioTrackBtn.requestFocus();
+            }
+            if (audioTrackBtn != null) {
+                audioTrackBtn.postDelayed(() -> suppressAutoShowAudioList = false, 300);
+            }
+        });
+    }
+
+    private void selectAudioTrackFromMultipleGroups(
+            java.util.List<Tracks.Group> audioTrackGroups,
+            int globalIndex,
+            int groupIdx,
+            int trackIdx) {
+        selectAudioTrackFromMultipleGroups(audioTrackGroups, globalIndex, groupIdx, trackIdx, true);
+    }
+
+    private void selectAudioTrackFromMultipleGroups(
+            java.util.List<Tracks.Group> audioTrackGroups,
+            int globalIndex,
+            int groupIdx,
+            int trackIdx,
+            boolean userInitiated) {
+        if (userInitiated) {
+            userLockedAudioTrack = true;
+        }
         if (exoPlayer == null || groupIdx < 0 || groupIdx >= audioTrackGroups.size()) {
             android.util.Log.w("ExoPlayerPlugin", "Cannot select audio track: invalid group index");
             return;
@@ -1399,204 +2360,78 @@ public class ExoPlayerPlugin extends Plugin {
         androidx.media3.common.Format format = targetGroup.getTrackFormat(trackIdx);
         String trackName = getAudioTrackDisplayName(format);
 
+        if (!isAudioFormatLikelyPlayable(format)) {
+            if (getActivity() != null) {
+                Toast.makeText(
+                        getContext(),
+                        "This audio format is not supported on Shield: " + trackName,
+                        Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+
+        if (userInitiated && exoPlayer.getCurrentTracks() != null) {
+            captureLastWorkingAudioSelection(exoPlayer.getCurrentTracks());
+        }
+
         // Get the media track group for this audio track
         TrackGroup mediaTrackGroup = targetGroup.getMediaTrackGroup();
-        
-        // #region agent log
-        android.util.Log.d("ExoPlayerPlugin", "Track selection details:");
-        android.util.Log.d("ExoPlayerPlugin", "  - globalIndex: " + globalIndex);
-        android.util.Log.d("ExoPlayerPlugin", "  - groupIdx: " + groupIdx + " (of " + audioTrackGroups.size() + " groups)");
-        android.util.Log.d("ExoPlayerPlugin", "  - trackIdx: " + trackIdx + " (of " + targetGroup.length + " tracks in group)");
-        android.util.Log.d("ExoPlayerPlugin", "  - trackName: " + trackName);
-        android.util.Log.d("ExoPlayerPlugin", "  - mediaTrackGroup tracks: " + mediaTrackGroup.length);
-        for (int i = 0; i < mediaTrackGroup.length; i++) {
-            androidx.media3.common.Format f = mediaTrackGroup.getFormat(i);
-            android.util.Log.d("ExoPlayerPlugin", "    Track " + i + ": " + getAudioTrackDisplayName(f));
-        }
-        // #endregion
-        
-        // Get current track selection parameters
+// Get current track selection parameters
         TrackSelectionParameters currentTrackParams = exoPlayer.getTrackSelectionParameters();
         
         // Create the override for the selected track
         TrackSelectionOverride override = new TrackSelectionOverride(mediaTrackGroup, Collections.singletonList(trackIdx));
-        
-        // #region agent log
-        android.util.Log.d("ExoPlayerPlugin", "Creating override for trackIdx: " + trackIdx + " in mediaTrackGroup with " + mediaTrackGroup.length + " tracks");
-        android.util.Log.d("ExoPlayerPlugin", "Current track selection parameters before change:");
-        android.util.Log.d("ExoPlayerPlugin", "  - Overrides count: " + currentTrackParams.overrides.size());
-        for (java.util.Map.Entry<TrackGroup, TrackSelectionOverride> entry : currentTrackParams.overrides.entrySet()) {
-            TrackGroup tg = entry.getKey();
-            android.util.Log.d("ExoPlayerPlugin", "    Override: TrackGroup with " + tg.length + " tracks");
-        }
-        // #endregion
-        
-        // Clear all existing audio track overrides first, then add the new one
+// Clear all existing audio track overrides first, then add the new one
         // This ensures only one audio track is selected at a time
         TrackSelectionParameters.Builder paramsBuilder = currentTrackParams.buildUpon();
-        
-        // #region agent log
-        int audioOverrideCount = 0;
-        for (java.util.Map.Entry<TrackGroup, TrackSelectionOverride> entry : currentTrackParams.overrides.entrySet()) {
-            TrackGroup tg = entry.getKey();
-            // Check if this is an audio track group by looking at the format
-            if (tg.length > 0) {
-                androidx.media3.common.Format firstFormat = tg.getFormat(0);
-                if (firstFormat != null && firstFormat.sampleMimeType != null && firstFormat.sampleMimeType.startsWith("audio/")) {
-                    audioOverrideCount++;
-                }
-            }
-        }
-        android.util.Log.d("ExoPlayerPlugin", "Found " + audioOverrideCount + " existing audio track overrides to clear");
-        // #endregion
-        
-        // Clear all audio track overrides using clearOverridesOfType
+// Clear all audio track overrides using clearOverridesOfType
         paramsBuilder.clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_AUDIO);
         
         // Now add the new override
         paramsBuilder.addOverride(override);
         
         TrackSelectionParameters newParams = paramsBuilder.build();
-        
+        final long audioSwitchPositionMs = exoPlayer.getCurrentPosition();
+        final long audioSwitchDurationMs = exoPlayer.getDuration();
         // #region agent log
-        android.util.Log.d("ExoPlayerPlugin", "New track selection parameters:");
-        android.util.Log.d("ExoPlayerPlugin", "  - Overrides count: " + newParams.overrides.size());
-        for (java.util.Map.Entry<TrackGroup, TrackSelectionOverride> entry : newParams.overrides.entrySet()) {
-            TrackGroup tg = entry.getKey();
-            android.util.Log.d("ExoPlayerPlugin", "    Override: TrackGroup with " + tg.length + " tracks");
+        try {
+            JSONObject data = new JSONObject();
+            data.put("trackName", trackName);
+            data.put("mime", format.sampleMimeType);
+            data.put("userInitiated", userInitiated);
+            data.put("positionMs", audioSwitchPositionMs);
+            agentLog("ExoPlayerPlugin.java:selectAudioTrack", "audio track switch", "D", data);
+        } catch (JSONException ignored) {
         }
         // #endregion
-        
-        exoPlayer.setTrackSelectionParameters(newParams);
-        
-        // #region agent log
-        // Immediately check what ExoPlayer reports as selected (before onTracksChanged)
-        android.util.Log.d("ExoPlayerPlugin", "Verifying track selection immediately after setTrackSelectionParameters...");
-        Tracks currentTracks = exoPlayer.getCurrentTracks();
-        if (currentTracks != null) {
-            for (Tracks.Group trackGroupCheck : currentTracks.getGroups()) {
-                if (trackGroupCheck.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
-                    for (int i = 0; i < trackGroupCheck.length; i++) {
-                        if (trackGroupCheck.isTrackSelected(i)) {
-                            androidx.media3.common.Format formatCheck = trackGroupCheck.getTrackFormat(i);
-                            String trackNameCheck = getAudioTrackDisplayName(formatCheck);
-                            android.util.Log.d("ExoPlayerPlugin", "IMMEDIATELY AFTER SELECTION - Selected audio track: " + trackNameCheck + " (index " + i + " in group)");
-                        }
-                    }
+        if (userInitiated
+                && currentStreamUrl != null
+                && currentStreamUrl.toLowerCase().contains(".mkv")
+                && streamContentLength > 0
+                && audioSwitchDurationMs > 0) {
+            new Thread(() -> {
+                prefetchClusterAroundTimeMs(audioSwitchPositionMs, audioSwitchDurationMs);
+                if (getActivity() == null) {
+                    return;
                 }
-            }
+                getActivity().runOnUiThread(() ->
+                    applyAudioTrackSelectionUi(newParams, globalIndex, trackName, groupIdx, trackIdx));
+            }, "audio-switch-prefetch").start();
         } else {
-            android.util.Log.d("ExoPlayerPlugin", "IMMEDIATELY AFTER SELECTION - currentTracks is null");
+            applyAudioTrackSelectionUi(newParams, globalIndex, trackName, groupIdx, trackIdx);
         }
-        // #endregion
-
-        selectedAudioTrackIndex = globalIndex;
-
-        android.util.Log.d("ExoPlayerPlugin", "Selected audio track: " + globalIndex + " (" + trackName + ") from group " + groupIdx + ", track " + trackIdx + " - Track switching applied to ExoPlayer");
-
-        // Update UI and hide the audio list
-        getActivity().runOnUiThread(() -> {
-            // #region agent log
-            android.util.Log.d("ExoPlayerPlugin", "Updating UI after track selection - buttons count: " + audioTrackButtons.size() + ", selected index: " + globalIndex);
-            // #endregion
-            
-            // Update button colors
-            for (int i = 0; i < audioTrackButtons.size(); i++) {
-                Button btn = audioTrackButtons.get(i);
-                if (btn == null) {
-                    // #region agent log
-                    android.util.Log.w("ExoPlayerPlugin", "Button " + i + " is null!");
-                    // #endregion
-                    continue;
-                }
-                if (i == globalIndex) {
-                    btn.setTextColor(Color.YELLOW);
-                    btn.setBackgroundColor(Color.argb(100, 255, 255, 0));
-                } else {
-                    btn.setTextColor(Color.WHITE);
-                    btn.setBackgroundColor(Color.TRANSPARENT);
-                }
-                // #region agent log
-                android.util.Log.d("ExoPlayerPlugin", "Button " + i + " updated - clickable: " + btn.isClickable() + ", enabled: " + btn.isEnabled() + ", visibility: " + btn.getVisibility() + ", hasOnClick: " + btn.hasOnClickListeners());
-                // #endregion
-            }
-
-            // Update label
-            if (currentAudioTrackLabel != null) {
-                currentAudioTrackLabel.setText("Audio: " + trackName);
-            }
-            
-            // Hide the audio track list and show controls after selection
-            android.util.Log.d("ExoPlayerPlugin", "Hiding audio track list after track selection");
-            isShowingAudioTrackList = false;
-            if (audioTrackListContainer != null) {
-                audioTrackListContainer.setVisibility(View.GONE);
-                // #region agent log
-                android.util.Log.d("ExoPlayerPlugin", "Set audioTrackListContainer visibility to GONE (8) after track selection, actual visibility: " + audioTrackListContainer.getVisibility());
-                // #endregion
-            }
-            
-            // Suppress auto-show when we programmatically focus the button after selection
-            suppressAutoShowAudioList = true;
-            // #region agent log
-            android.util.Log.d("ExoPlayerPlugin", "Set suppressAutoShowAudioList = true before focusing button after track selection");
-            // #endregion
-            
-            // Show controls and focus the audio track button
-            showControls(null);
-            if (audioTrackBtn != null) {
-                // #region agent log
-                android.util.Log.d("ExoPlayerPlugin", "Requesting focus on audioTrackBtn after track selection, button focusable: " + audioTrackBtn.isFocusable());
-                // #endregion
-                boolean focusResult = audioTrackBtn.requestFocus();
-                // #region agent log
-                android.util.Log.d("ExoPlayerPlugin", "Focus request result on audioTrackBtn: " + focusResult + ", hasFocus: " + audioTrackBtn.hasFocus());
-                // #endregion
-            }
-            
-            // Re-enable auto-show after a short delay to allow focus to settle
-            audioTrackBtn.postDelayed(() -> {
-                suppressAutoShowAudioList = false;
-                // #region agent log
-                android.util.Log.d("ExoPlayerPlugin", "Set suppressAutoShowAudioList = false after delay, audioTrackBtn hasFocus: " + (audioTrackBtn != null ? audioTrackBtn.hasFocus() : "null"));
-                // Verify track buttons still have click handlers
-                android.util.Log.d("ExoPlayerPlugin", "Verifying track buttons after track selection - buttons count: " + audioTrackButtons.size());
-                for (int i = 0; i < audioTrackButtons.size(); i++) {
-                    Button btn = audioTrackButtons.get(i);
-                    if (btn != null) {
-                        android.util.Log.d("ExoPlayerPlugin", "Track button " + i + " - clickable: " + btn.isClickable() + ", enabled: " + btn.isEnabled() + ", visibility: " + btn.getVisibility() + ", hasOnClick: " + btn.hasOnClickListeners());
-                    } else {
-                        android.util.Log.w("ExoPlayerPlugin", "Track button " + i + " is NULL!");
-                    }
-                }
-                // #endregion
-            }, 300);
-        });
     }
 
     private void toggleAudioTrackList() {
         if (audioTrackListContainer == null) {
-            // #region agent log
-            android.util.Log.d("ExoPlayerPlugin", "toggleAudioTrackList() called but container is null");
-            // #endregion
-            return;
+return;
         }
 
         getActivity().runOnUiThread(() -> {
-            // #region agent log
-            android.util.Log.d("ExoPlayerPlugin", "toggleAudioTrackList() - current visibility: " + audioTrackListContainer.getVisibility() + ", isShowingAudioTrackList: " + isShowingAudioTrackList);
-            // #endregion
-            
-            if (audioTrackListContainer.getVisibility() == View.VISIBLE) {
-                // #region agent log
-                android.util.Log.d("ExoPlayerPlugin", "toggleAudioTrackList() - hiding list");
-                // #endregion
-                hideAudioTrackList();
+if (audioTrackListContainer.getVisibility() == View.VISIBLE) {
+hideAudioTrackList();
             } else {
-                // #region agent log
-                android.util.Log.d("ExoPlayerPlugin", "toggleAudioTrackList() - showing list");
-                // #endregion
-                // Clear suppress flag when user explicitly toggles
+// Clear suppress flag when user explicitly toggles
                 suppressAutoShowAudioList = false;
                 showAudioTrackList();
             }
@@ -1605,19 +2440,12 @@ public class ExoPlayerPlugin extends Plugin {
 
     private void showAudioTrackList() {
         if (audioTrackListContainer == null || audioTrackList == null) {
-            // #region agent log
-            android.util.Log.d("ExoPlayerPlugin", "showAudioTrackList() called but container or list is null");
-            // #endregion
-            return;
+return;
         }
 
         getActivity().runOnUiThread(() -> {
             android.util.Log.d("ExoPlayerPlugin", "showAudioTrackList() called");
-            // #region agent log
-            android.util.Log.d("ExoPlayerPlugin", "showAudioTrackList - container visibility before: " + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null") + ", buttons count: " + audioTrackButtons.size());
-            // #endregion
-            
-            // Set flag to prevent hideControls from hiding the audio list
+// Set flag to prevent hideControls from hiding the audio list
             isShowingAudioTrackList = true;
             android.util.Log.d("ExoPlayerPlugin", "Set isShowingAudioTrackList = true");
             
@@ -1632,52 +2460,10 @@ public class ExoPlayerPlugin extends Plugin {
             }
             
             audioTrackListContainer.setVisibility(View.VISIBLE);
-            // #region agent log
-            android.util.Log.d("ExoPlayerPlugin", "Set audioTrackListContainer visibility to VISIBLE (0), current visibility: " + audioTrackListContainer.getVisibility());
-            android.util.Log.d("ExoPlayerPlugin", "Verifying track buttons when showing list - buttons count: " + audioTrackButtons.size());
-            for (int i = 0; i < audioTrackButtons.size(); i++) {
-                Button btn = audioTrackButtons.get(i);
-                if (btn != null) {
-                    android.util.Log.d("ExoPlayerPlugin", "Track button " + i + " - clickable: " + btn.isClickable() + ", enabled: " + btn.isEnabled() + ", visibility: " + btn.getVisibility() + ", hasOnClick: " + btn.hasOnClickListeners() + ", parent: " + (btn.getParent() != null ? btn.getParent().getClass().getSimpleName() : "null"));
-                } else {
-                    android.util.Log.w("ExoPlayerPlugin", "Track button " + i + " is NULL when showing list!");
-                }
-            }
-            // #endregion
-            
-            // Focus the first track button or currently selected one
-            if (!audioTrackButtons.isEmpty()) {
+if (!audioTrackButtons.isEmpty()) {
                 int focusIndex = selectedAudioTrackIndex >= 0 && selectedAudioTrackIndex < audioTrackButtons.size()
                     ? selectedAudioTrackIndex : 0;
-                android.util.Log.d("ExoPlayerPlugin", "Showing audio track list, focusing button " + focusIndex + " of " + audioTrackButtons.size());
-                Button focusButton = audioTrackButtons.get(focusIndex);
-                android.util.Log.d("ExoPlayerPlugin", "Button focusable: " + focusButton.isFocusable() + ", focusableInTouchMode: " + focusButton.isFocusableInTouchMode());
-                
-                // Post the focus request to ensure it happens after the view is visible
-                // Use a longer delay to ensure hideControls animation has completed
-                focusButton.postDelayed(() -> {
-                    // Clear any focus from containerView first
-                    if (containerView != null && containerView.hasFocus()) {
-                        containerView.clearFocus();
-                        android.util.Log.d("ExoPlayerPlugin", "Cleared focus from containerView before focusing button");
-                    }
-                    
-                    boolean focusResult = focusButton.requestFocus();
-                    android.util.Log.d("ExoPlayerPlugin", "Focus request result: " + focusResult + ", button has focus: " + focusButton.hasFocus());
-                    // Also check which view currently has focus
-                    View focusedView = getActivity().getCurrentFocus();
-                    android.util.Log.d("ExoPlayerPlugin", "Current focused view: " + (focusedView != null ? focusedView.getClass().getSimpleName() : "null"));
-                    if (focusedView == focusButton) {
-                        android.util.Log.d("ExoPlayerPlugin", "SUCCESS: Track button has focus!");
-                    } else {
-                        android.util.Log.w("ExoPlayerPlugin", "WARNING: Track button does NOT have focus. Focused view: " + (focusedView != null ? focusedView.toString() : "null"));
-                        // Try one more time after a short delay
-                        focusButton.postDelayed(() -> {
-                            focusButton.requestFocus();
-                            android.util.Log.d("ExoPlayerPlugin", "Retry focus request - button has focus: " + focusButton.hasFocus());
-                        }, 100);
-                    }
-                }, 350); // Wait 350ms to ensure hideControls animation (300ms) has completed
+                highlightAudioTrackAtIndex(focusIndex);
             } else {
                 android.util.Log.w("ExoPlayerPlugin", "No audio track buttons available to focus");
             }
@@ -1691,8 +2477,9 @@ public class ExoPlayerPlugin extends Plugin {
 
         getActivity().runOnUiThread(() -> {
             android.util.Log.d("ExoPlayerPlugin", "Hiding audio track list");
-            // Clear the flag since we're hiding the list
+            cancelPendingAudioTrackListFocus();
             isShowingAudioTrackList = false;
+            focusedAudioTrackIndex = -1;
             audioTrackListContainer.setVisibility(View.GONE);
             
             // Only show controls if they're not already hidden
@@ -1711,6 +2498,7 @@ public class ExoPlayerPlugin extends Plugin {
     }
 
     private void selectAudioTrack(int trackIndex) {
+        userLockedAudioTrack = true;
         if (exoPlayer == null || trackSelector == null) {
             android.util.Log.w("ExoPlayerPlugin", "Cannot select audio track: exoPlayer or trackSelector is null");
             return;
@@ -2043,6 +2831,8 @@ public class ExoPlayerPlugin extends Plugin {
         try {
             String url = call.getString("url");
             String subtitleUrl = call.getString("subtitleUrl");
+            boolean dolbyVision = call.getBoolean("dolbyVision", false);
+            currentContentIsDolbyVision = dolbyVision;
 
             // Note: ExoPlayer is created in this method, so we don't check for null here
             // The container and PlayerView are set up in initialize(), but ExoPlayer itself
@@ -2050,6 +2840,21 @@ public class ExoPlayerPlugin extends Plugin {
 
             getActivity().runOnUiThread(() -> {
                 try {
+                    updateAgentDebugUrlFromVideoUrl(url);
+                    releaseExoPlayer(false);
+                    currentStreamUrl = url;
+                    streamContentLength = -1;
+                    mkvCueIndex = null;
+                    lastCachedPrefetchStart = -1;
+                    lastCachedPrefetchEnd = -1;
+                    indexTailPrewarmed = false;
+                    indexTailPrewarmInProgress = false;
+                    if (url != null && url.toLowerCase().contains(".mkv")) {
+                        fetchMkvCueIndexAsync(url);
+                    }
+                    currentContentIsDolbyVision = dolbyVision;
+                    pendingDvHdrDisplayMode = dolbyVision;
+                    hasAppliedHdrDisplayMode = false;
                     // Create HttpDataSourceFactory with cross-protocol redirects enabled
                     // ExoPlayer's DefaultHttpDataSource automatically sends Range headers
                     // when making requests for progressive media streams via ProgressiveMediaSource
@@ -2062,8 +2867,11 @@ public class ExoPlayerPlugin extends Plugin {
                     // Create MediaItem
                     MediaItem.Builder mediaItemBuilder = new MediaItem.Builder()
                         .setUri(url);
+                    if (url != null && url.toLowerCase().contains(".mkv")) {
+                        mediaItemBuilder.setMimeType(MimeTypes.VIDEO_MATROSKA);
+                    }
 
-                    if (subtitleUrl != null && !subtitleUrl.isEmpty()) {
+                    if (subtitleUrl != null && !subtitleUrl.isEmpty() && !dolbyVision) {
                         Uri subtitleUri = Uri.parse(subtitleUrl);
                         mediaItemBuilder.setSubtitleConfigurations(
                             java.util.Collections.singletonList(
@@ -2084,27 +2892,67 @@ public class ExoPlayerPlugin extends Plugin {
                         .setAllowCrossProtocolRedirects(true)
                         .setConnectTimeoutMs(15000)
                         .setReadTimeoutMs(15000);
-                        
-                    ProgressiveMediaSource.Factory progressiveFactory = new ProgressiveMediaSource.Factory(httpDataSourceFactory);
+
+                    activeCacheDataSourceFactory =
+                        buildCacheDataSourceFactory(httpDataSourceFactory);
+                    ProgressiveMediaSource.Factory progressiveFactory =
+                        new ProgressiveMediaSource.Factory(activeCacheDataSourceFactory);
                     MediaSource mediaSource = progressiveFactory.createMediaSource(mediaItem);
                     
-                    // Initialize track selector for ExoPlayer
-                    DefaultTrackSelector trackSelector = new DefaultTrackSelector(getContext());
-                    this.trackSelector = trackSelector;
+                    this.trackSelector = buildTrackSelector();
+
+                    DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(getContext())
+                        .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+                        .setEnableDecoderFallback(true);
                     
                     exoPlayer = new ExoPlayer.Builder(getContext())
+                        .setRenderersFactory(renderersFactory)
                         .setTrackSelector(trackSelector)
+                        .setLoadControl(buildLoadControl())
                         .build();
+                    applySeekParametersForContent();
+                    exoPlayer.setAudioAttributes(
+                        new AudioAttributes.Builder()
+                            .setUsage(C.USAGE_MEDIA)
+                            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                            .build(),
+                        true);
+                    exoPlayer.setVolume(1f);
 
                     // Set the player on the PlayerView
                     if (playerView != null) {
                         playerView.setPlayer(exoPlayer);
                     }
+                    setWebViewObscured(true);
 
                     // Set up ExoPlayer listener for playback state changes and errors
                     exoPlayer.addListener(new Player.Listener() {
                         @Override
                         public void onPlaybackStateChanged(int playbackState) {
+                            // #region agent log
+                            if (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
+                                try {
+                                    JSONObject data = new JSONObject();
+                                    data.put("playbackState", playbackState);
+                                    data.put("isPlaying", exoPlayer.isPlaying());
+                                    agentLog("ExoPlayerPlugin.java:onPlaybackStateChanged", "state", "A", data);
+                                } catch (JSONException ignored) {
+                                }
+                            }
+                            // #endregion
+                            if (playbackState == Player.STATE_READY && !hasAppliedHdrDisplayMode) {
+                                applyPendingDvHdrDisplayMode();
+                            }
+                            if (playbackState == Player.STATE_READY) {
+                                if (currentStreamUrl != null
+                                        && currentStreamUrl.toLowerCase().contains(".mkv")) {
+                                    prewarmMatroskaIndexTail(
+                                        currentStreamUrl, activeCacheDataSourceFactory);
+                                }
+                                if (exoPlayer.getCurrentTracks() != null) {
+                                    captureLastWorkingAudioSelection(exoPlayer.getCurrentTracks());
+                                }
+                            }
                             if (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
                                 // Start time updates when player is ready or buffering
                                 startTimeUpdates();
@@ -2133,23 +2981,7 @@ public class ExoPlayerPlugin extends Plugin {
                             android.util.Log.d(TAG, "onTracksChanged called - tracks: " + (tracks != null ? "not null" : "null"));
                             if (tracks != null) {
                                 android.util.Log.d(TAG, "Total track groups count: " + tracks.getGroups().size());
-                                
-                                // #region agent log
-                                // Log currently selected audio track after change
-                                for (Tracks.Group trackGroup : tracks.getGroups()) {
-                                    if (trackGroup.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
-                                        for (int i = 0; i < trackGroup.length; i++) {
-                                            if (trackGroup.isTrackSelected(i)) {
-                                                androidx.media3.common.Format format = trackGroup.getTrackFormat(i);
-                                                String trackName = getAudioTrackDisplayName(format);
-                                                android.util.Log.d(TAG, "CURRENTLY SELECTED AUDIO TRACK after onTracksChanged: " + trackName + " (index " + i + " in group)");
-                                            }
-                                        }
-                                    }
-                                }
-                                // #endregion
-                                
-                                // Log details about all track types
+// Log details about all track types
                                 int videoTrackCount = 0;
                                 int audioTrackCount = 0;
                                 int subtitleTrackCount = 0;
@@ -2168,7 +3000,10 @@ public class ExoPlayerPlugin extends Plugin {
                                             String resolution = format.width > 0 && format.height > 0 ? 
                                                 format.width + "x" + format.height : "unknown";
                                             boolean isSelected = trackGroup.isTrackSelected(i);
-                                            android.util.Log.d(TAG, "  Video track " + i + ": codec=" + codec + 
+                                            if (isSelected) {
+                                                updateHdrModeFromVideoFormat(format);
+                                            }
+android.util.Log.d(TAG, "  Video track " + i + ": codec=" + codec + 
                                                 ", resolution=" + resolution + ", selected=" + isSelected);
                                         }
                                     } else if (trackType == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
@@ -2199,6 +3034,8 @@ public class ExoPlayerPlugin extends Plugin {
                                     ", Other: " + otherTrackCount);
                             }
                             
+                            autoSelectPreferredAudioTrack(tracks);
+
                             // Update audio track UI when tracks change
                             updateAudioTrackUI(tracks);
                             
@@ -2213,12 +3050,21 @@ public class ExoPlayerPlugin extends Plugin {
                                 errorMessage += " (Cause: " + error.getCause().getMessage() + ")";
                             }
                             
-                            // Check if it's a codec-related error
-                            if (error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
-                                error.errorCode == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ||
-                                error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED) {
+                            boolean codecError = error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED
+                                    || error.errorCode == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED
+                                    || error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED;
+                            if (codecError) {
                                 errorMessage = "Codec not supported: " + errorMessage;
-                                Log.e(TAG, "Codec error detected - video codec may not be supported by this device");
+                                Log.e(TAG, "Codec error detected - audio/video codec may not be supported on this device");
+                                if (userLockedAudioTrack && lastWorkingAudioGroupIdx >= 0) {
+                                    String failedName = selectedAudioTrackIndex >= 0
+                                            && selectedAudioTrackIndex < audioTrackButtons.size()
+                                            ? audioTrackButtons.get(selectedAudioTrackIndex).getText().toString()
+                                            : "selected track";
+                                    revertToLastWorkingAudioTrack(failedName);
+                                }
+                            } else if (error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED) {
+                                errorMessage = "Codec not supported: " + errorMessage;
                             }
                             
                             Log.e(TAG, errorMessage);
@@ -2261,6 +3107,7 @@ public class ExoPlayerPlugin extends Plugin {
         }
 
         getActivity().runOnUiThread(() -> {
+            exoPlayer.setVolume(1f);
             exoPlayer.play();
             isPaused = false;
             if (playPauseBtn != null) {
@@ -2306,7 +3153,7 @@ public class ExoPlayerPlugin extends Plugin {
             }
 
             getActivity().runOnUiThread(() -> {
-                exoPlayer.seekTo(position);
+                performSeek(position, "plugin_seekTo");
                 JSObject ret = new JSObject();
                 ret.put("success", true);
                 call.resolve(ret);
@@ -2436,10 +3283,7 @@ public class ExoPlayerPlugin extends Plugin {
             controlsVisible = true;
 
             // Only hide audio track list when controls are shown if we're not intentionally showing it
-            // #region agent log
-            android.util.Log.d("ExoPlayerPlugin", "showControls - checking audio list: isShowingAudioTrackList=" + isShowingAudioTrackList + ", container null=" + (audioTrackListContainer == null) + ", container visibility=" + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null") + ", buttons count=" + audioTrackButtons.size());
-            // #endregion
-            if (!isShowingAudioTrackList && audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.VISIBLE) {
+if (!isShowingAudioTrackList && audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.VISIBLE) {
                 android.util.Log.d("ExoPlayerPlugin", "Hiding audio track list because controls are being shown (not showing audio list)");
                 audioTrackListContainer.setVisibility(View.GONE);
             } else if (isShowingAudioTrackList) {
@@ -2484,40 +3328,20 @@ public class ExoPlayerPlugin extends Plugin {
                     controlsView.setVisibility(View.GONE);
                     
                     // Only hide audio track list if we're not intentionally showing it
-                    // #region agent log
-                    android.util.Log.d("ExoPlayerPlugin", "hideControls - checking audio list: isShowingAudioTrackList=" + isShowingAudioTrackList + ", container null=" + (audioTrackListContainer == null) + ", container visibility=" + (audioTrackListContainer != null ? audioTrackListContainer.getVisibility() : "null") + ", buttons count=" + audioTrackButtons.size());
-                    // #endregion
-                    if (!isShowingAudioTrackList && audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.VISIBLE) {
+if (!isShowingAudioTrackList && audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.VISIBLE) {
                         android.util.Log.d("ExoPlayerPlugin", "Hiding audio track list because controls are being hidden (not showing audio list)");
                         audioTrackListContainer.setVisibility(View.GONE);
-                        // #region agent log
-                        android.util.Log.d("ExoPlayerPlugin", "Audio list hidden - checking if track buttons are still clickable");
-                        for (int i = 0; i < audioTrackButtons.size(); i++) {
-                            Button btn = audioTrackButtons.get(i);
-                            android.util.Log.d("ExoPlayerPlugin", "Track button " + i + " - clickable: " + btn.isClickable() + ", enabled: " + btn.isEnabled() + ", visibility: " + btn.getVisibility() + ", hasOnClick: " + (btn.hasOnClickListeners()));
-                        }
-                        // #endregion
-                    } else if (isShowingAudioTrackList) {
+} else if (isShowingAudioTrackList) {
                         android.util.Log.d("ExoPlayerPlugin", "NOT hiding audio track list - isShowingAudioTrackList flag is true");
                     }
                     
                     // Only re-request focus on containerView if audio list is NOT visible
                     // If audio list is visible, let the track buttons keep focus
                     if (!isShowingAudioTrackList && containerView != null) {
-                        // #region agent log
-                        android.util.Log.d("ExoPlayerPlugin", "Controls hidden - checking audioTrackBtn focus before re-requesting containerView focus");
-                        if (audioTrackBtn != null) {
-                            android.util.Log.d("ExoPlayerPlugin", "audioTrackBtn hasFocus: " + audioTrackBtn.hasFocus() + ", isClickable: " + audioTrackBtn.isClickable() + ", visibility: " + audioTrackBtn.getVisibility());
-                        }
-                        // #endregion
-                        
-                        containerView.post(() -> {
+containerView.post(() -> {
                             if (containerView != null) {
                                 containerView.requestFocus();
-                                // #region agent log
-                                android.util.Log.d("ExoPlayerPlugin", "Re-requested focus on containerView, audioTrackBtn now hasFocus: " + (audioTrackBtn != null ? audioTrackBtn.hasFocus() : "null"));
-                                // #endregion
-                            }
+}
                         });
                         android.util.Log.d("ExoPlayerPlugin", "Controls hidden - visibility: GONE, re-requested focus on containerView");
                     } else if (isShowingAudioTrackList) {
@@ -2531,10 +3355,20 @@ public class ExoPlayerPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void isAudioTrackListVisible(PluginCall call) {
+        boolean visible = isShowingAudioTrackList
+                || (audioTrackListContainer != null
+                && audioTrackListContainer.getVisibility() == View.VISIBLE);
+        JSObject ret = new JSObject();
+        ret.put("visible", visible);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
     public void navigateControls(PluginCall call) {
         String direction = call.getString("direction", "up");
         
-        if (controlsView == null || !controlsVisible) {
+        if (controlsView == null) {
             if (call != null) call.resolve();
             return;
         }
@@ -2544,72 +3378,47 @@ public class ExoPlayerPlugin extends Plugin {
             View currentFocus = getActivity().getCurrentFocus();
             
             // Check if audio track list is visible - if so, navigate within the list
-            boolean audioListVisible = audioTrackListContainer != null && audioTrackListContainer.getVisibility() == View.VISIBLE;
-            
-            // #region agent log
-            android.util.Log.d("ExoPlayerPlugin", "navigateControls START: direction=" + direction + ", currentFocus=" + (currentFocus != null ? currentFocus.getClass().getSimpleName() + " id=" + currentFocus.getId() : "null") + ", controlsVisible=" + controlsVisible + ", audioListVisible=" + audioListVisible);
-            // #endregion
-            if (audioListVisible && !audioTrackButtons.isEmpty()) {
-                // Navigate within audio track list
-                int currentTrackIndex = -1;
-                
-                // Find which track button currently has focus
-                for (int i = 0; i < audioTrackButtons.size(); i++) {
-                    if (audioTrackButtons.get(i) == currentFocus) {
-                        currentTrackIndex = i;
-                        break;
+            boolean audioListVisible = isShowingAudioTrackList
+                    || (audioTrackListContainer != null
+                    && audioTrackListContainer.getVisibility() == View.VISIBLE);
+
+            if (!controlsVisible && !audioListVisible) {
+                if (call != null) call.resolve();
+                return;
+            }
+if (audioListVisible && !audioTrackButtons.isEmpty()) {
+                int currentTrackIndex = resolveAudioTrackListFocusIndex(currentFocus);
+                String dir = direction.toLowerCase();
+if ("left".equals(dir) || "back".equals(dir)) {
+                    hideAudioTrackList();
+                    if (audioTrackBtn != null) {
+                        audioTrackBtn.requestFocus();
                     }
+                    if (call != null) call.resolve();
+                    return;
                 }
-                
-                // #region agent log
-                android.util.Log.d("ExoPlayerPlugin", "navigateControls: Navigating audio track list, currentTrackIndex=" + currentTrackIndex + ", totalTracks=" + audioTrackButtons.size());
-                // #endregion
-                
-                switch (direction.toLowerCase()) {
-                    case "up":
-                        if (currentTrackIndex > 0) {
-                            targetView = audioTrackButtons.get(currentTrackIndex - 1);
-                        } else if (currentTrackIndex == -1) {
-                            // No track focused, focus the first one
-                            targetView = audioTrackButtons.get(0);
-                        }
-                        break;
-                    case "down":
-                        if (currentTrackIndex >= 0 && currentTrackIndex < audioTrackButtons.size() - 1) {
-                            targetView = audioTrackButtons.get(currentTrackIndex + 1);
-                        } else if (currentTrackIndex == -1) {
-                            // No track focused, focus the first one
-                            targetView = audioTrackButtons.get(0);
-                        }
-                        break;
-                    case "left":
-                    case "back":
-                        // Hide audio track list and focus the audio track button
-                        hideAudioTrackList();
-                        if (audioTrackBtn != null) {
-                            targetView = audioTrackBtn;
-                        }
-                        break;
-                    case "enter":
-                        // Trigger click on currently focused track button
-                        if (currentFocus != null && currentFocus.isClickable()) {
-                            currentFocus.performClick();
-                            // #region agent log
-                            android.util.Log.d("ExoPlayerPlugin", "navigateControls: Performed click on audio track button");
-                            // #endregion
-                        }
-                        resetControlsHideTimer();
-                        if (call != null) call.resolve();
-                        return;
-                    case "right":
-                        // Right doesn't make sense in a vertical list, but we could allow it to move to next track
-                        if (currentTrackIndex >= 0 && currentTrackIndex < audioTrackButtons.size() - 1) {
-                            targetView = audioTrackButtons.get(currentTrackIndex + 1);
-                        } else if (currentTrackIndex == -1) {
-                            targetView = audioTrackButtons.get(0);
-                        }
-                        break;
+
+                if ("enter".equals(dir)) {
+                    Button trackButton = audioTrackButtons.get(currentTrackIndex);
+                    trackButton.performClick();
+                    if (call != null) call.resolve();
+                    return;
                 }
+
+                int newIndex = currentTrackIndex;
+                if ("up".equals(dir) && currentTrackIndex > 0) {
+                    newIndex = currentTrackIndex - 1;
+                } else if ("down".equals(dir) && currentTrackIndex < audioTrackButtons.size() - 1) {
+                    newIndex = currentTrackIndex + 1;
+                } else if ("right".equals(dir) && currentTrackIndex < audioTrackButtons.size() - 1) {
+                    newIndex = currentTrackIndex + 1;
+                }
+
+                if (newIndex != currentTrackIndex) {
+                    highlightAudioTrackAtIndex(newIndex);
+                }
+                if (call != null) call.resolve();
+                return;
             } else {
                 // Navigate main controls (existing logic)
                 // Check if seek bar has focus first
@@ -2683,7 +3492,7 @@ public class ExoPlayerPlugin extends Plugin {
                                 if (duration > 0) {
                                     long seekPosition = (long) (duration * finalProgress / 10000.0);
                                     lastSeekTime = System.currentTimeMillis();
-                                    exoPlayer.seekTo(seekPosition);
+                                    performSeek(seekPosition, "navigate_enter");
                                     
                                     // Resume playback if it was playing before seeking
                                     if (wasPlayingBeforeSeek) {
@@ -2733,12 +3542,7 @@ public class ExoPlayerPlugin extends Plugin {
                             break;
                         }
                     }
-                    
-                    // #region agent log
-                    android.util.Log.d("ExoPlayerPlugin", "navigateControls: Navigating main controls, currentIndex=" + currentIndex + ", currentId=" + currentId);
-                    // #endregion
-                    
-                    if (currentIndex >= 0) {
+if (currentIndex >= 0) {
                         switch (direction.toLowerCase()) {
                             case "left":
                                 if (currentIndex > 0) {
@@ -2769,10 +3573,7 @@ public class ExoPlayerPlugin extends Plugin {
                                 // Trigger click on currently focused button
                                 if (currentFocus.isClickable()) {
                                     currentFocus.performClick();
-                                    // #region agent log
-                                    android.util.Log.d("ExoPlayerPlugin", "navigateControls: Performed click on focused view");
-                                    // #endregion
-                                }
+}
                                 resetControlsHideTimer();
                                 if (call != null) call.resolve();
                                 return;
@@ -2796,15 +3597,11 @@ public class ExoPlayerPlugin extends Plugin {
             // Request focus on target view
             if (targetView != null && targetView.getVisibility() == View.VISIBLE) {
                 boolean focusResult = targetView.requestFocus();
-                // #region agent log
-                View currentFocusAfter = getActivity().getCurrentFocus();
-                android.util.Log.d("ExoPlayerPlugin", "navigateControls: Focused target view, result=" + focusResult + ", currentFocus=" + (currentFocusAfter != null ? currentFocusAfter.getClass().getSimpleName() : "null"));
-                // #endregion
-            } else {
-                // #region agent log
-                android.util.Log.w("ExoPlayerPlugin", "navigateControls: targetView is null or not visible, targetView=" + targetView);
-                // #endregion
-            }
+                if (audioListVisible && audioTrackButtons.contains(targetView)) {
+                    scrollAudioTrackIntoView(targetView);
+                }
+} else {
+}
             
             // Reset controls timer
             resetControlsHideTimer();
@@ -2930,10 +3727,7 @@ public class ExoPlayerPlugin extends Plugin {
     @PluginMethod
     public void release(PluginCall call) {
         getActivity().runOnUiThread(() -> {
-            if (exoPlayer != null) {
-                exoPlayer.release();
-                exoPlayer = null;
-            }
+            releaseExoPlayer();
             if (playerView != null && containerView != null) {
                 containerView.removeView(playerView);
                 playerView = null;
@@ -2955,95 +3749,44 @@ public class ExoPlayerPlugin extends Plugin {
             String videoUrl = call.getString("url");
             String title = call.getString("title", "");
             int position = call.getInt("position", 0);
-            
-            // #region agent log
-            Log.d(TAG, "launchZidooPlayer called - url: " + (videoUrl != null ? videoUrl.substring(0, Math.min(50, videoUrl.length())) : "null") + ", title: " + title);
-            // #endregion
-            
-            if (videoUrl == null || videoUrl.isEmpty()) {
+if (videoUrl == null || videoUrl.isEmpty()) {
                 call.reject("Video URL is required");
                 return;
             }
 
             // Check if Zidoo player is installed
             PackageManager pm = getContext().getPackageManager();
-            
-            // #region agent log
-            Log.d(TAG, "Checking for Zidoo player - trying multiple detection methods");
-            // #endregion
-            
-            // Method 1: Check for com.zidoo.poster package (we know this exists on Z9X Pro)
+// Method 1: Check for com.zidoo.poster package (we know this exists on Z9X Pro)
             boolean isZidooDevice = false;
             try {
                 pm.getPackageInfo("com.zidoo.poster", 0);
                 isZidooDevice = true;
-                // #region agent log
-                Log.d(TAG, "Method 1: Found com.zidoo.poster package - Zidoo device confirmed");
-                // #endregion
-            } catch (PackageManager.NameNotFoundException e) {
-                // #region agent log
-                Log.d(TAG, "Method 1: com.zidoo.poster package not found");
-                // #endregion
-            }
+} catch (PackageManager.NameNotFoundException e) {
+}
             
             // Method 2: Try queryIntentActivities (for Activities that handle the Intent)
             if (!isZidooDevice) {
                 Intent testIntent = new Intent("com.zidoo.player.action.VIDEO_PLAY");
                 java.util.List<android.content.pm.ResolveInfo> activityHandlers = pm.queryIntentActivities(testIntent, 0);
-                // #region agent log
-                Log.d(TAG, "Method 2: queryIntentActivities found " + (activityHandlers != null ? activityHandlers.size() : 0) + " handler(s)");
-                // #endregion
-                isZidooDevice = activityHandlers != null && !activityHandlers.isEmpty();
+isZidooDevice = activityHandlers != null && !activityHandlers.isEmpty();
             }
             
             // Method 3: Try queryBroadcastReceivers (for BroadcastReceivers that handle the Intent)
             if (!isZidooDevice) {
                 Intent testIntent = new Intent("com.zidoo.player.action.VIDEO_PLAY");
                 java.util.List<android.content.pm.ResolveInfo> broadcastHandlers = pm.queryBroadcastReceivers(testIntent, 0);
-                // #region agent log
-                Log.d(TAG, "Method 3: queryBroadcastReceivers found " + (broadcastHandlers != null ? broadcastHandlers.size() : 0) + " handler(s)");
-                // #endregion
-                isZidooDevice = broadcastHandlers != null && !broadcastHandlers.isEmpty();
+isZidooDevice = broadcastHandlers != null && !broadcastHandlers.isEmpty();
             }
-            
-            // #region agent log
-            Log.d(TAG, "Final Zidoo device detection result: " + (isZidooDevice ? "CONFIRMED" : "NOT FOUND"));
-            // #endregion
-            
-            if (!isZidooDevice) {
-                // #region agent log
-                Log.e(TAG, "No Zidoo player packages found - hypothesis A REJECTED, hypothesis C (not installed) CONFIRMED");
-                // Try to list all installed packages with "zidoo" in name for debugging
-                try {
-                    java.util.List<android.content.pm.PackageInfo> packages = pm.getInstalledPackages(0);
-                    int zidooCount = 0;
-                    for (android.content.pm.PackageInfo pkgInfo : packages) {
-                        if (pkgInfo.packageName.toLowerCase().contains("zidoo")) {
-                            Log.d(TAG, "Found installed package with 'zidoo' in name: " + pkgInfo.packageName);
-                            zidooCount++;
-                        }
-                    }
-                    Log.d(TAG, "Total packages with 'zidoo' in name: " + zidooCount);
-                } catch (Exception e) {
-                    Log.e(TAG, "Error listing packages: " + e.getMessage());
-                }
-                // #endregion
-                
-                // Fallback: Try generic video player Intent (let Android choose the best player)
-                // #region agent log
-                Log.d(TAG, "Attempting fallback to generic video player Intent");
-                // #endregion
-                try {
+if (!isZidooDevice) {
+// Fallback: Try generic video player Intent (let Android choose the best player)
+try {
                     Intent intent = new Intent(Intent.ACTION_VIEW);
                     intent.setDataAndType(Uri.parse(videoUrl), "video/*");
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     
                     // Check if any app can handle this Intent
                     if (intent.resolveActivity(pm) != null) {
-                        // #region agent log
-                        Log.d(TAG, "Generic video player Intent can be resolved - launching");
-                        // #endregion
-                        getActivity().startActivity(intent);
+getActivity().startActivity(intent);
                         
                         JSObject ret = new JSObject();
                         ret.put("success", true);
@@ -3051,17 +3794,11 @@ public class ExoPlayerPlugin extends Plugin {
                         call.resolve(ret);
                         return;
                     } else {
-                        // #region agent log
-                        Log.e(TAG, "No app can handle video Intent");
-                        // #endregion
-                        call.reject("Zidoo player is not installed and no video player app found");
+call.reject("Zidoo player is not installed and no video player app found");
                         return;
                     }
                 } catch (Exception e) {
-                    // #region agent log
-                    Log.e(TAG, "Error with fallback Intent: " + e.getMessage());
-                    // #endregion
-                    call.reject("Zidoo player is not installed and failed to launch fallback player: " + e.getMessage());
+call.reject("Zidoo player is not installed and failed to launch fallback player: " + e.getMessage());
                     return;
                 }
             }
@@ -3069,17 +3806,8 @@ public class ExoPlayerPlugin extends Plugin {
             try {
                 // Check if videoUrl is an HTTP URL - Zidoo needs file paths, not HTTP URLs
                 boolean isHttpUrl = videoUrl.startsWith("http://") || videoUrl.startsWith("https://");
-                
-                // #region agent log
-                Log.d(TAG, "Video URL/path received: " + videoUrl.substring(0, Math.min(100, videoUrl.length())));
-                Log.d(TAG, "Is HTTP URL: " + isHttpUrl);
-                // #endregion
-                
-                if (isHttpUrl) {
-                    // #region agent log
-                    Log.e(TAG, "Zidoo player does not support HTTP streaming - need file path");
-                    // #endregion
-                    call.reject("Zidoo player requires a file path, not an HTTP URL. The server should provide the file path for Zidoo devices.");
+if (isHttpUrl) {
+call.reject("Zidoo player requires a file path, not an HTTP URL. The server should provide the file path for Zidoo devices.");
                     return;
                 }
                 
@@ -3088,13 +3816,7 @@ public class ExoPlayerPlugin extends Plugin {
                 // NOTE: We don't check if the file exists because our app is sandboxed and cannot
                 // see system mount points (/mnt/*), USB drives, or SMB/NFS mounts. Zidoo's native
                 // player can see these paths, so we trust the path and let Zidoo validate it.
-                // #region agent log
-                Log.d(TAG, "Using file browser method to launch Zidoo player");
-                Log.d(TAG, "File path: " + videoUrl);
-                Log.d(TAG, "Note: Not checking file existence - app is sandboxed, Zidoo can see the file");
-                // #endregion
-                
-                // Create file URI from path string (don't use File object since we can't verify existence)
+// Create file URI from path string (don't use File object since we can't verify existence)
                 // Use file:// URI scheme for local file paths
                 Uri fileUri;
                 if (videoUrl.startsWith("/")) {
@@ -3119,24 +3841,12 @@ public class ExoPlayerPlugin extends Plugin {
                 } else if (pathLower.endsWith(".mov")) {
                     mimeType = "video/quicktime";
                 }
-                
-                // #region agent log
-                Log.d(TAG, "File URI: " + fileUri.toString());
-                Log.d(TAG, "MIME type: " + mimeType);
-                // #endregion
-                
-                // Check if path is on a system mount point that regular apps can't access
+// Check if path is on a system mount point that regular apps can't access
                 // Paths like /mnt/*, /storage/*, etc. are only accessible to system apps
                 boolean isSystemMountPath = videoUrl.startsWith("/mnt/") || 
                                            videoUrl.startsWith("/storage/") ||
                                            videoUrl.startsWith("/sdcard/");
-                
-                // #region agent log
-                Log.d(TAG, "File path: " + videoUrl);
-                Log.d(TAG, "Is system mount path: " + isSystemMountPath);
-                // #endregion
-                
-                // If it's a system mount path, skip regular apps (they can't access it)
+// If it's a system mount path, skip regular apps (they can't access it)
                 // and go straight to trying to open Zidoo's File Manager
                 if (!isSystemMountPath) {
                     // Method 1: Try ACTION_VIEW but EXCLUDE com.zidoo.poster (Poster Wall)
@@ -3148,23 +3858,14 @@ public class ExoPlayerPlugin extends Plugin {
                     
                     // Get all apps that can handle this Intent
                     java.util.List<android.content.pm.ResolveInfo> resolveList = pm.queryIntentActivities(fileManagerIntent, 0);
-                    
-                    // #region agent log
-                    Log.d(TAG, "Method 1: Trying ACTION_VIEW with file URI (non-system path)");
-                    Log.d(TAG, "Found " + (resolveList != null ? resolveList.size() : 0) + " apps that can handle this Intent");
-                    // #endregion
-                    
-                    // Filter out com.zidoo.poster (Poster Wall) from the list
+// Filter out com.zidoo.poster (Poster Wall) from the list
                     if (resolveList != null && !resolveList.isEmpty()) {
                         // Find an app that's NOT Poster Wall
                         android.content.pm.ResolveInfo selectedApp = null;
                         for (android.content.pm.ResolveInfo info : resolveList) {
                             if (info.activityInfo != null && !info.activityInfo.packageName.equals("com.zidoo.poster")) {
                                 selectedApp = info;
-                                // #region agent log
-                                Log.d(TAG, "Found non-Poster app: " + info.activityInfo.packageName);
-                                // #endregion
-                                break;
+break;
                             }
                         }
                         
@@ -3178,26 +3879,17 @@ public class ExoPlayerPlugin extends Plugin {
                                 
                                 if (specificIntent.resolveActivity(pm) != null) {
                                     getActivity().startActivity(specificIntent);
-                                    // #region agent log
-                                    Log.d(TAG, "Method 1 SUCCESS: Launched " + selectedApp.activityInfo.packageName);
-                                    // #endregion
-                                    JSObject ret = new JSObject();
+JSObject ret = new JSObject();
                                     ret.put("success", true);
                                     call.resolve(ret);
                                     return;
                                 }
                             } catch (Exception e) {
-                                // #region agent log
-                                Log.w(TAG, "Method 1 failed: " + e.getMessage());
-                                // #endregion
-                            }
+}
                         }
                     }
                 } else {
-                    // #region agent log
-                    Log.d(TAG, "Skipping Method 1 - system mount path requires File Manager");
-                    // #endregion
-                }
+}
                 
                 // Method 2: Show chooser dialog excluding Poster Wall
                 // This lets the user choose which app to use, but we'll filter out Poster Wall
@@ -3235,22 +3927,14 @@ public class ExoPlayerPlugin extends Plugin {
                         
                         Intent chooser = Intent.createChooser(chooserIntent, "Open with");
                         chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, initialIntents);
-                        
-                        // #region agent log
-                        Log.d(TAG, "Method 2: Showing chooser dialog with " + filteredList.size() + " apps (Poster Wall excluded)");
-                        // #endregion
-                        
-                        getActivity().startActivity(chooser);
+getActivity().startActivity(chooser);
                         JSObject ret = new JSObject();
                         ret.put("success", true);
                         call.resolve(ret);
                         return;
                     }
                     } catch (Exception e) {
-                        // #region agent log
-                        Log.w(TAG, "Method 2 failed: " + e.getMessage());
-                        // #endregion
-                    }
+}
                 }
                 
                 // Method 3: Open Zidoo Media Center at the directory containing the file
@@ -3261,14 +3945,7 @@ public class ExoPlayerPlugin extends Plugin {
                     if (lastSlash > 0) {
                         String directoryPath = videoUrl.substring(0, lastSlash);
                         String fileName = videoUrl.substring(lastSlash + 1);
-                        
-                        // #region agent log
-                        Log.d(TAG, "Method 3: Opening Zidoo Media Center at directory");
-                        Log.d(TAG, "Directory: " + directoryPath);
-                        Log.d(TAG, "File name: " + fileName);
-                        // #endregion
-                        
-                        // Create URI for the directory (not the file)
+// Create URI for the directory (not the file)
                         Uri dirUri = Uri.parse("file://" + directoryPath);
                         
                         // Method 3a: Try ACTION_VIEW with directory URI, targeting Media Center
@@ -3287,18 +3964,9 @@ public class ExoPlayerPlugin extends Plugin {
                             // Also include the filename so Media Center knows which file to highlight (if supported)
                             viewIntent.putExtra("fileName", fileName);
                             viewIntent.putExtra("file", fileName);
-                            
-                            // #region agent log
-                            Log.d(TAG, "Method 3a: Trying ACTION_VIEW with directory, targeting com.zidoo.poster");
-                            Log.d(TAG, "Directory URI: " + dirUri.toString());
-                            // #endregion
-                            
-                            if (viewIntent.resolveActivity(pm) != null) {
+if (viewIntent.resolveActivity(pm) != null) {
                                 getActivity().startActivity(viewIntent);
-                                // #region agent log
-                                Log.d(TAG, "Method 3a SUCCESS: Opened Media Center at directory");
-                                // #endregion
-                                JSObject ret = new JSObject();
+JSObject ret = new JSObject();
                                 ret.put("success", true);
                                 ret.put("message", "Media Center opened. Please select " + fileName + " to play.");
                                 ret.put("directory", directoryPath);
@@ -3306,15 +3974,9 @@ public class ExoPlayerPlugin extends Plugin {
                                 call.resolve(ret);
                                 return;
                             } else {
-                                // #region agent log
-                                Log.w(TAG, "Method 3a: ACTION_VIEW cannot be resolved by com.zidoo.poster");
-                                // #endregion
-                            }
+}
                         } catch (Exception e) {
-                            // #region agent log
-                            Log.d(TAG, "Method 3a failed: " + e.getMessage());
-                            // #endregion
-                        }
+}
                         
                         // Method 3b: Launch Media Center and pass directory path as extra
                         try {
@@ -3336,18 +3998,8 @@ public class ExoPlayerPlugin extends Plugin {
                                 // Set directory URI as data
                                 mediaCenterIntent.setData(dirUri);
                                 mediaCenterIntent.setType("resource/folder");
-                                
-                                // #region agent log
-                                Log.d(TAG, "Method 3b: Launching com.zidoo.poster with directory path");
-                                // #endregion
-                                
-                                getActivity().startActivity(mediaCenterIntent);
-                                
-                                // #region agent log
-                                Log.d(TAG, "Method 3b SUCCESS: Zidoo Media Center launched at directory");
-                                // #endregion
-                                
-                                JSObject ret = new JSObject();
+getActivity().startActivity(mediaCenterIntent);
+JSObject ret = new JSObject();
                                 ret.put("success", true);
                                 ret.put("message", "Media Center opened. Please select " + fileName + " to play.");
                                 ret.put("directory", directoryPath);
@@ -3356,36 +4008,18 @@ public class ExoPlayerPlugin extends Plugin {
                                 return;
                             }
                         } catch (Exception e) {
-                            // #region agent log
-                            Log.d(TAG, "Method 3b failed: " + e.getMessage());
-                            // #endregion
-                        }
+}
                     } else {
-                        // #region agent log
-                        Log.w(TAG, "Method 3: Could not extract directory from file path: " + videoUrl);
-                        // #endregion
-                    }
+}
                 } catch (Exception e) {
-                    // #region agent log
-                    Log.e(TAG, "Method 3 failed to open Zidoo Media Center: " + e.getMessage(), e);
-                    // #endregion
-                }
-                
-                // #region agent log
-                Log.e(TAG, "All methods failed - could not launch Zidoo player or file manager");
-                Log.e(TAG, "File path: " + videoUrl);
-                // #endregion
-                
-                // Return failure - we tried everything
+}
+// Return failure - we tried everything
                 JSObject ret = new JSObject();
                 ret.put("success", false);
                 ret.put("filePath", videoUrl);
                 call.resolve(ret);
             } catch (Exception e) {
-                // #region agent log
-                Log.e(TAG, "Error launching Zidoo player: " + e.getMessage(), e);
-                // #endregion
-                call.reject("Failed to launch Zidoo player: " + e.getMessage());
+call.reject("Failed to launch Zidoo player: " + e.getMessage());
             }
         } catch (Exception e) {
             Log.e(TAG, "Error launching Zidoo player", e);
@@ -3403,10 +4037,7 @@ public class ExoPlayerPlugin extends Plugin {
             timeUpdateCall.release(getBridge());
             timeUpdateCall = null;
         }
-        if (exoPlayer != null) {
-            exoPlayer.release();
-            exoPlayer = null;
-        }
+        releaseExoPlayer();
         if (playerView != null && containerView != null) {
             containerView.removeView(playerView);
             playerView = null;

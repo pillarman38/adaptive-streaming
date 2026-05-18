@@ -4,7 +4,7 @@ import { registerPlugin } from '@capacitor/core';
 
 export interface ExoPlayerPlugin {
   initialize(options: { containerId: string }): Promise<{ success: boolean }>;
-  loadVideo(options: { url: string; subtitleUrl?: string }): Promise<{ success: boolean }>;
+  loadVideo(options: { url: string; subtitleUrl?: string; dolbyVision?: boolean }): Promise<{ success: boolean }>;
   play(): Promise<{ success: boolean }>;
   pause(): Promise<{ success: boolean }>;
   seekTo(options: { position: number }): Promise<{ success: boolean }>;
@@ -16,6 +16,7 @@ export interface ExoPlayerPlugin {
   showControls(): Promise<void>;
   hideControls(): Promise<void>;
   navigateControls(options: { direction: string }): Promise<void>;
+  isAudioTrackListVisible(): Promise<{ visible: boolean }>;
   setPaused(options: { paused: boolean }): Promise<void>;
   setShowSkipIntro(options: { show: boolean }): Promise<void>;
   setShowNextEpisode(options: { show: boolean }): Promise<void>;
@@ -31,6 +32,7 @@ const ExoPlayer = registerPlugin<ExoPlayerPlugin>('ExoPlayer', {
 })
 export class ExoPlayerService {
   private isInitialized = false;
+  private containerReady = false;
   private timeUpdateListener: any = null;
 
   constructor() {}
@@ -44,9 +46,7 @@ export class ExoPlayerService {
 
     try {
       const result = await ExoPlayer.initialize({ containerId });
-      // Note: ExoPlayer container is initialized, but ExoPlayer itself is created in loadVideo()
-      // So we don't set isInitialized = true here
-      // isInitialized will be set to true after loadVideo() succeeds
+      this.containerReady = !!result.success;
       return result.success;
     } catch (error) {
       console.error('Error initializing ExoPlayer:', error);
@@ -60,13 +60,13 @@ export class ExoPlayerService {
     }
   }
 
-  async loadVideo(url: string, subtitleUrl?: string): Promise<boolean> {
+  async loadVideo(url: string, subtitleUrl?: string, dolbyVision?: boolean): Promise<boolean> {
     // Note: We allow loadVideo to proceed even if isInitialized is false
     // because ExoPlayer is actually created in loadVideo(), not in initialize()
     // The initialize() method only sets up the container and PlayerView
 
     try {
-      const result = await ExoPlayer.loadVideo({ url, subtitleUrl });
+      const result = await ExoPlayer.loadVideo({ url, subtitleUrl, dolbyVision: !!dolbyVision });
       // Set isInitialized to true after ExoPlayer is successfully created and media is loaded
       if (result.success) {
         this.isInitialized = true;
@@ -116,7 +116,7 @@ export class ExoPlayerService {
     }
 
     try {
-      const result = await ExoPlayer.seekTo({ position });
+const result = await ExoPlayer.seekTo({ position });
       return result.success;
     } catch (error) {
       console.error('Error seeking video:', error);
@@ -187,11 +187,10 @@ export class ExoPlayerService {
   }
 
   async addListener(eventName: string, callback: (data?: any) => void) {
-    if (!this.isInitialized) {
-      // console.warn(`[ExoPlayerService] Cannot add listener for ${eventName} — ExoPlayer not initialized`);
+    if (!this.containerReady && !this.isInitialized) {
       return null;
     }
-  
+
     if (!Capacitor.isNativePlatform()) {
       // console.warn(`[ExoPlayerService] Ignoring listener for ${eventName} — not running on native platform`);
       return null;
@@ -261,6 +260,18 @@ export class ExoPlayerService {
     }
   }
 
+  async isAudioTrackListVisible(): Promise<boolean> {
+    if (!this.isInitialized || !Capacitor.isNativePlatform()) {
+      return false;
+    }
+    try {
+      const result = await ExoPlayer.isAudioTrackListVisible();
+      return !!result.visible;
+    } catch {
+      return false;
+    }
+  }
+
   async setPaused(paused: boolean): Promise<void> {
     if (!this.isInitialized || !Capacitor.isNativePlatform()) {
       return;
@@ -306,5 +317,6 @@ export class ExoPlayerService {
       return { success: false };
     }
   }
+
 }
 

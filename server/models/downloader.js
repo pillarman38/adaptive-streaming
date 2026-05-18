@@ -3,6 +3,25 @@ const { spawn, execSync } = require("child_process");
 let fs = require("fs");
 const urlTransformer = require("../utils/url-transformer");
 
+/** Windows cannot create files whose names contain <>:"/\\|?* or control chars. */
+function safeFileBaseName(name) {
+  if (!name || typeof name !== "string") return "untitled";
+  let s = name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
+  s = s.replace(/^\.+/, "").replace(/[. ]+$/g, "").trim();
+  if (!s) s = "untitled";
+  const reserved = new Set(
+    "CON PRN AUX NUL COM1 COM2 COM3 COM4 COM5 COM6 COM7 COM8 COM9 LPT1 LPT2 LPT3 LPT4 LPT5 LPT6 LPT7 LPT8 LPT9".split(
+      " "
+    )
+  );
+  if (reserved.has(s.toUpperCase())) s = `_${s}`;
+  return s;
+}
+
+function winFileBase(name) {
+  return process.platform === "win32" ? safeFileBaseName(name) : name;
+}
+
 class Downloader {
   async getCoverArt(notIncludedFileName, tmdbInfo, type) {
     const lowerCasedFileName = notIncludedFileName.toLowerCase();
@@ -58,17 +77,18 @@ class Downloader {
     }
 
     if (type === "movie") {
-      const files = await fs.readdirSync(`/mnt/F898C32498C2DFEC/MovieCoverArt`);
+      const movieFileBase = winFileBase(notIncludedFileName);
+      const files = await fs.readdirSync(`G:/MovieCoverArt/`);
       if (
-        !files.includes(notIncludedFileName + ".jpg") &&
+        !files.includes(movieFileBase + ".jpg") &&
         tmdbInfo.results[0]
       ) {
-        const url = `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0].poster_path}`;
+const url = `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0].poster_path}`;
         const coverArt = await fetch(
           `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0].poster_path}`
         );
         const fileStreamPosters = await fs.createWriteStream(
-          `/mnt/F898C32498C2DFEC/MovieCoverArt/${notIncludedFileName}.jpg`
+          `G:/MovieCoverArt/${movieFileBase}.jpg`
         );
 
         // Add error handler to prevent unhandled error events
@@ -100,12 +120,12 @@ class Downloader {
               (100 * totalBytes) / contentLength
             );
             if (downloadComplete === 100) {
-              return resolve(urlTransformer.transformUrl(`http://pixable.local:5012/MovieCoverArt/${encodeURIComponent(notIncludedFileName)}.jpg`));
+              return resolve(urlTransformer.transformUrl(`http://pixable.local:5012/MovieCoverArt/${encodeURIComponent(movieFileBase)}.jpg`));
             }
           });
         });
       } else {
-        return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCoverArt/${encodeURIComponent(notIncludedFileName)}.jpg`);
+        return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCoverArt/${encodeURIComponent(movieFileBase)}.jpg`);
       }
     }
   }
@@ -222,19 +242,19 @@ class Downloader {
         });
 
         if (resJson.length > 0) {
-          const existingTrailers = await fs.readdirSync("/mnt/F898C32498C2DFEC/Trailers/");
-          // notIncluded is the disk title (from MKV TITLE tag or filename)
-          // Use it as-is for the trailer filename to match the disk title
-          const trailerFileName = `${notIncluded}.mp4`;
+          const existingTrailers = await fs.readdirSync("G:/Trailers/");
+          // On Windows, strip illegal filename chars (* ? etc.); keep TMDB matching on raw notIncluded above.
+          const trailerBase = winFileBase(notIncluded);
+          const trailerFileName = `${trailerBase}.mp4`;
           if (!existingTrailers.includes(trailerFileName)) {
             const url = `https://www.youtube.com/watch?v=${resJson[0].key}`;
             // Download trailer with filename matching the disk title
              await execSync(
-               `yt-dlp ${url} --remux-video mp4 -o "/mnt/F898C32498C2DFEC/Trailers/${trailerFileName}"`
+               `yt-dlp ${url} --remux-video mp4 -o "G:/Trailers/${trailerFileName}"`
              );
           }
 
-          return urlTransformer.transformUrl(`http://pixable.local:5012/Trailers/${encodeURIComponent(notIncluded)}.mp4`);
+          return urlTransformer.transformUrl(`http://pixable.local:5012/Trailers/${encodeURIComponent(trailerBase)}.mp4`);
         } else {
           return "";
         }
@@ -292,20 +312,21 @@ class Downloader {
   async getCard(notIncluded, fileName, data, type) {
     let posters;
     if (type === "movies") {
+      const cardFileBase = winFileBase(notIncluded);
       try {
-        posters = fs.readdirSync("/mnt/F898C32498C2DFEC/MovieCards");
+        posters = fs.readdirSync("G:/MovieCards");
       } catch (err) {
         console.error(`Error reading MovieCards directory:`, err);
         // If we can't read the directory, try to download the poster anyway
         posters = [];
       }
-      let toCheck = notIncluded + ".jpg";
+      let toCheck = cardFileBase + ".jpg";
       if (!posters.includes(toCheck)) {
         let idGetter = undefined;
         var poster = "";
         try {
           idGetter = execSync(
-            `mkvmerge -i "/mnt/F898C32498C2DFEC/Videos/${fileName}"`
+            `mkvmerge -i "G:/Videos/${fileName}"`
           )
             .toString()
             .split("\n")
@@ -314,18 +335,18 @@ class Downloader {
             .replace(":", "");
 
           let id = parseInt(idGetter);
-          const command = `mkvextract "/mnt/F898C32498C2DFEC/Videos/${fileName}" attachments "${id}:/mnt/F898C32498C2DFEC/MovieCards/${notIncluded}.jpg"`;
+          const command = `mkvextract "G:/Videos/${fileName}" attachments "${id}:G:/MovieCards/${cardFileBase}.jpg"`;
           const extraction = await execSync(
-            `mkvextract "/mnt/F898C32498C2DFEC/Videos/${fileName}" attachments "${id}:/mnt/F898C32498C2DFEC/MovieCards/${notIncluded}.jpg"`
+            `mkvextract "G:/Videos/${fileName}" attachments "${id}:G:/MovieCards/${cardFileBase}.jpg"`
           );
-          return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCards/${encodeURIComponent(notIncluded)}.jpg`);
+          return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCards/${encodeURIComponent(cardFileBase)}.jpg`);
         } catch (err) {
           try {
             if(data.results.length > 0 && data.results[0].backdrop_path) {
               var downloadUrl = `https://www.themoviedb.org/t/p/w533_and_h300_bestv2${data.results[0].backdrop_path}`;
               var downloadPosterFile = await fetch(downloadUrl);
               
-              const posterPath = `/mnt/F898C32498C2DFEC/MovieCards/${notIncluded}.jpg`;
+              const posterPath = `G:/MovieCards/${cardFileBase}.jpg`;
               let fileStreamPosters;
               
               try {
@@ -355,7 +376,7 @@ class Downloader {
                 fileStreamPosters.on("finish", resolve);
               });
 
-              return `http://pixable.local:5012/mnt/F898C32498C2DFEC/MovieCards/${encodeURIComponent(notIncluded)}.jpg`;
+              return `http://pixable.local:5012/MovieCards/${encodeURIComponent(cardFileBase)}.jpg`;
             }
           } catch (err) {
             console.error(`Failed to get poster for ${fileName}:`, err);
@@ -364,7 +385,7 @@ class Downloader {
         }
       } else {
         // Poster already exists, return the path
-        return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCards/${encodeURIComponent(notIncluded)}.jpg`);
+        return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCards/${encodeURIComponent(cardFileBase)}.jpg`);
       }
     }
 
@@ -376,7 +397,7 @@ class Downloader {
         var poster = "";
         try {
           idGetter = await execSync(
-            `mkvmerge -i "/mnt/F898C32498C2DFEC/Videos/${fileName}"`
+            `mkvmerge -i "G:/Videos/${fileName}"`
           )
             .toString()
             .split("\n")
@@ -385,9 +406,9 @@ class Downloader {
             .replace(":", "");
 
           let id = parseInt(idGetter);
-          const command = `mkvextract "/mnt/F898C32498C2DFEC/Videos/${fileName}" attachments "${id}:/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg"`;
+          const command = `mkvextract "G:/Videos/${fileName}" attachments "${id}:/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg"`;
           const extraction = await execSync(
-            `mkvextract "/mnt/F898C32498C2DFEC/Videos/${fileName}" attachments "${id}:/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg"`
+            `mkvextract "G:/Videos/${fileName}" attachments "${id}:/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg"`
           );
           return urlTransformer.transformUrl(`/tvPosters/${encodeURIComponent(notIncluded)}.jpg`);
         } catch (err) {
@@ -431,18 +452,19 @@ class Downloader {
   async getBackgroundPoster(notIncluded, data, type) {
     try {
       if (data.results.length > 0) {
+        const bgFileBase = winFileBase(notIncluded);
         const image = await fetch(
           `https://api.themoviedb.org/3/${type}/${data.results[0].id}/images?api_key=490cd30bbbd167dd3eb65511a8bf2328`
         );
         const imageJSON = await image.json();
-        const posters = fs.readdirSync("/mnt/F898C32498C2DFEC/BackgroundImages/");
-        if (!posters.includes(`${notIncluded}.jpg`)) {
+        const posters = fs.readdirSync("G:/BackgroundImages/");
+        if (!posters.includes(`${bgFileBase}.jpg`)) {
           if (imageJSON.backdrops) {
             if (imageJSON.backdrops.length > 0) {
               var downloadUrl = `https://www.themoviedb.org/t/p/original${imageJSON.backdrops[0].file_path}`;
               var downloadPosterFile = await fetch(downloadUrl);
               const fileStreamPosters = await fs.createWriteStream(
-                `/mnt/F898C32498C2DFEC/BackgroundImages/${notIncluded}.jpg`
+                `G:/BackgroundImages/${bgFileBase}.jpg`
               );
               
               // Add error handler to prevent unhandled error events
@@ -464,7 +486,7 @@ class Downloader {
                 });
                 fileStreamPosters.on("finish", resolve);
               });
-              return urlTransformer.transformUrl(`http://pixable.local:5012/BackgroundImages/${encodeURIComponent(notIncluded)}.jpg`);
+              return urlTransformer.transformUrl(`http://pixable.local:5012/BackgroundImages/${encodeURIComponent(bgFileBase)}.jpg`);
             } else {
               return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
             }
@@ -472,7 +494,7 @@ class Downloader {
             return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
           }
         } else {
-          return urlTransformer.transformUrl(`http://pixable.local:5012/BackgroundImages/${encodeURIComponent(notIncluded)}.jpg`);
+          return urlTransformer.transformUrl(`http://pixable.local:5012/BackgroundImages/${encodeURIComponent(bgFileBase)}.jpg`);
         }
       } else {
         return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
