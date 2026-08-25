@@ -10,7 +10,7 @@ exports.config = {
     browserName: "chrome",
   },
   directConnect: true,
-  baseUrl: "http://pixable.local:4200/",
+  baseUrl: "http://10.0.0.15:4200/",
   framework: "jasmine",
   jasmineNodeOpts: {
     showColors: true,

@@ -1,10 +1,11 @@
-<!-- <app-side-bar></app-side-bar> -->
-<div *ngIf="currentBox.posterUrl" id="backgroundPlacer" #backgroundPlacer>
+<!-- TV layout: cinematic backdrop + info panel -->
+<div *ngIf="!layout.isCompactLayout && currentBox.posterUrl" id="backgroundPlacer" class="tv-only-block" #backgroundPlacer>
   <img [src]="poster | safeUrl" id="backgroundImg" (load)="onImageLoad()" #image>
 </div>
 
-<div id="wrapper" #wrapper>
-  <div id="info">
+<div id="wrapper" #wrapper [class.compact-scroll-page]="layout.isCompactLayout">
+  <!-- TV layout info panel -->
+  <div id="info" class="tv-only-block">
     <p id="titleStyling">{{currentBox.title}}</p>
     <div id="overview">
       <p>{{currentBox.overview}}</p>
@@ -28,17 +29,26 @@
       <p>Dolby Atmos</p>
     </div>
 
-    <div *ngIf="currentBox.dolbyVision === 1 && isAndroid"class="bubbles">
-      <p>Dolby Vision</p>
-    </div>
-
     <div *ngIf="currentBox.threeD === 1 && isAndroid"class="bubbles">
       <p>3D</p>
     </div>
   </div>
 
-  <div id="list" #list>
-    <div class="boxes" #boxes boxes *ngFor="let movie of movies; index as i" (mouseover)="onHover(i, 'movies')" (click)="selectMovie()">
+  <!-- Compact layout header -->
+  <div class="compact-only-block compact-page-header" *ngIf="layout.isCompactLayout">
+    <h1 class="compact-page-title">Movies</h1>
+  </div>
+
+    <app-compact-search-bar
+    *ngIf="layout.isCompactLayout"
+    placeholder="Search movies"
+    [value]="searchQuery"
+    (valueChange)="onSearchQueryChange($event)">
+  </app-compact-search-bar>
+
+  <!-- TV layout: horizontal card strip -->
+  <div id="list" #list class="tv-only-block" *ngIf="!layout.isCompactLayout">
+    <div class="boxes" #boxes boxes *ngFor="let movie of movies; index as i" (mouseover)="onHover(i, 'movies')" (click)="selectMovie(i)">
       <img [src]="movie.movieCard | safeUrl" class="posterArt">
       <div class="titleCards">
         <p>{{movie.title}}</p>
@@ -47,6 +57,22 @@
     <div *ngIf="isLoadingMore" class="loading-indicator">
       <div class="spinner"></div>
       <p class="loading-text">Loading more movies...</p>
+    </div>
+  </div>
+
+  <!-- Compact layout: portrait cover art grid -->
+  <div class="compact-only-block compact-grid compact-list-scroll" #list *ngIf="layout.isCompactLayout">
+    <div class="compact-grid-item" #boxes boxes *ngFor="let movie of displayMovies" (click)="selectMovie(movie)">
+      <img [src]="(movie.coverArt || movie.movieCard) | safeUrl" class="compact-poster" [alt]="movie.title">
+      <p class="compact-poster-title">{{ movie.title }}</p>
+    </div>
+    <div *ngIf="isSearching" class="compact-grid-item loading-indicator-compact">
+      <div class="spinner"></div>
+      <p class="loading-text">Searching...</p>
+    </div>
+    <div *ngIf="isLoadingMore && !isSearchActive" class="compact-grid-item loading-indicator-compact">
+      <div class="spinner"></div>
+      <p class="loading-text">Loading...</p>
     </div>
   </div>
 </div>

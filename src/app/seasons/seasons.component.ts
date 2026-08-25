@@ -18,6 +18,8 @@ import { HttpClient } from "@angular/common/http";
 import { Router } from "@angular/router";
 import { SeaseonChangesService } from "../seaseon-changes.service";
 import { SideBarComponent } from "../side-bar/side-bar.component";
+import { LayoutService } from "../services/layout.service";
+import { ApiConfigService } from "../services/api-config.service";
 
 @Component({
   selector: "app-seasons",
@@ -105,11 +107,12 @@ export class SeasonsComponent implements OnInit {
   }
 
   constructor(
-    private infoStore: InfoStoreService,
+    public infoStore: InfoStoreService,
     private http: HttpClient,
     private router: Router,
     private seasonService: SeaseonChangesService,
-    // private smartTv: SmartTvLibSingletonService
+    public layout: LayoutService,
+    private apiConfig: ApiConfigService,
   ) {}
 
   onHover(e: number, listName: string) {
@@ -123,8 +126,24 @@ export class SeasonsComponent implements OnInit {
     // }
   }
 
-  playEp() {
+  playEp(epIndex?: number) {
+    const index = epIndex ?? this.index;
+    const ep = this.eps[index];
+    if (!ep) {
+      return;
+    }
+    this.index = index;
+    this.infoStore.videoInfo = ep;
     this.router.navigateByUrl("/player");
+  }
+
+  selectSeason(seasonIndex: number): void {
+    this.selectedSeason = seasonIndex;
+    this.updateEpisodes();
+  }
+
+  goBack(): void {
+    this.router.navigateByUrl("/tv");
   }
 
   trackBySeasons = (index: number, season: any) => {
@@ -142,10 +161,10 @@ export class SeasonsComponent implements OnInit {
     // });
   }
 
-  ngOnInit(): void {
-    // console.log("INFOO: ", this.infoStore.showInfo);
+  async ngOnInit(): Promise<void> {
+    await this.apiConfig.ensureConfigLoaded();
+    const baseUrl = this.apiConfig.getBaseUrl();
 
-    // this.smartTv.changeVisibility(true);
     this.infoStore.catchSideBarHover().subscribe((e: number) => {
       this.onHover(e, "sideBar");
     });
@@ -154,7 +173,7 @@ export class SeasonsComponent implements OnInit {
       console.log("INSIDE PID: ");
 
       this.http
-        .post(`http://pixable.local:5012/api/mov/pidkill`, {
+        .post(`${baseUrl}/api/mov/pidkill`, {
           pid: this.infoStore.videoInfo.pid,
         })
         .subscribe((res) => {
@@ -163,7 +182,7 @@ export class SeasonsComponent implements OnInit {
     }
 
     this.http
-      .post(`http://pixable.local:5012/api/mov/seasons`, {
+      .post(`${baseUrl}/api/mov/seasons`, {
         show: this.infoStore.showInfo.title,
       })
       .subscribe((res: any) => {

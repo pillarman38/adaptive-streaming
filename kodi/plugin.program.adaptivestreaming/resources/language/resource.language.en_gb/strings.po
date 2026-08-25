@@ -1,0 +1,51 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgctxt "#30001"
+msgid "Server"
+msgstr "Server"
+
+msgctxt "#30002"
+msgid "Server IP"
+msgstr "Server IP"
+
+msgctxt "#30003"
+msgid "Server port"
+msgstr "Server port"
+
+msgctxt "#30004"
+msgid "Browser add-on ID"
+msgstr "Browser add-on ID"
+
+msgctxt "#30005"
+msgid "JSON-RPC notice shown"
+msgstr "JSON-RPC notice shown"
+
+msgctxt "#30006"
+msgid "IP address of the PC running the Node server"
+msgstr "IP address of the PC running the Node server"
+
+msgctxt "#30007"
+msgid "Port for the Node server (default 5012)"
+msgstr "Port for the Node server (default 5012)"
+
+msgctxt "#30008"
+msgid "CoreELEC cefbrowser add-on ID (install from CoreELEC repo)"
+msgstr "CoreELEC cefbrowser add-on ID (install from CoreELEC repo)"
+
+msgctxt "#30009"
+msgid "Kodi box IP (for JSON-RPC)"
+msgstr "Kodi box IP (for JSON-RPC)"
+
+msgctxt "#30010"
+msgid "Use 127.0.0.1 for on-box browser; use this box's LAN IP when browsing from phone/PC"
+msgstr "Use 127.0.0.1 for on-box browser; use this box's LAN IP when browsing from phone/PC"
+
+msgctxt "#30011"
+msgid "Use remote browser (Chorus 2 style)"
+msgstr "Use remote browser (Chorus 2 style)"
+
+msgctxt "#30012"
+msgid "Show URL to open on phone/PC instead of cefbrowser on TV"
+msgstr "Show URL to open on phone/PC instead of cefbrowser on TV"

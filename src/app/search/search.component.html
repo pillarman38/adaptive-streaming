@@ -1,25 +1,32 @@
-<div id="wrapper" #wrapper>
-  <!-- <app-side-bar></app-side-bar> -->
-  <div id="searchArea">
-      <input type="text" id="searchBar" [(ngModel)]="inputField">
+<div id="wrapper" #wrapper [class.compact-scroll-page]="layout.isCompactLayout">
+  <div class="compact-only-block compact-page-header" *ngIf="layout.isCompactLayout">
+    <h1 class="compact-page-title">Search</h1>
   </div>
 
-  <!-- <div id="results">
-      <div *ngFor="let res of results">
-          <p>{{res.title}}</p>
-          <img src="http://pixable.local:5012{{res.posterUrl}}">
-      </div>
-  </div> -->
-  <div id="list">
-  <div class="boxes" #boxes boxes *ngFor="let res of results; index as i" (mouseover)="onHover(i)" (click)="selectedMedia()">
+  <div id="searchArea">
+      <input type="text"
+             id="searchBar"
+             [class.compact-search-input]="layout.isCompactLayout"
+             [(ngModel)]="inputField"
+             (input)="onSearchInput()"
+             placeholder="Search movies and shows">
+  </div>
+
+  <div id="list" class="tv-only-block" *ngIf="!layout.isCompactLayout">
+    <div class="boxes" #boxes boxes *ngFor="let res of results; index as i" (mouseover)="onHover(i)" (click)="selectedMedia(i)">
       <img [src]="res.posterUrl | safeUrl" class="posterArt">
-      <div class="titleCards">
-        <p>{{res.title}}</p>
-      </div>
+      <div class="titleCards"><p>{{res.title}}</p></div>
     </div>
   </div>
 
-  <div *ngIf="!shiftKeyPressed">
+  <div class="compact-only-block compact-grid" *ngIf="layout.isCompactLayout">
+    <div class="compact-grid-item" #boxes boxes *ngFor="let res of results; index as i" (click)="selectedMedia(i)">
+      <img [src]="res.posterUrl | safeUrl" class="compact-poster" [alt]="res.title">
+      <p class="compact-poster-title">{{ res.title }}</p>
+    </div>
+  </div>
+
+  <div *ngIf="!layout.isCompactLayout && !shiftKeyPressed">
     <div id="keyboard">
       <div class="row">
         <button class="key" #keyboardKey (click)="onButtonClick($event)">1</button>
@@ -73,7 +80,7 @@
     </div>
   </div>
 
-  <div *ngIf="shiftKeyPressed">
+  <div *ngIf="!layout.isCompactLayout && shiftKeyPressed">
     <div id="keyboard">
       <div class="row">
         <button class="key" #keyboardKey (click)="onButtonClick($event)">!</button>

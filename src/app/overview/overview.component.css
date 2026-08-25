@@ -138,6 +138,105 @@
     height: 64px;
     position: absolute;
     margin-left: 170px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.overview-trailer-btn {
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.overview-trailer-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.atmos-intro-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 16px;
+    color: #fff;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.atmos-intro-toggle-label {
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.atmos-intro-toggle input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.atmos-intro-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    transition: background 0.2s ease, border-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.atmos-intro-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s ease;
+}
+
+.atmos-intro-toggle input:checked + .atmos-intro-switch {
+    background: rgba(80, 160, 255, 0.85);
+    border-color: rgba(160, 210, 255, 0.9);
+}
+
+.atmos-intro-toggle input:checked + .atmos-intro-switch::after {
+    transform: translateX(20px);
+}
+
+.atmos-intro-toggle input:focus-visible + .atmos-intro-switch {
+    outline: 2px solid rgba(255, 255, 255, 0.8);
+    outline-offset: 2px;
+}
+
+.compact-atmos-intro-toggle {
+    margin: 4px 0 12px;
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+    padding: 10px 12px;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.35);
+    min-height: 48px;
+}
+
+.ugoos-trailer-container {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
 }
 
 .transmuxCheck {

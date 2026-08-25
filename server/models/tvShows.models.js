@@ -1,12 +1,11 @@
 let pool = require("../../config/connections");
 let fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
-const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
-const ffprobePath = require("@ffprobe-installer/ffprobe").path;
+const { configureFluentFfmpeg } = require("../utils/ffmpeg-paths");
+configureFluentFfmpeg(ffmpeg);
 const { getFilesRecursively } = require("./fileGrabber");
 const urlTransformer = require("../utils/url-transformer");
-ffmpeg.setFfmpegPath(ffmpegPath);
-ffmpeg.setFfprobePath(ffprobePath);
+const { escapeLikeTerm } = require("../utils/search-term");
 const { showInfoGrabber } = require("./showInfoGrabber");
 const Downloader = require("./downloader");
 
@@ -117,6 +116,10 @@ async function updateTvShowsInDB() {
             epTotal: files.length,
             tvCard,
           };
+          urlTransformer.prepareRecordForStorage(showInfoToSave, [
+            'coverArt',
+            'tvCard',
+          ]);
 
           pool.query(`INSERT INTO tv SET ?`, showInfoToSave, (err, res) => {
             console.log(err, res);
@@ -220,6 +223,7 @@ async function updateTvShowsInDB() {
                             seekTime: 0,
                             duration: episodeDuration,
                           };
+                          urlTransformer.prepareRecordForStorage(epInfo, ['posterUrl']);
 
                           await pool.query(
                             `INSERT INTO episodes SET ?`,
@@ -280,9 +284,13 @@ let tv = {
       }
       
       dbRes = dbRes.map((itm) => {
-        itm.backdropPhotoUrl = urlTransformer.transformUrl(`http://pixable.local:5012${itm.backdropPhotoUrl}`);
-        itm.posterPhotoUrl = urlTransformer.transformUrl(`http://pixable.local:5012${itm.posterUrl}`);
-        itm.coverArt = urlTransformer.transformUrl(`http://pixable.local:5012${itm.coverArt}`);
+        urlTransformer.prepareRecordForResponse(itm, [
+          'backdropPhotoUrl',
+          'posterUrl',
+          'coverArt',
+          'tvCard',
+        ]);
+        itm.posterPhotoUrl = itm.posterUrl;
         return itm;
       });
       
@@ -353,18 +361,27 @@ let tv = {
               seasonsList.push(seasonObj);
 
               if (i + 1 === setSeasons.length) {
+                const showRow = urlTransformer.prepareRecordForResponse({ ...response[0] }, [
+                  'backdropPhotoUrl',
+                  'coverArt',
+                  'posterUrl',
+                  'tvCard',
+                ]);
+                res.forEach((ep) =>
+                  urlTransformer.prepareRecordForResponse(ep, ['posterUrl', 'backdropPhotoUrl'])
+                );
                 const showObject = {
                   title: show.title,
                   numOfSeasons: setSeasons.length,
                   seasonsList,
                   epTotal: res.length,
-                  overview: response[0].overview,
-                  audio: response[0].audio,
-                  resolution: response[0].resolution,
-                  languages: response[0].languages,
-                  backdropPhotoUrl: response[0].backdropPhotoUrl,
-                  coverArt: response[0].coverArt,
-                  cast: response[0].cast,
+                  overview: showRow.overview,
+                  audio: showRow.audio,
+                  resolution: showRow.resolution,
+                  languages: showRow.languages,
+                  backdropPhotoUrl: showRow.backdropPhotoUrl,
+                  coverArt: showRow.coverArt,
+                  cast: showRow.cast,
                   allEps: res,
                 };
                 callback(err, showObject);
@@ -384,7 +401,10 @@ let tv = {
         for (let i = 0; i < re.length; i++) {
           const eps = await queryForEps(re[i].season_number, show.show);
           eps.res = eps.res.map((episode) => {
-            episode.backdropPhotoUrl = urlTransformer.transformUrl(`http://pixable.local:5012/${episode.backdropPhotoUrl}`);
+            urlTransformer.prepareRecordForResponse(episode, [
+              'backdropPhotoUrl',
+              'posterUrl',
+            ]);
             return episode;
           });
           if (eps.res) {
@@ -441,6 +461,36 @@ let tv = {
       `SELECT * FROM seasons WHERE title = '${showAndSeason.show}' AND season_number = '${showAndSeason.season}'`,
       (err, res) => {
         callback(err, res);
+      }
+    );
+  },
+  searchShows: (reqObj, callback) => {
+    const term = escapeLikeTerm(reqObj.searchVal).trim();
+    if (!term) {
+      callback(null, []);
+      return;
+    }
+
+    pool.query(
+      `SELECT * FROM tv WHERE title LIKE '%${term}%' ORDER BY title ASC LIMIT 200`,
+      (error, dbRes) => {
+        if (error) {
+          callback(error, null);
+          return;
+        }
+
+        const shows = (dbRes || []).map((itm) => {
+          urlTransformer.prepareRecordForResponse(itm, [
+            "backdropPhotoUrl",
+            "posterUrl",
+            "coverArt",
+            "tvCard",
+          ]);
+          itm.posterPhotoUrl = itm.posterUrl;
+          return itm;
+        });
+
+        callback(null, shows);
       }
     );
   },

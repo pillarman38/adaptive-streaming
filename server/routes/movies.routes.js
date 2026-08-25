@@ -6,217 +6,163 @@ let fs = require("fs");
 let fetch = require("node-fetch");
 let transcoder = require("../models/transcoder");
 let tv = require("../models/tvShows.models");
+const demoVideos = require("../models/demo-videos.models");
 let pixie = require("../models/pixie");
 const BonusFeatures = require("../models/bonusFeatures");
 let { search } = require("../models/search");
 const urlTransformer = require("../utils/url-transformer");
 const path = require("path");
-const { getMkvCueIndex } = require("../utils/mkv-cue-index");
 
-// #region agent log
-const DEBUG_LOG_PATH = path.join(__dirname, "../../debug-05d3d9.log");
-const streamRangeWindow = new Map();
-function appendDebugLog(payload) {
-  try {
-    fs.appendFileSync(
-      DEBUG_LOG_PATH,
-      JSON.stringify({
-        sessionId: "05d3d9",
-        timestamp: Date.now(),
-        ...payload,
-      }) + "\n"
-    );
-  } catch (e) {
-    console.error("[debug-log] write failed:", e.message);
-  }
-}
-router.post("/debug-log", (req, res) => {
-  appendDebugLog(req.body || {});
-  res.status(204).end();
-});
-// #endregion
+router.get("/stream", handleStream);
+router.head("/stream", handleStream);
 
-router.get("/cueIndex", (req, res) => {
-  const filePath = decodeURIComponent(req.query.path || "");
-  if (!filePath) {
-    return res.status(400).json({ error: "Missing file path" });
+function handleStream(req, res) {
+  const rawPath = req.query.path;
+  if (rawPath == null || rawPath === "" || rawPath === "undefined") {
+    return res.status(400).send("Missing file path");
   }
+  const filePath = decodeURIComponent(String(rawPath));
+  if (!filePath || filePath === "undefined") {
+    return res.status(400).send("Missing file path");
+  }
+  console.log("[stream] request:", filePath, "range:", req.headers.range || "none");
   if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: "File not found" });
+    return res.status(404).send("File not found");
   }
-  if (!filePath.toLowerCase().endsWith(".mkv")) {
-    return res.status(400).json({ error: "Not an MKV file" });
-  }
-  try {
-    const index = getMkvCueIndex(filePath);
-    // #region agent log
-    appendDebugLog({
-      location: "movies.routes.js:cueIndex",
-      message: "cue index served",
-      hypothesisId: "H",
-      data: {
-        file: path.basename(filePath),
-        cueCount: index.cues.length,
-        contentLength: index.contentLength,
-      },
-    });
-    // #endregion
-    res.json(index);
-  } catch (err) {
-    console.error("[cueIndex] failed:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
 
-router.get("/stream", (req, res) => {
-  const filePath = decodeURIComponent(req.query.path); 
-  if (!filePath) { 
-    return res.status(400).send("Missing file path"); 
-  } 
-  if (!fs.existsSync(filePath)) { 
-    return res.status(404).send("File not found"); 
-  } 
-  const stat = fs.statSync(filePath); 
-  const fileSize = stat.size; 
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType =
+    ext === ".mp4"
+      ? "video/mp4"
+      : ext === ".mkv"
+        ? "video/x-matroska"
+        : "application/octet-stream";
+  const baseHeaders = {
+    "Accept-Ranges": "bytes",
+    "Content-Type": contentType,
+    "Cache-Control": "public, max-age=3600",
+  };
+
+  // HEAD: metadata only — never send the file body.
+  if (req.method === "HEAD") {
+    res.writeHead(200, { ...baseHeaders, "Content-Length": fileSize });
+    return res.end();
+  }
+
   const range = req.headers.range;
-  const fileBase = path.basename(filePath);
 
-  // #region agent log
-  if (range) {
-    const now = Date.now();
-    const prev = streamRangeWindow.get(fileBase) || {
-      count: 0,
-      windowStart: now,
-      lastStart: -1,
-    };
-    if (now - prev.windowStart > 2000) {
-      prev.count = 0;
-      prev.windowStart = now;
-    }
-    prev.count += 1;
-    const rangeMatchDbg = range.match(/bytes=(\d*)-(\d*)/);
-    const rangeStart =
-      rangeMatchDbg && rangeMatchDbg[1] ? parseInt(rangeMatchDbg[1], 10) : 0;
-    const largeJump =
-      prev.lastStart >= 0 &&
-      Math.abs(rangeStart - prev.lastStart) > 5 * 1024 * 1024;
-    prev.lastStart = rangeStart;
-    streamRangeWindow.set(fileBase, prev);
-    if (largeJump) {
-      appendDebugLog({
-        location: "movies.routes.js:stream",
-        message: "large HTTP range jump",
-        hypothesisId: "E",
-        data: {
-          file: fileBase,
-          rangeStart,
-          requestsIn2s: prev.count,
-        },
-      });
-    }
-  }
-  // #endregion
-
-  // Determine optimal chunk size based on file size (larger files = larger chunks)
-  // For very large files (90GB+), use larger chunks to reduce request overhead
-  let CHUNK_SIZE;
-  if (fileSize > 50 * 1024 * 1024 * 1024) { // > 50GB (very large 4K/8K files)
-    CHUNK_SIZE = 100 * 1024 * 1024; // 100MB chunks for very large files
-  } else if (fileSize > 20 * 1024 * 1024 * 1024) { // > 20GB (likely 4K)
-    CHUNK_SIZE = 50 * 1024 * 1024; // 50MB chunks for 4K
-  } else if (fileSize > 10 * 1024 * 1024 * 1024) { // > 10GB
-    CHUNK_SIZE = 25 * 1024 * 1024; // 25MB chunks
-  } else {
-    CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks for smaller files
-  }
-  // If no range header, serve the full file (ExoPlayer might make initial request without range)
+  // No Range: return 200 with full Content-Length. A spontaneous truncated 206
+  // (previous behavior) makes Kodi stop before OnAVStart — it never retries with Range.
   if (!range) {
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = ext === ".mp4" ? "video/mp4" : ext === ".mkv" ? "video/x-matroska" : "application/octet-stream";
     res.writeHead(200, {
+      ...baseHeaders,
       "Content-Length": fileSize,
-      "Content-Type": contentType,
-      "Accept-Ranges": "bytes",
-      "Cache-Control": "public, max-age=3600" // Cache for 1 hour
     });
-    // Use highWaterMark for better buffering (8MB buffer)
-    const stream = fs.createReadStream(filePath, { 
-      highWaterMark: 8 * 1024 * 1024 
+    const stream = fs.createReadStream(filePath, {
+      highWaterMark: bufferSizeFor(fileSize),
+    });
+    req.on("close", () => {
+      if (!res.writableEnded) {
+        console.log("[stream] client closed (no-range 200):", path.basename(filePath));
+        stream.destroy();
+      }
+    });
+    stream.on("error", (err) => {
+      console.error("[stream] error:", err.message);
+      if (!res.headersSent) {
+        res.status(500).send("Stream error");
+      } else {
+        res.destroy();
+      }
     });
     stream.pipe(res);
     return;
   }
-  
-  // Parse Range header: "bytes=start-end" or "bytes=start-" or "bytes=-suffix"
+
   const rangeMatch = range.match(/bytes=(\d*)-(\d*)/);
   if (!rangeMatch) {
     res.writeHead(416, {
       "Content-Range": `bytes */${fileSize}`,
-      "Accept-Ranges": "bytes"
+      "Accept-Ranges": "bytes",
     });
     return res.end("Invalid Range header format");
   }
-  
+
   let start = 0;
   let end = fileSize - 1;
-  
-  if (rangeMatch[1]) {
-    start = parseInt(rangeMatch[1], 10);
-  }
-  
-  if (rangeMatch[2]) {
-    end = parseInt(rangeMatch[2], 10);
+
+  if (!rangeMatch[1] && rangeMatch[2]) {
+    // Suffix range: bytes=-500 (MKV cue index at end of file)
+    const suffix = parseInt(rangeMatch[2], 10);
+    if (isNaN(suffix) || suffix <= 0) {
+      res.writeHead(416, {
+        "Content-Range": `bytes */${fileSize}`,
+        "Accept-Ranges": "bytes",
+      });
+      return res.end("Range Not Satisfiable");
+    }
+    start = Math.max(fileSize - suffix, 0);
+    end = fileSize - 1;
   } else {
-    // If no end specified, use adaptive chunk size
-    end = Math.min(start + CHUNK_SIZE - 1, fileSize - 1);
+    if (rangeMatch[1]) {
+      start = parseInt(rangeMatch[1], 10);
+    }
+    if (rangeMatch[2]) {
+      end = parseInt(rangeMatch[2], 10);
+    } else if (rangeMatch[1]) {
+      // RFC 7233: bytes=N- means from N through end of file (not a fixed chunk cap).
+      end = fileSize - 1;
+    }
   }
-  
-  // Validate range
+
   if (isNaN(start) || isNaN(end) || start > end || start < 0 || end >= fileSize) {
     res.writeHead(416, {
       "Content-Range": `bytes */${fileSize}`,
-      "Accept-Ranges": "bytes"
+      "Accept-Ranges": "bytes",
     });
     return res.end("Range Not Satisfiable");
   }
-  
-  const contentLength = end - start + 1;
-  const ext = path.extname(filePath).toLowerCase();
-  const contentType = ext === ".mp4" ? "video/mp4" : ext === ".mkv" ? "video/x-matroska" : "application/octet-stream";
-  
-  res.writeHead(206, {
-    "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-    "Accept-Ranges": "bytes",
-    "Content-Length": contentLength,
-    "Content-Type": contentType,
-    "Cache-Control": "public, max-age=3600" // Cache for 1 hour
-  });
-  
-  // Use highWaterMark for better buffering - larger buffer for 4K files
-  let bufferSize;
-  if (fileSize > 50 * 1024 * 1024 * 1024) { // > 50GB
-    bufferSize = 32 * 1024 * 1024; // 32MB buffer for very large files
-  } else if (fileSize > 20 * 1024 * 1024 * 1024) { // > 20GB
-    bufferSize = 16 * 1024 * 1024; // 16MB buffer for 4K
-  } else {
-    bufferSize = 8 * 1024 * 1024; // 8MB buffer for smaller files
+
+  pipeByteRange(req, res, filePath, fileSize, start, end, baseHeaders, bufferSizeFor(fileSize));
+}
+
+function bufferSizeFor(fileSize) {
+  if (fileSize > 50 * 1024 * 1024 * 1024) {
+    return 32 * 1024 * 1024;
   }
-  const stream = fs.createReadStream(filePath, { 
-    start, 
-    end,
-    highWaterMark: bufferSize // Larger buffer for better I/O performance
+  if (fileSize > 20 * 1024 * 1024 * 1024) {
+    return 16 * 1024 * 1024;
+  }
+  return 8 * 1024 * 1024;
+}
+
+function pipeByteRange(req, res, filePath, fileSize, start, end, baseHeaders, highWaterMark) {
+  const contentLength = end - start + 1;
+  res.writeHead(206, {
+    ...baseHeaders,
+    "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+    "Content-Length": contentLength,
   });
-    
-  stream.pipe(res);
-  
-  // Handle stream errors
-  stream.on("error", (err) => {
-    console.error("Stream error:", err);
-    if (!res.headersSent) {
-      res.status(500).send("Stream error");
+
+  const stream = fs.createReadStream(filePath, { start, end, highWaterMark });
+  req.on("close", () => {
+    if (!res.writableEnded) {
+      console.log("[stream] client closed:", path.basename(filePath), `bytes ${start}-${end}`);
+      stream.destroy();
     }
   });
-});
+  stream.on("error", (err) => {
+    console.error("[stream] error:", err.message);
+    if (!res.headersSent) {
+      res.status(500).send("Stream error");
+    } else {
+      res.destroy();
+    }
+  });
+  stream.pipe(res);
+}
 
 router.post("/movies", (req, res) => {
   console.log("body", req.body);
@@ -237,29 +183,49 @@ router.post("/movies", (req, res) => {
 
 router.get("/scanLibrary", (req, res) => {
   console.log("body", req.body);
-  // First update movies
   models.updateMovies((err, results) => {
     if (err) {
       res.send(err);
-    } else {
-      // Then update TV shows
+      return;
+    }
+    demoVideos.updateDemoVideos((demoErr, demoResults) => {
+      if (demoErr) {
+        res.send(demoErr);
+        return;
+      }
       tv.updateTvShows((tvErr, tvResults) => {
         if (tvErr) {
           res.send(tvErr);
         } else {
-          res.send({ movies: results, tvShows: tvResults });
+          res.send({
+            movies: results,
+            demoVideos: demoResults,
+            tvShows: tvResults,
+          });
         }
       });
-    }
+    });
   });
 });
 
 router.get("/scanProgress", (req, res) => {
   const moviesProgress = models.getScanProgress();
+  const demoProgress = demoVideos.getScanProgress();
   const tvShowsProgress = tv.getScanProgress();
   res.send({
     movies: moviesProgress,
-    tvShows: tvShowsProgress
+    demoVideos: demoProgress,
+    tvShows: tvShowsProgress,
+  });
+});
+
+router.post("/demos", (req, res) => {
+  demoVideos.getAllDemoVideos((err, results) => {
+    if (err) {
+      res.send(err);
+    } else {
+      res.send(results);
+    }
   });
 });
 
@@ -417,6 +383,26 @@ router.post("/search", (req, res) => {
     console.log(err, results);
     if (err) {
       res.send(err);
+    } else {
+      res.send(results);
+    }
+  });
+});
+
+router.post("/search/movies", (req, res) => {
+  models.searchMovies(req.body, (err, results) => {
+    if (err) {
+      res.status(500).send(err);
+    } else {
+      res.send(results);
+    }
+  });
+});
+
+router.post("/search/tv", (req, res) => {
+  tv.searchShows(req.body, (err, results) => {
+    if (err) {
+      res.status(500).send(err);
     } else {
       res.send(results);
     }

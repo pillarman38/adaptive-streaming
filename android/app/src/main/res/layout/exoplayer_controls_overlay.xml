@@ -59,6 +59,23 @@
         android:gravity="center"
         android:layout_marginTop="30dp">
 
+        <!-- Subtitle Track Selection Button (left side, opposite audio) -->
+        <ImageButton
+            android:id="@+id/subtitleTrackBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:src="@android:drawable/ic_menu_agenda"
+            android:background="@drawable/button_focus_selector"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:clickable="true"
+            android:contentDescription="Select Subtitles"
+            android:padding="8dp"
+            android:visibility="gone"
+            android:nextFocusRight="@+id/skipBack30Btn" />
+
         <!-- Skip Back 30s Button -->
         <ImageButton
             android:id="@+id/skipBack30Btn"
@@ -72,7 +89,7 @@
             android:focusableInTouchMode="true"
             android:clickable="true"
             android:contentDescription="Skip back 30 seconds"
-            android:nextFocusLeft="@+id/playPauseBtn"
+            android:nextFocusLeft="@+id/subtitleTrackBtn"
             android:nextFocusRight="@+id/skipBack15Btn" />
 
         <!-- Skip Back 15s Button -->

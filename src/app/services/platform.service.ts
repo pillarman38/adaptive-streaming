@@ -5,12 +5,69 @@ import { Capacitor } from '@capacitor/core';
   providedIn: 'root'
 })
 export class PlatformService {
+  private readonly kodiMode: boolean;
+  private readonly kodiHost: string | null;
+
+  constructor() {
+    const kodiParams = this.readKodiParams();
+    this.kodiHost = kodiParams.host;
+    this.kodiMode = kodiParams.enabled;
+    if (this.kodiMode) {
+      console.log('[PlatformService] Kodi / CoreELEC mode enabled', this.kodiHost ? `(JSON-RPC @ ${this.kodiHost})` : '');
+    }
+  }
+
+  private readKodiParams(): { enabled: boolean; host: string | null } {
+    if (typeof window === 'undefined') {
+      return { enabled: false, host: null };
+    }
+    const params = new URLSearchParams(window.location.search);
+    const hostParam = params.get('kodiHost');
+    if (hostParam) {
+      sessionStorage.setItem('kodiHost', hostParam);
+    }
+
+    if (params.get('platform') === 'kodi') {
+      sessionStorage.setItem('platform', 'kodi');
+    }
+
+    return {
+      enabled: sessionStorage.getItem('platform') === 'kodi',
+      host: hostParam || sessionStorage.getItem('kodiHost'),
+    };
+  }
+
+  isKodi(): boolean {
+    if (typeof window === 'undefined') {
+      return this.kodiMode;
+    }
+    return sessionStorage.getItem('platform') === 'kodi';
+  }
+
+  /** Kodi JSON-RPC host (box IP when browsing remotely, 127.0.0.1 on-box browser). */
+  getKodiHost(): string | null {
+    if (typeof window === 'undefined') {
+      return this.kodiHost;
+    }
+    return sessionStorage.getItem('kodiHost') || this.kodiHost;
+  }
+
   isAndroid(): boolean {
     return Capacitor.getPlatform() === 'android';
   }
 
   isIOS(): boolean {
     return Capacitor.getPlatform() === 'ios';
+  }
+
+  isIOSLike(): boolean {
+    if (this.isIOS()) {
+      return true;
+    }
+    if (typeof navigator === 'undefined') {
+      return false;
+    }
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent);
   }
 
   isWeb(): boolean {
@@ -22,19 +79,22 @@ export class PlatformService {
   }
 
   getDeviceName(): string {
+    if (this.isKodi()) {
+      return 'coreelec';
+    }
     if (this.isAndroid()) {
-      // Detect Zidoo devices
       if (this.isZidoo()) {
         return 'zidoo';
       }
-      // For now, assume other Android devices are Nvidia Shield
-      // This can be enhanced later to detect actual device model
+      if (this.isUgoos()) {
+        return 'ugoos';
+      }
+      // Default Android TV path (Nvidia Shield and similar)
       return 'nvidia-shield';
     }
     if (this.isIOS()) {
       return 'ios';
     }
-    // For web, detect browser
     const userAgent = navigator.userAgent.toLowerCase();
     if (userAgent.includes('safari') && !userAgent.includes('chrome')) {
       return 'safari';
@@ -50,15 +110,12 @@ export class PlatformService {
       return false;
     }
 
-    // Zidoo devices typically have specific manufacturer/model identifiers
-    // Check user agent and device info
     const userAgent = navigator.userAgent.toLowerCase();
     const fullUserAgent = navigator.userAgent;
     console.log('[PlatformService] Checking for Zidoo device...');
     console.log('[PlatformService] User Agent:', fullUserAgent);
     console.log('[PlatformService] User Agent (lowercase):', userAgent);
 
-    // Common Zidoo identifiers
     const hasZidoo = userAgent.includes('zidoo');
     const hasZ9x = userAgent.includes('z9x');
     const hasZ10 = userAgent.includes('z10');
@@ -68,11 +125,29 @@ export class PlatformService {
       return true;
     }
 
-    // Check device model via Capacitor if available
-    // Note: This requires accessing native device info
-    // For now, we'll rely on user agent and add a manual check option
     console.log('[PlatformService] Not a Zidoo device');
     return false;
   }
-}
 
+  isUgoos(): boolean {
+    if (!this.isAndroid()) {
+      return false;
+    }
+
+    const userAgent = navigator.userAgent.toLowerCase();
+    const fullUserAgent = navigator.userAgent;
+    console.log('[PlatformService] Checking for Ugoos device...');
+    console.log('[PlatformService] User Agent:', fullUserAgent);
+
+    const hasUgoos = userAgent.includes('ugoos');
+    const hasAm6 = userAgent.includes('am6');
+    const hasAm6b = userAgent.includes('am6b');
+    if (hasUgoos || hasAm6 || hasAm6b) {
+      console.log('[PlatformService] Ugoos device detected via user agent');
+      return true;
+    }
+
+    console.log('[PlatformService] Not a Ugoos device');
+    return false;
+  }
+}

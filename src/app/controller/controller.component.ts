@@ -21,8 +21,7 @@ export class ControllerComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // Connect to websocket
-    this.websocketService.connect();
+    void this.websocketService.connect('controller');
 
     // Subscribe to connection status
     this.statusSubscription = this.websocketService.connectionStatus$.subscribe(

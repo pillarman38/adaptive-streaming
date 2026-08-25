@@ -3,12 +3,8 @@ const Downloader = require("./downloader");
 const fs = require("fs");
 const path = require("path");
 const ffmpeg = require("fluent-ffmpeg");
-const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
-const ffprobePath = require("@ffprobe-installer/ffprobe").path;
-
-// Configure ffmpeg paths
-ffmpeg.setFfmpegPath(ffmpegPath);
-ffmpeg.setFfprobePath(ffprobePath);
+const { configureFluentFfmpeg } = require("../utils/ffmpeg-paths");
+configureFluentFfmpeg(ffmpeg);
 
 /**
  * Gets metadata from a video file using ffprobe

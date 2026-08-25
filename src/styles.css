@@ -1,4 +1,6 @@
 /* You can add global styles to this file, and also import other style files */
+@import './app/styles/compact-layout.css';
+
 body {
     background-color: black;
     margin: 0px;

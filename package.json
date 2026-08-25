@@ -6,10 +6,13 @@
     "start": "concurrently \"npm run start:client\" \"npm run start:server\"",
     "start:client": "ng serve --open",
     "start:server": "nodemon server.js",
-    "build": "ng build",
+    "sync-server-config": "node scripts/sync-server-config.js",
+    "build": "npm run sync-server-config && ng build",
+    "build:android": "node scripts/build-android.js",
+    "build:kodi": "node scripts/build-kodi-addon.js",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "cap:sync": "npx cap sync android && node scripts/add-exoplayer-plugin.js"
+    "cap:sync": "npm run build:android && npx cap sync android && node scripts/add-exoplayer-plugin.js"
   },
   "private": true,
   "dependencies": {

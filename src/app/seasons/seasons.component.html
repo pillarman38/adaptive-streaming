@@ -1,10 +1,17 @@
-<!-- <app-side-bar></app-side-bar> -->
-<div id="wrapper" #wrapper>
-    <div id="seasonsWrapper">
-      <div class="seasons" *ngFor="let season of seasons; index as i" (mouseover)="onHover(i, 'seasons')" #seasons>
+<div id="wrapper" #wrapper [class.compact-scroll-page]="layout.isCompactLayout">
+    <div class="compact-only-block compact-page-header" *ngIf="layout.isCompactLayout">
+        <button type="button" class="compact-back-btn" (click)="goBack()" aria-label="Back">&#8592;</button>
+        <h1 class="compact-page-title">{{ infoStore.showInfo.title }}</h1>
+    </div>
+
+    <div id="seasonsWrapper" [class.compact-season-tabs]="layout.isCompactLayout">
+      <div class="seasons" *ngFor="let season of seasons; index as i"
+           [class.season-selected]="i === selectedSeason"
+           (mouseover)="onHover(i, 'seasons')"
+           (click)="selectSeason(i)"
+           #seasons>
         <div class="textAlign">
           <p>Season {{season.season_number}}</p>
-            <!-- <p>Season {{}}</p> -->
         </div>
         <div class="epCount">
           <p>Episodes: {{season.numOfEpsInseason}}</p>
@@ -12,14 +19,21 @@
       </div>
     </div>
 
-    <div id="list">
-      <div class="boxes" #boxes *ngFor="let ep of eps; index as e; trackBy: trackBySeasons" (mouseover)="onHover(e, 'episodes')" (click)="playEp()">
+    <div id="list" class="tv-only-block">
+      <div class="boxes" #boxes *ngFor="let ep of eps; index as e; trackBy: trackBySeasons"
+           (mouseover)="onHover(e, 'episodes')" (click)="playEp(e)">
         <img src="{{ep.backdropPhotoUrl}}" class="coverArt">
-        <div class="titleCards">
-          <p>{{ep.epTitle}}</p>
-        </div>
-        <div class="overview">
-          <p>{{ep.overview}}</p>
+        <div class="titleCards"><p>{{ep.epTitle}}</p></div>
+        <div class="overview"><p>{{ep.overview}}</p></div>
+      </div>
+    </div>
+
+    <div class="compact-only-block" *ngIf="layout.isCompactLayout">
+      <div class="compact-episode-row" *ngFor="let ep of eps; index as e" (click)="playEp(e)">
+        <img [src]="ep.backdropPhotoUrl | safeUrl" [alt]="ep.epTitle">
+        <div>
+          <p><strong>{{ ep.epTitle }}</strong></p>
+          <p *ngIf="ep.overview" style="font-size:12px;opacity:0.75;margin-top:4px;">{{ ep.overview }}</p>
         </div>
       </div>
     </div>

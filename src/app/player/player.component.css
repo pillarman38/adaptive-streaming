@@ -5,6 +5,28 @@
     overflow: hidden;
 }
 
+.kodi-player-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: #ccc;
+    font-size: 1.25rem;
+    text-align: center;
+    padding: 2rem;
+}
+
+#videoContainer.kodi-playing {
+    background: #000;
+}
+
+#videoContainer.kodi-playing #controls {
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1000;
+}
+
 #controls {
     width: 100%;
     height: 200px;

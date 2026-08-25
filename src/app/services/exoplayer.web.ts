@@ -64,6 +64,10 @@ export class ExoPlayerWeb extends WebPlugin implements ExoPlayerPlugin {
     return { visible: false };
   }
 
+  async isSubtitleTrackListVisible(): Promise<{ visible: boolean }> {
+    return { visible: false };
+  }
+
   async setPaused(options: { paused: boolean }): Promise<void> {
     // No-op for web - state is managed by HTML video element
   }

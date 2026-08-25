@@ -4,7 +4,13 @@ import { registerPlugin } from '@capacitor/core';
 
 export interface ExoPlayerPlugin {
   initialize(options: { containerId: string }): Promise<{ success: boolean }>;
-  loadVideo(options: { url: string; subtitleUrl?: string; dolbyVision?: boolean }): Promise<{ success: boolean }>;
+  loadVideo(options: {
+    url: string;
+    subtitleUrl?: string;
+    subtitleTracks?: { id: number; label: string; url: string }[];
+    fallbackStreamUrl?: string;
+    introUrl?: string;
+  }): Promise<{ success: boolean }>;
   play(): Promise<{ success: boolean }>;
   pause(): Promise<{ success: boolean }>;
   seekTo(options: { position: number }): Promise<{ success: boolean }>;
@@ -17,6 +23,7 @@ export interface ExoPlayerPlugin {
   hideControls(): Promise<void>;
   navigateControls(options: { direction: string }): Promise<void>;
   isAudioTrackListVisible(): Promise<{ visible: boolean }>;
+  isSubtitleTrackListVisible(): Promise<{ visible: boolean }>;
   setPaused(options: { paused: boolean }): Promise<void>;
   setShowSkipIntro(options: { show: boolean }): Promise<void>;
   setShowNextEpisode(options: { show: boolean }): Promise<void>;
@@ -60,13 +67,25 @@ export class ExoPlayerService {
     }
   }
 
-  async loadVideo(url: string, subtitleUrl?: string, dolbyVision?: boolean): Promise<boolean> {
+  async loadVideo(
+    url: string,
+    subtitleUrl?: string,
+    subtitleTracks?: { id: number; label: string; url: string }[],
+    fallbackStreamUrl?: string,
+    introUrl?: string
+  ): Promise<boolean> {
     // Note: We allow loadVideo to proceed even if isInitialized is false
     // because ExoPlayer is actually created in loadVideo(), not in initialize()
     // The initialize() method only sets up the container and PlayerView
 
     try {
-      const result = await ExoPlayer.loadVideo({ url, subtitleUrl, dolbyVision: !!dolbyVision });
+      const result = await ExoPlayer.loadVideo({
+        url,
+        subtitleUrl,
+        subtitleTracks: subtitleTracks || [],
+        fallbackStreamUrl: fallbackStreamUrl || undefined,
+        introUrl: introUrl || undefined,
+      });
       // Set isInitialized to true after ExoPlayer is successfully created and media is loaded
       if (result.success) {
         this.isInitialized = true;
@@ -266,6 +285,18 @@ const result = await ExoPlayer.seekTo({ position });
     }
     try {
       const result = await ExoPlayer.isAudioTrackListVisible();
+      return !!result.visible;
+    } catch {
+      return false;
+    }
+  }
+
+  async isSubtitleTrackListVisible(): Promise<boolean> {
+    if (!this.isInitialized || !Capacitor.isNativePlatform()) {
+      return false;
+    }
+    try {
+      const result = await ExoPlayer.isSubtitleTrackListVisible();
       return !!result.visible;
     } catch {
       return false;

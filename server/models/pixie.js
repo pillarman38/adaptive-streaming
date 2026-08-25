@@ -1,11 +1,9 @@
 let pool = require("../../config/connections");
 let fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
-const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
-const ffprobePath = require("@ffprobe-installer/ffprobe").path;
+const { configureFluentFfmpeg } = require("../utils/ffmpeg-paths");
+configureFluentFfmpeg(ffmpeg);
 const path = require("path");
-ffmpeg.setFfmpegPath(ffmpegPath);
-ffmpeg.setFfprobePath(ffprobePath);
 const spawn = require("child_process").spawn;
 
 let WebSocketServer = require("ws").Server;
@@ -17,26 +15,47 @@ console.log("WSS: ");
 
 let clients = [];
 
+function removeClient(connection) {
+  clients = clients.filter((client) => client !== connection);
+}
+
+function broadcastControllerMessage(message) {
+  const payload = JSON.stringify(message);
+  clients.forEach((client) => {
+    if (client.readyState === 1 && client.clientRole === "display") {
+      client.send(payload);
+    }
+  });
+}
+
 wss.on("connection", function (connection) {
   console.log(new Date() + " Connection accepted.");
+  connection.clientRole = "display";
+  connection.clientId = null;
   clients.push(connection);
   // connection.send("Connection recieved!");
   connection.on("message", async function (message) {
     // console.log("message: ", message);
     message = JSON.parse(message);
+
+    if (message.type === "register") {
+      connection.clientRole =
+        message.role === "controller" ? "controller" : "display";
+      connection.clientId = message.clientId || null;
+      return;
+    }
+
     if (message.type === "Downloading") {
       clients.forEach((client) => {
         client.send(JSON.stringify(message));
       });
+      return;
     }
     
-    // Broadcast controller messages to all connected clients
+    // Relay controller input to every display client (Ugoos box, etc.)
     if (message.type === "controller") {
-      clients.forEach((client) => {
-        if (client.readyState === 1) { // WebSocket.OPEN
-          client.send(JSON.stringify(message));
-        }
-      });
+      broadcastControllerMessage(message);
+      return;
     }
 
     if (message) {
@@ -514,6 +533,7 @@ wss.on("connection", function (connection) {
     console.log(
       new Date() + " Peer " + connection.remoteAddress + " disconnected."
     );
+    removeClient(connection);
   });
 });
 

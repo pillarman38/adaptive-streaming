@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="plugin.program.adaptivestreaming"
+       name="Adaptive Streaming"
+       version="1.0.2"
+       provider-name="adaptive-streaming">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.script" library="default.py">
+    <provides>executable</provides>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Adaptive Streaming library browser with Kodi playback.</summary>
+    <description lang="en_GB">Opens the Angular UI from your PC server and plays media through Kodi's native player.</description>
+    <platform>all</platform>
+    <license>MIT</license>
+  </extension>
+</addon>

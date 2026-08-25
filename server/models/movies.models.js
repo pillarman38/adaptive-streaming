@@ -1,14 +1,15 @@
 let pool = require("../../config/connections");
 let fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
-const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
-const ffprobePath = require("@ffprobe-installer/ffprobe").path;
-ffmpeg.setFfprobePath(ffprobePath);
-ffmpeg.setFfmpegPath(ffmpegPath);
+const { configureFluentFfmpeg } = require("../utils/ffmpeg-paths");
+configureFluentFfmpeg(ffmpeg);
 var fetch = require("node-fetch");
 const Downloader = require("./downloader");
 const BonusFeatures = require("./bonusFeatures");
 const urlTransformer = require("../utils/url-transformer");
+const { groupMovieRows, prepareMovieRecord } = require("../utils/group-movies");
+const { escapeLikeTerm } = require("../utils/search-term");
+const { pushMovieToShelfOs, syncLibraryMissingToShelfOs } = require("./shelfos-movies-sync");
 var arrOfObj = [];
 var ffstream = ffmpeg();
 
@@ -246,32 +247,37 @@ setTimeout(function () {
               
               // Get trailer URL and encode special characters in the path
               let trailerUrlRaw = await downloader.getTrailer(fileNameNoExt, data);
-              let trailerUrl = trailerUrlRaw ? encodeUrlPath(trailerUrlRaw) : trailerUrlRaw;
+              let trailerUrl = trailerUrlRaw
+                ? urlTransformer.toEndpoint(trailerUrlRaw)
+                : trailerUrlRaw;
               
-              // Get cover art and encode special characters in the path
               let coverArtRaw = await downloader.getCoverArt(
                 fileNameNoExt,
                 data,
                 "movie"
               );
-              let coverArt = coverArtRaw ? encodeUrlPath(coverArtRaw) : coverArtRaw;
+              let coverArt = coverArtRaw
+                ? urlTransformer.toEndpoint(coverArtRaw)
+                : coverArtRaw;
               
-              // Get poster URL and encode special characters in the path
               let posterUrlRaw = await downloader.getBackgroundPoster(
                 fileNameNoExt,
                 data,
                 "movie"
               );
-              let posterUrl = posterUrlRaw ? encodeUrlPath(posterUrlRaw) : posterUrlRaw;
+              let posterUrl = posterUrlRaw
+                ? urlTransformer.toEndpoint(posterUrlRaw)
+                : posterUrlRaw;
               
-              // Get movie card and encode special characters in the path
               let movieCardRaw = await downloader.getCard(
                 fileNameNoExt,
                 fileName,
                 data,
                 "movies"
               );
-              let movieCard = movieCardRaw ? encodeUrlPath(movieCardRaw) : movieCardRaw;
+              let movieCard = movieCardRaw
+                ? urlTransformer.toEndpoint(movieCardRaw)
+                : movieCardRaw;
               
               let subtitleSrts = "";
               // if (loginSuccess === true && loginRes) {
@@ -350,6 +356,8 @@ setTimeout(function () {
                   threeD: metaData.streams[0].side_data_type === "Stereo 3D" ? 1 : 0,
                 };
 
+                urlTransformer.prepareRecordForStorage(metaDataObj);
+
                 await new Promise((resolve, reject) => {
                   pool.query(
                     `INSERT INTO movies SET ?`,
@@ -367,6 +375,16 @@ setTimeout(function () {
                   );
                 });
 
+                // Mirror metadata + artwork to ShelfOS Movies (browse-only collection).
+                try {
+                  await pushMovieToShelfOs(metaDataObj);
+                } catch (syncErr) {
+                  console.warn(
+                    "[shelfos-sync] unexpected",
+                    syncErr && syncErr.message ? syncErr.message : syncErr
+                  );
+                }
+
                 if (l + 1 === notIncluded.length) {
 // Scan complete - reset progress
                   scanProgress.isScanning = false;
@@ -376,7 +394,19 @@ setTimeout(function () {
                   // Get all movies and call callback
                   pool.query(
                     `SELECT * FROM movies ORDER BY title ASC`,
-                    (err, resp) => {
+                    async (err, resp) => {
+                      if (!err && resp) {
+                        try {
+                          await syncLibraryMissingToShelfOs(resp);
+                        } catch (syncAllErr) {
+                          console.warn(
+                            "[shelfos-sync] reconcile failed",
+                            syncAllErr && syncAllErr.message
+                              ? syncAllErr.message
+                              : syncAllErr
+                          );
+                        }
+                      }
                       if (callback) {
                         callback(err, resp);
                       }
@@ -397,9 +427,24 @@ setTimeout(function () {
           scanProgress.currentFile = "";
           
           res.map((movie) => {
-            movie.subtitles = JSON.parse(movie.subtitles);
+            try {
+              movie.subtitles = JSON.parse(movie.subtitles);
+            } catch (_) {
+              /* keep */
+            }
             return movie;
           });
+          // Still reconcile ShelfOS: push anything the Pi is missing (+ artwork).
+          try {
+            await syncLibraryMissingToShelfOs(res);
+          } catch (syncAllErr) {
+            console.warn(
+              "[shelfos-sync] reconcile failed",
+              syncAllErr && syncAllErr.message
+                ? syncAllErr.message
+                : syncAllErr
+            );
+          }
 // Call callback with existing movies since no new files to scan
           if (callback) {
             callback(null, res);
@@ -420,13 +465,13 @@ updateMoviesInDB(callback);
     return scanProgress;
   },
   resumeOrNot: (title, callback) => {
-    pool.query(
-      `SELECT * FROM pickupwhereleftoff WHERE titleOrEpisode = '${title.title}'`,
-      (err, res) => {
-        console.log(err, res);
-        callback(err, res);
-      }
-    );
+    // pool.query(
+    //   `SELECT * FROM pickupwhereleftoff WHERE titleOrEpisode = '${title.title}'`,
+    //   (err, res) => {
+    //     console.log(err, res);
+    //     callback(err, res);
+    //   }
+    // );
   },
 
   getAllHomeVids: (pid, callback) => {
@@ -691,19 +736,30 @@ updateMoviesInDB(callback);
           }
         };
         
-        res.map(
-          (movie) =>
-            (movie.posterUrl = encodeUrlPath(urlTransformer.transformUrl(`${movie.posterUrl}`)))
-        );
+        const resolveMovieUrls = (movie) => {
+          urlTransformer.prepareRecordForResponse(movie);
+          if (movie.posterUrl) {
+            movie.posterUrl = urlTransformer.encodeUrlPath(movie.posterUrl);
+          }
+          if (movie.coverArt) {
+            movie.coverArt = urlTransformer.encodeUrlPath(movie.coverArt);
+          }
+          if (movie.movieCard) {
+            movie.movieCard = urlTransformer.encodeUrlPath(movie.movieCard);
+          }
+          if (movie.trailerUrl) {
+            movie.trailerUrl = urlTransformer.encodeUrlPath(movie.trailerUrl);
+          }
+          if (movie.srtUrl) {
+            movie.srtUrl = urlTransformer.encodeUrlPath(movie.srtUrl);
+          }
+          if (movie.location && urlTransformer.isServerServedPath(movie.location)) {
+            movie.location = urlTransformer.encodeUrlPath(movie.location);
+          }
+          return movie;
+        };
 
-        res.map(
-          (movie) =>
-            (movie.coverArt = encodeUrlPath(urlTransformer.transformUrl(`${movie.coverArt}`)))
-        );
-        res.map(
-          (movie) =>
-            (movie.movieCard = encodeUrlPath(urlTransformer.transformUrl(`${movie.movieCard}`)))
-        );
+        res.map(resolveMovieUrls);
         if (res.length > 0) {
           // Helper function to check if two titles are similar (one contains another)
           // Examples: "Avatar: The Way of Water" and "Avatar: The Way of Water Disc 1" are similar
@@ -772,7 +828,7 @@ updateMoviesInDB(callback);
                       // Push each individual group to the movies array
                       for (const key in groups) {
                         const groupItems = groups[key];
-                        const defaultPosterUrl = "http://10.0.0.13:5012/assets/four0four.gif";
+                        const defaultPosterUrl = urlTransformer.toPublicUrl('/assets/four0four.gif');
                         
                         // Helper function to find first valid value for a field
                         const findFirstValid = (fieldName, defaultValue = null) => {
@@ -859,6 +915,31 @@ updateMoviesInDB(callback);
             message: "no more movies",
           });
         }
+      }
+    );
+  },
+  searchMovies: (reqObj, callback) => {
+    const term = escapeLikeTerm(reqObj.searchVal).trim();
+    if (!term) {
+      callback(null, []);
+      return;
+    }
+
+    pool.query(
+      `SELECT * FROM movies WHERE title LIKE '%${term}%' ORDER BY title ASC LIMIT 200`,
+      (err, res) => {
+        if (err) {
+          callback(err, null);
+          return;
+        }
+
+        if (!res || res.length === 0) {
+          callback(null, []);
+          return;
+        }
+
+        res.forEach(prepareMovieRecord);
+        callback(null, groupMovieRows(res));
       }
     );
   },

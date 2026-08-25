@@ -1,20 +1,39 @@
-<div id="videoContainer" #videoContainer>
-    <!-- <div id="subtitleIconPlacer">
-        <img src="assets/subtitles.png" id="subtitleBtn" (click)="toggleSubtitle()">
+<div id="videoContainer" #videoContainer [class.kodi-playing]="useKodiPlayer && kodiPlaybackActive" (click)="onPlayerContainerClick()">
+    <div *ngIf="useKodiPlayer && !kodiPlaybackActive" class="kodi-player-placeholder">
+        <p>Ready — select a title to play in Kodi.</p>
     </div>
-     -->
-    <video *ngIf="!useExoPlayer" id="video" #videoElem (click)="playPause()">
+    <video *ngIf="!useExoPlayer && !useKodiPlayer" id="video" #videoElem (click)="playPause()">
         <track *ngIf="subtitle" [src]="subtitleUrl" kind="subtitles" srclang="en" label="English">
     </video>
     
-    <div *ngIf="!useExoPlayer">
-        <div id="controls" #controlsContainer (mouseleave)="hideControls()">
+    <div *ngIf="usesWebPlayerControls()">
+        <div id="controls" #controlsContainer
+             [class.compact-controls]="layout.isCompactLayout"
+             (mouseleave)="hideControls()">
+            <div *ngIf="layout.isCompactLayout" class="now-playing-panel">
+                <img *ngIf="infoStore.videoInfo.coverArt" [src]="infoStore.videoInfo.coverArt | safeUrl" class="now-playing-thumb" alt="">
+                <div class="now-playing-meta">
+                    <p class="now-playing-title">{{ infoStore.videoInfo.title }}<span *ngIf="infoStore.videoInfo.epTitle"> — {{ infoStore.videoInfo.epTitle }}</span></p>
+                    <p class="now-playing-plot" *ngIf="infoStore.videoInfo.overview">{{ infoStore.videoInfo.overview }}</p>
+                    <div class="now-playing-badges">
+                        <span *ngIf="infoStore.videoInfo.resolution === '3840x2160'">4K</span>
+                        <span *ngIf="infoStore.videoInfo.resolution === '1920x1080'">HD</span>
+                        <span *ngIf="infoStore.videoInfo.audio === 'truehd'">Atmos</span>
+                        <span *ngIf="infoStore.videoInfo.audio === 'dts'">DTS</span>
+                        <span *ngIf="infoStore.videoInfo.dolbyVision === 1">DV</span>
+                    </div>
+                </div>
+            </div>
+
             <div id="seekSpace" 
                  (click)="seekBarClick($event)"
                  (mousedown)="onSeekBarMouseDown($event)"
                  (mousemove)="onSeekBarMouseMove($event)"
                  (mouseup)="onSeekBarMouseUp($event)"
-                 (mouseleave)="onSeekBarMouseLeave()">
+                 (mouseleave)="onSeekBarMouseLeave()"
+                 (touchstart)="onSeekBarTouchStart($event)"
+                 (touchmove)="onSeekBarTouchMove($event)"
+                 (touchend)="onSeekBarTouchEnd($event)">
                 <div id="seekBar" #seekBar></div>
             </div>
 
@@ -38,7 +57,6 @@
                 <img src="assets/right.png" class="skipButtons" #controlBtns (click)="skipButtons(+15)">
                 <img src="assets/skipForward.png" class="skipButtons" #controlBtns (click)="skipButtons(+30)">
                 
-                <!-- Audio Track Selection Button -->
                 <div *ngIf="hasMultipleAudioTracks" class="audioTrackBtn" #controlBtns (click)="toggleAudioTrackList()" title="Select Audio Track">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
                         <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
@@ -46,7 +64,6 @@
                 </div>
             </div>
             
-            <!-- Audio Track Selection List -->
             <div *ngIf="showAudioTrackList && hasMultipleAudioTracks" class="audioTrackList">
                 <div class="audioTrackListTitle">Select Audio Track</div>
                 <div *ngFor="let track of availableAudioTracks; let i = index" 

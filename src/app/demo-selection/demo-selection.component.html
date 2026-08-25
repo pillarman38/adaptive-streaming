@@ -1,0 +1,33 @@
+<div *ngIf="!layout.isCompactLayout && (poster || currentBox.title)" id="backgroundPlacer" class="tv-only-block" #backgroundPlacer>
+  <img [src]="poster | safeUrl" id="backgroundImg" (load)="onImageLoad()" #image>
+</div>
+
+<div id="wrapper" #wrapper [class.compact-scroll-page]="layout.isCompactLayout">
+  <div id="info" class="tv-only-block">
+    <p id="titleStyling">{{ currentBox.title }}</p>
+    <div id="separator"></div>
+    <div *ngIf="currentBox.resolution === '3840x2160'" class="bubbles"><p>4K UltraHD</p></div>
+    <div *ngIf="currentBox.resolution === '1920x1080'" class="bubbles"><p>HD</p></div>
+    <div *ngIf="currentBox.audio === 'dts'" class="bubbles"><p>Dts HD 5.1</p></div>
+    <div *ngIf="currentBox.audio === 'truehd' && isAndroid" class="bubbles"><p>Dolby Atmos</p></div>
+  </div>
+
+  <div class="compact-only-block compact-page-header" *ngIf="layout.isCompactLayout">
+    <h1 class="compact-page-title">Demo Videos</h1>
+  </div>
+
+  <div id="list" #list class="tv-only-block" *ngIf="!layout.isCompactLayout">
+    <div class="boxes" #boxes boxes *ngFor="let demo of demos; index as i"
+         (mouseover)="onHover(i, 'demos')" (click)="selectDemo(i)">
+      <img [src]="(demo.thumbnailPath || demo.posterUrl) | safeUrl" class="posterArt">
+      <div class="titleCards"><p>{{ demo.title }}</p></div>
+    </div>
+  </div>
+
+  <div class="compact-only-block compact-grid compact-list-scroll" *ngIf="layout.isCompactLayout">
+    <div class="compact-grid-item" #boxes boxes *ngFor="let demo of demos; index as i" (click)="selectDemo(i)">
+      <img [src]="(demo.thumbnailPath || demo.posterUrl) | safeUrl" class="compact-poster" [alt]="demo.title">
+      <p class="compact-poster-title">{{ demo.title }}</p>
+    </div>
+  </div>
+</div>

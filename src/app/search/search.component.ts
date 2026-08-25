@@ -10,6 +10,8 @@ import {
 import { HttpClient } from "@angular/common/http";
 import { searchRes } from "../info-store.service";
 import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
+import { LayoutService } from "../services/layout.service";
+import { ApiConfigService } from "../services/api-config.service";
 
 @Component({
   selector: "app-search",
@@ -27,7 +29,9 @@ export class SearchComponent implements OnInit {
   @ViewChildren("keyboardKey") keyboardKeys!: QueryList<ElementRef<any>>;
   constructor(
     private http: HttpClient,
-    private smartTv: SmartTvLibSingletonService
+    private smartTv: SmartTvLibSingletonService,
+    private apiConfig: ApiConfigService,
+    public layout: LayoutService
   ) {}
 
   @HostListener("window:keydown", ["$event"])
@@ -80,8 +84,37 @@ export class SearchComponent implements OnInit {
 
   async onHover(e: number) {}
 
-  selectedMedia() {
-    console.log("media");
+  selectedMedia(resultIndex?: number) {
+    const index = resultIndex ?? this.index;
+    this.index = index;
+    console.log("media", this.results[index]);
+  }
+
+  onSearchInput(): void {
+    if (!this.layout.isCompactLayout) {
+      return;
+    }
+    this.runSearch();
+  }
+
+  private runSearch(): void {
+    this.apiConfig.ensureConfigLoaded().then(() => {
+      this.http
+        .post(`${this.apiConfig.getBaseUrl()}/api/mov/search`, {
+          searchVal: this.inputField,
+        })
+        .subscribe((res: any) => {
+          this.results = res;
+        });
+    }).catch(() => {
+      this.http
+        .post(`${this.apiConfig.getBaseUrl()}/api/mov/search`, {
+          searchVal: this.inputField,
+        })
+        .subscribe((res: any) => {
+          this.results = res;
+        });
+    });
   }
 
   shiftCheck(event: any) {
@@ -112,24 +145,7 @@ export class SearchComponent implements OnInit {
     }
 
     console.log(this.inputField);
-    this.http
-      .post("http://pixable.local:5012/api/mov/search", {
-        searchVal: this.inputField,
-      })
-      .subscribe((res: any) => {
-        console.log("RES: ", res);
-        this.results = res;
-        // Update search results list
-        setTimeout(() => {
-          if (this.boxes.length > 0) {
-            this.smartTv.smartTv?.addCurrentList({
-              listName: "search",
-              startingIndex: 0,
-              listElements: this.boxes,
-            });
-          }
-        }, 100);
-      });
+    this.runSearch();
   }
 
   onButtonClick(event: any) {

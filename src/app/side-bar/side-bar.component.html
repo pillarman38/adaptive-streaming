@@ -1,26 +1,47 @@
-<div id="sideBar">
+<div id="sideBar" class="tv-only-block">
     <div id="alignSelection">
         <div class="button" (click)="scanLibrary()" #homepageList (mouseover)="onHover(0)">
-            <img *ngIf="!isScanning" src="assets/refresh.png" class="menuItem">
+            <img *ngIf="!isScanning" src="assets/refresh-icon.svg" class="menuItem">
             <div *ngIf="isScanning" class="menuItem loading-container">
                 <div class="loading-spinner"></div>
-                <div class="progress-text" *ngIf="scanTotal > 0 || tvScanTotal > 0">
+                <div class="progress-text" *ngIf="scanTotal > 0 || demoScanTotal > 0 || tvScanTotal > 0">
                     <div *ngIf="scanTotal > 0">Movies: {{ scanProgress }}/{{ scanTotal }}</div>
+                    <div *ngIf="demoScanTotal > 0">Demos: {{ demoScanProgress }}/{{ demoScanTotal }}</div>
                     <div *ngIf="tvScanTotal > 0">TV Shows: {{ tvScanProgress }}/{{ tvScanTotal }}</div>
                 </div>
             </div>
         </div>
 
-        <div class="button" (click)="navigateTo('search')" #homepageList (mouseover)="onHover(0)">
-            <img src="assets/search.png" class="menuItem">
-        </div>
-
         <div class="button" (click)="navigateTo('videoSelection')" #homepageList (mouseover)="onHover(1)">
-            <img src="assets/film-reel.png" class="menuItem">
+            <img src="assets/film-reel-icon.svg" class="menuItem">
         </div>
 
-        <div class="button" (click)="navigateTo('tv')" #homepageList (mouseover)="onHover(2)">
-            <img src="assets/tv-show.png" class="menuItem">
+        <div class="button" (click)="navigateTo('demoSelection')" #homepageList (mouseover)="onHover(2)">
+            <img src="assets/demo-video-icon.svg" class="menuItem">
+        </div>
+
+        <div class="button" (click)="navigateTo('tv')" #homepageList (mouseover)="onHover(3)">
+            <img src="assets/tv-show-icon.svg" class="menuItem">
         </div>
     </div>
 </div>
+
+<nav class="bottom-nav compact-only-block">
+    <button type="button" class="bottom-nav-item" [class.active]="isActive('/videoSelection')" (click)="scanLibrary()" aria-label="Refresh library">
+        <img *ngIf="!isScanning" src="assets/refresh-icon.svg" alt="">
+        <div *ngIf="isScanning" class="loading-spinner bottom-nav-spinner"></div>
+        <span class="bottom-nav-label">Scan</span>
+    </button>
+    <button type="button" class="bottom-nav-item" [class.active]="isActive('/videoSelection')" (click)="navigateTo('videoSelection')" aria-label="Movies">
+        <img src="assets/film-reel-icon.svg" alt="">
+        <span class="bottom-nav-label">Movies</span>
+    </button>
+    <button type="button" class="bottom-nav-item" [class.active]="isActive('/demoSelection')" (click)="navigateTo('demoSelection')" aria-label="Demos">
+        <img src="assets/demo-video-icon.svg" alt="">
+        <span class="bottom-nav-label">Demos</span>
+    </button>
+    <button type="button" class="bottom-nav-item" [class.active]="isActive('/tv') || isActive('/seasons')" (click)="navigateTo('tv')" aria-label="TV Shows">
+        <img src="assets/tv-show-icon.svg" alt="">
+        <span class="bottom-nav-label">TV</span>
+    </button>
+</nav>

@@ -41,6 +41,9 @@ import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.TrackGroup;
 import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
 import androidx.media3.exoplayer.ExoPlayer;
 import android.util.Log;
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
@@ -49,6 +52,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector.SelectionOv
 import androidx.media3.ui.PlayerView;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DataSpec;
+import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.datasource.cache.CacheDataSource;
@@ -58,31 +62,35 @@ import androidx.media3.datasource.cache.SimpleCache;
 import androidx.media3.database.StandaloneDatabaseProvider;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.exoplayer.hls.HlsMediaSource;
 import java.io.File;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.json.JSONArray;
 import com.adaptivestreaming.app.R;
 import androidx.core.content.FileProvider;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 @CapacitorPlugin(name = "ExoPlayer")
 public class ExoPlayerPlugin extends Plugin {
     private static final String TAG = "ExoPlayerPlugin";
-    private String agentDebugUrl = "http://10.0.0.13:5012/api/mov/debug-log";
     private ExoPlayer exoPlayer;
     private PlayerView playerView;
     private FrameLayout containerView;
@@ -112,6 +120,34 @@ public class ExoPlayerPlugin extends Plugin {
     private boolean controlsVisible = false;
     private volatile boolean isShowingAudioTrackList = false; // Flag to prevent hideControls from hiding audio list
     private volatile boolean suppressAutoShowAudioList = false; // Flag to prevent auto-showing list when button gets focus programmatically
+
+    private static final class SubtitleTrackOption {
+        final String label;
+        final String url;
+
+        SubtitleTrackOption(String label, String url) {
+            this.label = label;
+            this.url = url;
+        }
+    }
+
+    private ImageButton subtitleTrackBtn;
+    private TextView currentSubtitleTrackLabel;
+    private LinearLayout subtitleTrackRow;
+    private LinearLayout subtitleTrackListContainer;
+    private LinearLayout subtitleTrackList;
+    private android.widget.ScrollView subtitleTrackScrollView;
+    private final java.util.List<Button> subtitleTrackButtons = new java.util.ArrayList<>();
+    private final java.util.List<SubtitleTrackOption> availableSubtitleTracks =
+            new java.util.ArrayList<>();
+    private int selectedSubtitleTrackIndex = -1;
+    private int focusedSubtitleTrackIndex = -1;
+    private volatile boolean isShowingSubtitleTrackList = false;
+    private volatile boolean suppressAutoShowSubtitleList = false;
+    private String selectedSubtitleUrl = null;
+    private Uri currentPlaybackUri;
+    private boolean currentPlaybackIsHls;
+    private boolean currentPlaybackIsHttpMkv;
     private boolean isPaused = false;
     private boolean showSkipIntro = false;
     private boolean showNextEpisode = false;
@@ -127,76 +163,50 @@ public class ExoPlayerPlugin extends Plugin {
     private long lastManualSkipTime = 0; // Timestamp when skip button was pressed
     private long seekStartTime = 0; // Timestamp when seeking started
     private static final long SEEK_COOLDOWN_MS = 300; // Don't update seekbar for 300ms after a seek
+    /** Rapid skip presses coalesce to one seekTo. */
+    private static final long SEEK_COALESCE_MS = 450;
+    private android.os.Handler seekCoalesceHandler;
+    private Runnable coalescedSeekRunnable;
+    private long coalescedSeekTargetMs = -1;
+    private String coalescedSeekSource = "";
+    private long lastCommittedSeekMs = 0;
+    private String lastCommittedSeekSource = "";
     private boolean hasAutoSelectedAudio = false;
     private boolean userLockedAudioTrack = false;
-    private boolean currentContentIsDolbyVision = false;
     private boolean hasAppliedHdrDisplayMode = false;
-    private boolean pendingDvHdrDisplayMode = false;
+    private boolean pendingHdrDisplayMode = false;
     private SimpleCache mediaCache;
     private CacheDataSource.Factory activeCacheDataSourceFactory;
     private String currentStreamUrl;
+    /** Growing server HLS (shield-streams); duration may exceed encoded segments. */
+    private boolean currentStreamIsEventHls = false;
     private volatile boolean indexTailPrewarmed = false;
     private volatile boolean indexTailPrewarmInProgress = false;
     private long streamContentLength = -1;
-    private long[][] mkvCueIndex = null;
-    private long lastCachedPrefetchStart = -1;
-    private long lastCachedPrefetchEnd = -1;
-    private static final long SEEK_CLUSTER_PREFETCH_BYTES = 12L * 1024 * 1024;
-    private static final SeekParameters DV_SEEK_PARAMETERS = new SeekParameters(3000, 3000);
+    private volatile long lastAudioTrackSwitchMs = 0;
+    private static final long MANUAL_SKIP_COOLDOWN_MS = 500; // Don't let time updates override manual skips for 500ms
 
     private void setHdrDisplayMode(boolean enabled) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || getActivity() == null) {
             return;
         }
         int targetMode = enabled ? ActivityInfo.COLOR_MODE_HDR : ActivityInfo.COLOR_MODE_DEFAULT;
-        int beforeMode = getActivity().getWindow().getColorMode();
-        if (beforeMode == targetMode) {
-            // #region agent log
-            try {
-                JSONObject data = new JSONObject();
-                data.put("enabled", enabled);
-                data.put("targetMode", targetMode);
-                data.put("skipped", true);
-                agentLog("ExoPlayerPlugin.java:setHdrDisplayMode", "skipped duplicate color mode", "B", data);
-            } catch (JSONException ignored) {
-            }
-            // #endregion
+        if (getActivity().getWindow().getColorMode() == targetMode) {
             return;
         }
         getActivity().getWindow().setColorMode(targetMode);
-        // #region agent log
-        try {
-            JSONObject data = new JSONObject();
-            data.put("enabled", enabled);
-            data.put("targetMode", targetMode);
-            data.put("beforeMode", beforeMode);
-            data.put("afterMode", getActivity().getWindow().getColorMode());
-            data.put("hasAppliedHdrDisplayMode", hasAppliedHdrDisplayMode);
-            agentLog("ExoPlayerPlugin.java:setHdrDisplayMode", "window color mode", "B", data);
-        } catch (JSONException ignored) {
-        }
-        // #endregion
     }
 
-    private void applyPendingDvHdrDisplayMode() {
-        // #region agent log
-        try {
-            JSONObject data = new JSONObject();
-            data.put("pendingDvHdrDisplayMode", pendingDvHdrDisplayMode);
-            data.put("hasAppliedHdrDisplayMode", hasAppliedHdrDisplayMode);
-            agentLog("ExoPlayerPlugin.java:applyPendingDvHdrDisplayMode", "check", "A", data);
-        } catch (JSONException ignored) {
-        }
-        // #endregion
-        if (!pendingDvHdrDisplayMode || hasAppliedHdrDisplayMode) {
+    private void applyPendingHdrDisplayMode() {
+        if (!pendingHdrDisplayMode || hasAppliedHdrDisplayMode) {
             if (hasAppliedHdrDisplayMode) {
-                pendingDvHdrDisplayMode = false;
+                pendingHdrDisplayMode = false;
             }
             return;
         }
         setHdrDisplayMode(true);
         hasAppliedHdrDisplayMode = true;
-        pendingDvHdrDisplayMode = false;
+        pendingHdrDisplayMode = false;
     }
 
     private CacheDataSource.Factory buildCacheDataSourceFactory(DefaultHttpDataSource.Factory upstream) {
@@ -217,22 +227,77 @@ public class ExoPlayerPlugin extends Plugin {
         if (exoPlayer == null) {
             return;
         }
-        if (currentContentIsDolbyVision) {
-            exoPlayer.setSeekParameters(DV_SEEK_PARAMETERS);
-        } else {
-            exoPlayer.setSeekParameters(SeekParameters.CLOSEST_SYNC);
-        }
+        exoPlayer.setSeekParameters(SeekParameters.CLOSEST_SYNC);
     }
 
-    private DefaultLoadControl buildLoadControl() {
-        return new DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                50_000,
-                120_000,
-                2_500,
-                5_000)
-            .setBackBuffer(30_000, true)
-            .build();
+    private DefaultLoadControl buildLoadControl(boolean localMountedFile) {
+        DefaultLoadControl.Builder builder = new DefaultLoadControl.Builder();
+        if (localMountedFile) {
+            // Ugoos heap is 256MB; cap buffer on memory-limited devices.
+            builder
+                .setBufferDurationsMs(1_500, 4_000, 750, 1_500)
+                .setTargetBufferBytes(32 * 1024 * 1024)
+                .setPrioritizeTimeOverSizeThresholds(false)
+                .setBackBuffer(0, false);
+        } else {
+            builder
+                .setBufferDurationsMs(50_000, 120_000, 2_500, 5_000)
+                .setBackBuffer(30_000, true);
+        }
+        return builder.build();
+    }
+
+    /**
+     * Plex Direct Play: if the server library is SMB-mounted on Shield, read the MKV locally
+     * instead of HTTP range requests on a multi-GB file (avoids seek rebuffer / DV logo flash).
+     */
+    private String tryResolveLocalMkvPath(String httpUrl) {
+        if (httpUrl == null || !httpUrl.toLowerCase().contains(".mkv")) {
+            return null;
+        }
+        try {
+            Uri uri = Uri.parse(httpUrl);
+            String pathParam = uri.getQueryParameter("path");
+            if (pathParam == null) {
+                return null;
+            }
+            String decoded = URLDecoder.decode(pathParam, StandardCharsets.UTF_8.name());
+            String norm = decoded.replace('\\', '/');
+            String relFromVideos = null;
+            int videosIdx = norm.toLowerCase().lastIndexOf("/videos/");
+            if (videosIdx >= 0) {
+                relFromVideos = norm.substring(videosIdx + 1);
+            }
+            String fileName = new File(decoded).getName();
+            String host = uri.getHost();
+            if (host == null) {
+                return null;
+            }
+
+            String[] prefixes = {
+                "/mnt/smb/" + host + "/",
+                "/mnt/nfs/" + host + "/",
+                "/storage/" + host + "/",
+                "/mnt/NetworkStorage/" + host + "/",
+                "/mnt/media/" + host + "/",
+            };
+            String[] rels = relFromVideos != null
+                ? new String[] { relFromVideos, fileName, "Videos/" + fileName }
+                : new String[] { fileName, "Videos/" + fileName };
+
+            for (String prefix : prefixes) {
+                for (String rel : rels) {
+                    String candidate = prefix + rel;
+                    File file = new File(candidate);
+                    if (file.exists() && file.isFile()) {
+                        return file.getAbsolutePath();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "tryResolveLocalMkvPath: " + e.getMessage());
+        }
+        return null;
     }
 
     private long probeContentLength(String urlString) throws IOException {
@@ -262,14 +327,6 @@ public class ExoPlayerPlugin extends Plugin {
             return;
         }
         indexTailPrewarmInProgress = true;
-        // #region agent log
-        try {
-            JSONObject data = new JSONObject();
-            data.put("urlTail", url.length() > 80 ? url.substring(url.length() - 80) : url);
-            agentLog("ExoPlayerPlugin.java:prewarmMatroskaIndexTail", "prewarm started", "F", data);
-        } catch (JSONException ignored) {
-        }
-        // #endregion
         new Thread(() -> {
             long bytesRead = 0;
             long tailStart = -1;
@@ -302,274 +359,15 @@ public class ExoPlayerPlugin extends Plugin {
                 Log.w(TAG, "MKV index prewarm failed: " + e.getMessage());
             } finally {
                 indexTailPrewarmInProgress = false;
-                final long finalBytesRead = bytesRead;
-                final long finalTailStart = tailStart;
-                // #region agent log
-                try {
-                    JSONObject data = new JSONObject();
-                    data.put("bytesRead", finalBytesRead);
-                    data.put("tailStart", finalTailStart);
-                    data.put("success", indexTailPrewarmed);
-                    data.put("runId", "post-fix-v2");
-                    agentLog("ExoPlayerPlugin.java:prewarmMatroskaIndexTail", "prewarm finished", "F", data);
-                } catch (JSONException ignored) {
-                }
-                // #endregion
             }
         }, "mkv-index-prewarm").start();
     }
-
-    private long readRangeIntoCache(
-            String url,
-            CacheDataSource.Factory cacheFactory,
-            long start,
-            long length) throws IOException {
-        DataSpec dataSpec = new DataSpec.Builder()
-            .setUri(Uri.parse(url))
-            .setPosition(start)
-            .setLength(length)
-            .build();
-        DataSource dataSource = cacheFactory.createDataSource();
-        try {
-            dataSource.open(dataSpec);
-            byte[] buffer = new byte[128 * 1024];
-            long total = 0;
-            int read;
-            while ((read = dataSource.read(buffer, 0, buffer.length)) != -1) {
-                total += read;
-            }
-            return total;
-        } finally {
-            dataSource.close();
-        }
-    }
-
-    private long byteOffsetForTimeMs(long positionMs) {
-        if (mkvCueIndex == null || mkvCueIndex.length == 0) {
-            return -1;
-        }
-        int best = 0;
-        int lo = 0;
-        int hi = mkvCueIndex.length - 1;
-        while (lo <= hi) {
-            int mid = (lo + hi) >>> 1;
-            if (mkvCueIndex[mid][0] <= positionMs) {
-                best = mid;
-                lo = mid + 1;
-            } else {
-                hi = mid - 1;
-            }
-        }
-        return mkvCueIndex[best][1];
-    }
-
-    private void fetchMkvCueIndexAsync(String videoUrl) {
-        mkvCueIndex = null;
-        new Thread(() -> {
-            try {
-                Uri uri = Uri.parse(videoUrl);
-                String filePath = uri.getQueryParameter("path");
-                if (filePath == null) {
-                    return;
-                }
-                String host = uri.getHost();
-                if (host == null || host.isEmpty()) {
-                    return;
-                }
-                int port = uri.getPort() > 0 ? uri.getPort() : 5012;
-                String indexUrl = "http://" + host + ":" + port + "/api/mov/cueIndex?path="
-                    + java.net.URLEncoder.encode(filePath, "UTF-8");
-                HttpURLConnection conn = (HttpURLConnection) new URL(indexUrl).openConnection();
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(60000);
-                conn.setRequestMethod("GET");
-                int code = conn.getResponseCode();
-                if (code != 200) {
-                    return;
-                }
-                java.io.InputStream is = conn.getInputStream();
-                java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-                byte[] buf = new byte[8192];
-                int n;
-                while ((n = is.read(buf)) != -1) {
-                    bos.write(buf, 0, n);
-                }
-                is.close();
-                conn.disconnect();
-                JSONObject json = new JSONObject(bos.toString(StandardCharsets.UTF_8.name()));
-                streamContentLength = json.optLong("contentLength", streamContentLength);
-                JSONArray cues = json.optJSONArray("cues");
-                if (cues == null || cues.length() == 0) {
-                    return;
-                }
-                long[][] parsed = new long[cues.length()][2];
-                for (int i = 0; i < cues.length(); i++) {
-                    JSONObject cue = cues.getJSONObject(i);
-                    parsed[i][0] = cue.getLong("timeMs");
-                    parsed[i][1] = cue.getLong("position");
-                }
-                mkvCueIndex = parsed;
-                // #region agent log
-                JSONObject data = new JSONObject();
-                data.put("cueCount", parsed.length);
-                data.put("contentLength", streamContentLength);
-                data.put("runId", "post-fix-v6");
-                agentLog("ExoPlayerPlugin.java:fetchMkvCueIndexAsync", "cue index loaded", "H", data);
-                // #endregion
-            } catch (Exception e) {
-                Log.w(TAG, "MKV cue index fetch failed: " + e.getMessage());
-            }
-        }, "mkv-cue-index-fetch").start();
-    }
-
-    private long prefetchClusterAroundTimeMs(long positionMs, long durationMs) {
-        if (currentStreamUrl == null
-                || activeCacheDataSourceFactory == null
-                || streamContentLength <= 0) {
-            return 0;
-        }
-        long linearByte = durationMs > 0
-            ? (positionMs * streamContentLength) / durationMs
-            : -1;
-        long cueByte = byteOffsetForTimeMs(positionMs);
-        long byteOffset = linearByte;
-        boolean usedCueIndex = false;
-        if (cueByte >= 0 && linearByte >= 0 && streamContentLength > 0) {
-            double drift = Math.abs(cueByte - linearByte) / (double) streamContentLength;
-            if (drift < 0.15) {
-                byteOffset = cueByte;
-                usedCueIndex = true;
-            }
-        }
-        if (byteOffset < 0) {
-            return 0;
-        }
-        long backwardBytes = SEEK_CLUSTER_PREFETCH_BYTES / 2;
-        if (streamContentLength > 30L * 1024 * 1024 * 1024) {
-            backwardBytes = 320L * 1024 * 1024;
-        } else if (streamContentLength > 10L * 1024 * 1024 * 1024) {
-            backwardBytes = 128L * 1024 * 1024;
-        }
-        long forwardBytes = SEEK_CLUSTER_PREFETCH_BYTES / 2;
-        if (streamContentLength > 30L * 1024 * 1024 * 1024) {
-            forwardBytes = 128L * 1024 * 1024;
-        } else if (streamContentLength > 10L * 1024 * 1024 * 1024) {
-            forwardBytes = 32L * 1024 * 1024;
-        }
-        long start = Math.max(0, byteOffset - backwardBytes);
-        long end = Math.min(streamContentLength, byteOffset + forwardBytes);
-        if (lastCachedPrefetchStart >= 0
-                && byteOffset >= lastCachedPrefetchStart
-                && byteOffset <= lastCachedPrefetchEnd) {
-            // #region agent log
-            try {
-                JSONObject data = new JSONObject();
-                data.put("positionMs", positionMs);
-                data.put("byteOffset", byteOffset);
-                data.put("skipped", true);
-                data.put("cachedStart", lastCachedPrefetchStart);
-                data.put("cachedEnd", lastCachedPrefetchEnd);
-                data.put("runId", "post-fix-v6");
-                agentLog("ExoPlayerPlugin.java:prefetchClusterAroundTimeMs", "skipped cached window", "G", data);
-            } catch (JSONException ignored) {
-            }
-            // #endregion
-            return 0;
-        }
-        long length = end - start;
-        if (length <= 0) {
-            return 0;
-        }
-        try {
-            long bytesRead = readRangeIntoCache(
-                currentStreamUrl, activeCacheDataSourceFactory, start, length);
-            lastCachedPrefetchStart = lastCachedPrefetchStart < 0
-                ? start
-                : Math.min(lastCachedPrefetchStart, start);
-            lastCachedPrefetchEnd = Math.max(lastCachedPrefetchEnd, end);
-            // #region agent log
-            try {
-                JSONObject data = new JSONObject();
-                data.put("positionMs", positionMs);
-                data.put("byteOffset", byteOffset);
-                data.put("linearByte", linearByte);
-                data.put("cueByte", cueByte);
-                data.put("usedCueIndex", usedCueIndex);
-                data.put("backwardBytes", backwardBytes);
-                data.put("forwardBytes", forwardBytes);
-                data.put("prefetchStart", start);
-                data.put("prefetchEnd", end);
-                data.put("prefetchLength", length);
-                data.put("bytesRead", bytesRead);
-                data.put("runId", "post-fix-v6");
-                agentLog("ExoPlayerPlugin.java:prefetchClusterAroundTimeMs", "cluster prefetch", "G", data);
-            } catch (JSONException ignored) {
-            }
-            // #endregion
-            return bytesRead;
-        } catch (IOException e) {
-            Log.w(TAG, "Cluster prefetch failed: " + e.getMessage());
-            return 0;
-        }
-    }
-
-    // #region agent log
-    private void updateAgentDebugUrlFromVideoUrl(String videoUrl) {
-        if (videoUrl == null || videoUrl.isEmpty()) {
-            return;
-        }
-        try {
-            Uri uri = Uri.parse(videoUrl);
-            String host = uri.getHost();
-            if (host == null || host.isEmpty()) {
-                return;
-            }
-            int port = uri.getPort() > 0 ? uri.getPort() : 5012;
-            agentDebugUrl = "http://" + host + ":" + port + "/api/mov/debug-log";
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void agentLog(String location, String message, String hypothesisId, JSONObject data) {
-        try {
-            JSONObject payload = new JSONObject();
-            payload.put("sessionId", "05d3d9");
-            payload.put("location", location);
-            payload.put("message", message);
-            payload.put("hypothesisId", hypothesisId);
-            payload.put("timestamp", System.currentTimeMillis());
-            payload.put("data", data != null ? data : new JSONObject());
-            final byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
-            new Thread(() -> {
-                HttpURLConnection conn = null;
-                try {
-                    conn = (HttpURLConnection) new URL(agentDebugUrl).openConnection();
-                    conn.setRequestMethod("POST");
-                    conn.setRequestProperty("Content-Type", "application/json");
-                    conn.setDoOutput(true);
-                    conn.setFixedLengthStreamingMode(body.length);
-                    try (OutputStream os = conn.getOutputStream()) {
-                        os.write(body);
-                    }
-                    conn.getResponseCode();
-                } catch (Exception e) {
-                    Log.w(TAG, "agentLog failed: " + e.getMessage());
-                } finally {
-                    if (conn != null) {
-                        conn.disconnect();
-                    }
-                }
-            }).start();
-        } catch (JSONException ignored) {
-        }
-    }
-    // #endregion
 
     private void updateHdrModeFromVideoFormat(Format format) {
         if (format == null || hasAppliedHdrDisplayMode) {
             return;
         }
-        boolean isHdr = currentContentIsDolbyVision;
+        boolean isHdr = false;
         if (format.colorInfo != null) {
             int transfer = format.colorInfo.colorTransfer;
             if (transfer == C.COLOR_TRANSFER_ST2084 || transfer == C.COLOR_TRANSFER_HLG) {
@@ -590,6 +388,7 @@ public class ExoPlayerPlugin extends Plugin {
 
     private void releaseExoPlayer(boolean resetDisplayEnvironment) {
         stopTimeUpdates();
+        cancelCoalescedSeek();
         if (exoPlayer != null) {
             exoPlayer.stop();
             exoPlayer.clearMediaItems();
@@ -602,12 +401,31 @@ public class ExoPlayerPlugin extends Plugin {
         hasAutoSelectedAudio = false;
         userLockedAudioTrack = false;
         hasAppliedHdrDisplayMode = false;
-        pendingDvHdrDisplayMode = false;
-        currentContentIsDolbyVision = false;
+        pendingHdrDisplayMode = false;
+        availableSubtitleTracks.clear();
+        selectedSubtitleUrl = null;
+        selectedSubtitleTrackIndex = -1;
+        currentPlaybackUri = null;
+        hideSubtitleTrackList();
+        indexTailPrewarmed = false;
+        indexTailPrewarmInProgress = false;
         if (resetDisplayEnvironment) {
             setHdrDisplayMode(false);
             setWebViewObscured(false);
         }
+    }
+
+    /** Stop HTML5 video/audio in the WebView (e.g. overview trailer) before native ExoPlayer. */
+    private void stopWebViewHtmlMedia() {
+        Bridge bridge = getBridge();
+        if (bridge == null || bridge.getWebView() == null) {
+            return;
+        }
+        bridge.getWebView().evaluateJavascript(
+            "(function(){try{document.querySelectorAll('video,audio').forEach(function(el){"
+                + "el.pause();el.removeAttribute('src');el.load();});"
+                + "}catch(e){}})();",
+            null);
     }
 
     private void setWebViewObscured(boolean obscured) {
@@ -622,6 +440,36 @@ public class ExoPlayerPlugin extends Plugin {
             containerView.setBackgroundColor(Color.BLACK);
             containerView.setElevation(obscured ? 20f : 1f);
         }
+    }
+
+    /** Re-bind SurfaceView to the window after WebView pause / player swap (Amlogic compositor). */
+    private void ensureVideoSurfaceAttached() {
+        if (playerView == null || containerView == null) {
+            return;
+        }
+        containerView.setVisibility(View.VISIBLE);
+        playerView.setVisibility(View.VISIBLE);
+        playerView.onResume();
+        View surfaceView = playerView.getVideoSurfaceView();
+        if (surfaceView != null) {
+            surfaceView.setVisibility(View.VISIBLE);
+        }
+        containerView.bringToFront();
+        ViewGroup parent = (ViewGroup) containerView.getParent();
+        if (parent != null) {
+            parent.bringChildToFront(containerView);
+            parent.requestLayout();
+        }
+    }
+
+    private boolean isLosslessAudioFormat(Format format) {
+        if (format == null) {
+            return false;
+        }
+        String mime = format.sampleMimeType != null ? format.sampleMimeType.toLowerCase() : "";
+        String codecs = format.codecs != null ? format.codecs.toLowerCase() : "";
+        return mime.contains("true-hd") || mime.contains("truehd") || mime.contains("mlp")
+                || codecs.contains("truehd") || codecs.contains("mlp");
     }
 
     private boolean isAudioFormatLikelyPlayable(Format format) {
@@ -653,8 +501,7 @@ public class ExoPlayerPlugin extends Plugin {
         String mime = format.sampleMimeType != null ? format.sampleMimeType.toLowerCase() : "";
         String codecs = format.codecs != null ? format.codecs.toLowerCase() : "";
         int channels = Math.max(format.channelCount, 0);
-        if (mime.contains("true-hd") || mime.contains("truehd") || mime.contains("mlp")
-                || codecs.contains("truehd") || codecs.contains("mlp")) {
+        if (isLosslessAudioFormat(format)) {
             return 150 + channels;
         }
         if (mime.contains("eac3") || mime.contains("ec-3") || codecs.contains("eac3") || codecs.contains("ec-3")) {
@@ -795,87 +642,128 @@ public class ExoPlayerPlugin extends Plugin {
         }
     }
 
-    private DefaultTrackSelector buildTrackSelector() {
+    private DefaultTrackSelector buildTrackSelector(boolean localMountedFile) {
         DefaultTrackSelector selector = new DefaultTrackSelector(getContext());
-        selector.setParameters(
-            selector.buildUponParameters()
-                .setPreferredAudioMimeTypes(
-                    MimeTypes.AUDIO_TRUEHD,
-                    MimeTypes.AUDIO_E_AC3,
-                    MimeTypes.AUDIO_AC3,
-                    MimeTypes.AUDIO_AAC,
-                    MimeTypes.AUDIO_MPEG)
-                .setTunnelingEnabled(false)
-                .build());
+
+        DefaultTrackSelector.Parameters.Builder paramsBuilder = selector.buildUponParameters();
+        paramsBuilder.setPreferredAudioMimeTypes(
+                MimeTypes.AUDIO_TRUEHD,
+                MimeTypes.AUDIO_E_AC3,
+                MimeTypes.AUDIO_AC3,
+                MimeTypes.AUDIO_AAC,
+                MimeTypes.AUDIO_MPEG);
+        paramsBuilder.setTunnelingEnabled(false);
+
+        boolean subtitlesOff =
+                selectedSubtitleUrl == null || selectedSubtitleUrl.isEmpty();
+        if (subtitlesOff) {
+            paramsBuilder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true);
+        }
+
+        selector.setParameters(paramsBuilder.build());
         return selector;
+    }
+
+    private boolean isUgoosDevice() {
+        String manufacturer =
+            Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase(Locale.US);
+        String model = Build.MODEL == null ? "" : Build.MODEL.toLowerCase(Locale.US);
+        return manufacturer.contains("ugoos") || model.contains("am6");
+    }
+
+    private void resumePlaybackAfterSeekIfNeeded() {
+        if (wasPlayingBeforeSeek && exoPlayer != null) {
+            exoPlayer.play();
+            isPaused = false;
+            if (playPauseBtn != null) {
+                playPauseBtn.setImageResource(android.R.drawable.ic_media_pause);
+            }
+        }
+    }
+
+    private void cancelCoalescedSeek() {
+        if (seekCoalesceHandler != null && coalescedSeekRunnable != null) {
+            seekCoalesceHandler.removeCallbacks(coalescedSeekRunnable);
+        }
+        coalescedSeekRunnable = null;
+        coalescedSeekTargetMs = -1;
+        coalescedSeekSource = "";
+    }
+
+    /** Batches rapid skip-forward/back into a single exoPlayer.seekTo after {@link #SEEK_COALESCE_MS}. */
+    private void scheduleCoalescedSeek(long positionMs, String source) {
+        if (exoPlayer == null) {
+            return;
+        }
+        coalescedSeekTargetMs = positionMs;
+        coalescedSeekSource = source;
+        pendingSeekPosition = positionMs;
+        if (seekCoalesceHandler == null) {
+            seekCoalesceHandler =
+                    new android.os.Handler(android.os.Looper.getMainLooper());
+        }
+        if (coalescedSeekRunnable != null) {
+            seekCoalesceHandler.removeCallbacks(coalescedSeekRunnable);
+        } else {
+            coalescedSeekRunnable =
+                    () -> {
+                        long target = coalescedSeekTargetMs;
+                        String src = coalescedSeekSource;
+                        coalescedSeekRunnable = null;
+                        if (target >= 0 && src != null && !src.isEmpty()) {
+                            performSeek(target, src + "_coalesced");
+                        }
+                    };
+        }
+        seekCoalesceHandler.postDelayed(coalescedSeekRunnable, SEEK_COALESCE_MS);
     }
 
     private void performSeek(long positionMs, String source) {
         if (exoPlayer == null) {
             return;
         }
-        long currentPosition = exoPlayer.getCurrentPosition();
-        long duration = exoPlayer.getDuration();
-        if (Math.abs(positionMs - currentPosition) < 500) {
-            // #region agent log
-            try {
-                JSONObject data = new JSONObject();
-                data.put("source", source);
-                data.put("positionMs", positionMs);
-                data.put("currentPosition", currentPosition);
-                data.put("skipped", true);
-                agentLog("ExoPlayerPlugin.java:performSeek", "skipped near-duplicate seek", "C", data);
-            } catch (JSONException ignored) {
+        if (source != null
+                && (source.startsWith("seekbar")
+                        || "plugin_seekTo".equals(source)
+                        || "navigate_enter".equals(source))) {
+            cancelCoalescedSeek();
+        }
+        long bufferedEnd = exoPlayer.getBufferedPosition();
+        long seekPositionMs = positionMs;
+        if (currentStreamIsEventHls && bufferedEnd > 0) {
+            long maxSeekMs = Math.max(0, bufferedEnd - 1500);
+            if (seekPositionMs > maxSeekMs) {
+                seekPositionMs = maxSeekMs;
             }
-            // #endregion
+        }
+        if (Math.abs(seekPositionMs - exoPlayer.getCurrentPosition()) < 500) {
             return;
         }
-        final boolean shouldPrefetchCluster =
-            currentStreamUrl != null
-                && currentStreamUrl.toLowerCase().contains(".mkv")
-                && streamContentLength > 0
-                && duration > 0;
-        new Thread(() -> {
-            if (shouldPrefetchCluster) {
-                prefetchClusterAroundTimeMs(positionMs, duration);
-            }
-            if (getActivity() == null) {
-                return;
-            }
-            getActivity().runOnUiThread(() -> {
-                if (exoPlayer == null) {
-                    return;
-                }
-                // #region agent log
-                try {
-                    JSONObject data = new JSONObject();
-                    data.put("source", source);
-                    data.put("positionMs", positionMs);
-                    data.put("currentPosition", exoPlayer.getCurrentPosition());
-                    data.put("isSeeking", isSeeking);
-                    data.put("playbackState", exoPlayer.getPlaybackState());
-                    data.put("runId", "post-fix-v6");
-                    data.put("indexTailPrewarmed", indexTailPrewarmed);
-                    data.put("streamContentLength", streamContentLength);
-                    data.put("mkvCueCount", mkvCueIndex != null ? mkvCueIndex.length : 0);
-                    data.put("clusterPrefetched", shouldPrefetchCluster);
-                    data.put("seekParameters", currentContentIsDolbyVision ? "dv_tolerant" : "closest_sync");
-                    agentLog("ExoPlayerPlugin.java:performSeek", "exoPlayer.seekTo", "C", data);
-                } catch (JSONException ignored) {
-                }
-                // #endregion
-                applySeekParametersForContent();
-                int mediaItemIndex = exoPlayer.getCurrentMediaItemIndex();
-                if (mediaItemIndex < 0) {
-                    exoPlayer.seekTo(positionMs);
-                } else {
-                    exoPlayer.seekTo(mediaItemIndex, positionMs);
-                }
-            });
-        }, "seek-with-prefetch").start();
-    }
+        lastSeekTime = System.currentTimeMillis();
+        final long targetMs = seekPositionMs;
+        final String seekSource = source != null ? source : "unknown";
 
-    private static final long MANUAL_SKIP_COOLDOWN_MS = 500; // Don't let time updates override manual skips for 500ms
+        Runnable seekRunnable =
+                () -> {
+                    if (exoPlayer == null) {
+                        return;
+                    }
+                    lastCommittedSeekMs = System.currentTimeMillis();
+                    lastCommittedSeekSource = seekSource;
+                    applySeekParametersForContent();
+                    int mediaItemIndex = exoPlayer.getCurrentMediaItemIndex();
+                    if (mediaItemIndex < 0) {
+                        exoPlayer.seekTo(targetMs);
+                    } else {
+                        exoPlayer.seekTo(mediaItemIndex, targetMs);
+                    }
+                };
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(seekRunnable);
+        } else {
+            seekRunnable.run();
+        }
+    }
 
     @PluginMethod
     public void initialize(PluginCall call) {
@@ -984,6 +872,11 @@ public class ExoPlayerPlugin extends Plugin {
         
         // Create audio track list container as a separate full-screen overlay
         createAudioTrackListContainer(container);
+        createSubtitleTrackListContainer(container);
+
+        subtitleTrackBtn = controlsView.findViewById(R.id.subtitleTrackBtn);
+        currentSubtitleTrackLabel = null;
+        subtitleTrackRow = null;
 
         // Set up seek bar with high precision (10000 = 0.01% precision)
         // This prevents rounding issues where small skips near the end don't move the seekbar
@@ -1020,13 +913,8 @@ public class ExoPlayerPlugin extends Plugin {
                             }
                         }
                         
-                        // Resume playback if it was playing before seeking
-                        if (wasSeeking && wasPlayingBeforeSeek && exoPlayer != null) {
-                            exoPlayer.play();
-                            isPaused = false;
-                            if (playPauseBtn != null) {
-                                playPauseBtn.setImageResource(android.R.drawable.ic_media_pause);
-                            }
+                        if (wasSeeking) {
+                            resumePlaybackAfterSeekIfNeeded();
                         }
                         
                         // Restart time updates
@@ -1035,7 +923,12 @@ public class ExoPlayerPlugin extends Plugin {
                         // Restart controls auto-hide timer (5 seconds after seeking completes)
                         resetControlsHideTimer();
                         
-                        Log.d(TAG, "Seek completed on Enter (seekbar listener) - wasSeeking: " + wasSeeking + ", resumed: " + (wasSeeking && wasPlayingBeforeSeek));
+                        Log.d(
+                                TAG,
+                                "Seek completed on Enter (seekbar listener) - wasSeeking: "
+                                        + wasSeeking
+                                        + ", resumed: "
+                                        + wasPlayingBeforeSeek);
                         return true; // Consume the event
                     }
                     
@@ -1120,6 +1013,18 @@ public class ExoPlayerPlugin extends Plugin {
             public void onStopTrackingTouch(SeekBar seekBar) {
                 isSeeking = false;
                 seekStartTime = 0; // Reset seek start time
+
+                // Shield remote uses Enter (seekbar_enter); touch release must not double-seek.
+                if (System.currentTimeMillis() - lastCommittedSeekMs < 1000
+                        && lastCommittedSeekSource != null
+                        && (lastCommittedSeekSource.startsWith("seekbar_enter")
+                                || "navigate_enter".equals(lastCommittedSeekSource))) {
+                    Log.d(TAG, "Skipping seekbar_release (already committed via Enter)");
+                    startTimeUpdates();
+                    resetControlsHideTimer();
+                    pendingSeekPosition = -1;
+                    return;
+                }
                 
                 // Get the final progress directly from the seekbar since we may have removed the listener
                 // This ensures we get the exact position where the user released, even if onProgressChanged
@@ -1136,12 +1041,7 @@ public class ExoPlayerPlugin extends Plugin {
                     }
                 }
                 
-                // Resume playback if it was playing before seeking
-                if (wasPlayingBeforeSeek && exoPlayer != null) {
-                    exoPlayer.play();
-                    isPaused = false;
-                    playPauseBtn.setImageResource(android.R.drawable.ic_media_pause);
-                }
+                resumePlaybackAfterSeekIfNeeded();
                 
                 // Restart time updates to reflect the new position (always, whether playing or paused)
                 startTimeUpdates();
@@ -1169,6 +1069,10 @@ public class ExoPlayerPlugin extends Plugin {
         playPauseBtn.setOnClickListener(v -> {
             android.util.Log.d("ExoPlayerPlugin", ">>> playPauseBtn clicked <<<");
                 getActivity().runOnUiThread(() -> {
+                    if (exoPlayer == null) {
+                        Log.w(TAG, "playPauseBtn ignored — ExoPlayer not initialized");
+                        return;
+                    }
                     if (isPaused && controlsVisible) {
                         exoPlayer.play();
                         isPaused = false;
@@ -1267,6 +1171,63 @@ hideAudioTrackList();
         setupButtonFocus(nextEpisodeBtn);
         setupButtonFocus(audioTrackBtn);
 
+        subtitleTrackBtn.setOnClickListener(
+                v -> {
+                    toggleSubtitleTrackList();
+                    resetControlsHideTimer();
+                });
+
+        subtitleTrackBtn.setOnFocusChangeListener(
+                new OnFocusChangeListener() {
+                    @Override
+                    public void onFocusChange(View v, boolean hasFocus) {
+                        if (hasFocus
+                                && subtitleTrackListContainer != null
+                                && subtitleTrackListContainer.getVisibility() == View.GONE) {
+                            if (!suppressAutoShowSubtitleList
+                                    && subtitleTrackBtn.getVisibility() == View.VISIBLE) {
+                                showSubtitleTrackList();
+                            }
+                        } else if (!hasFocus
+                                && subtitleTrackListContainer != null
+                                && subtitleTrackListContainer.getVisibility() == View.VISIBLE) {
+                            boolean focusOnList = false;
+                            for (Button btn : subtitleTrackButtons) {
+                                if (btn.hasFocus()) {
+                                    focusOnList = true;
+                                    break;
+                                }
+                            }
+                            if (!focusOnList) {
+                                hideSubtitleTrackList();
+                            }
+                        }
+                    }
+                });
+
+        subtitleTrackBtn.setOnKeyListener(
+                new View.OnKeyListener() {
+                    @Override
+                    public boolean onKey(View v, int keyCode, KeyEvent event) {
+                        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                            if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                                    || keyCode == KeyEvent.KEYCODE_ENTER) {
+                                if (subtitleTrackListContainer != null
+                                        && subtitleTrackListContainer.getVisibility()
+                                                == View.GONE) {
+                                    showSubtitleTrackList();
+                                } else if (!subtitleTrackButtons.isEmpty()) {
+                                    subtitleTrackButtons.get(0).requestFocus();
+                                }
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                });
+
+        setupButtonFocus(subtitleTrackBtn);
+
         // Add controls to container
         container.addView(controlsView);
 
@@ -1283,6 +1244,30 @@ if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     // Check if audio track list is visible - if so, let the buttons handle navigation
                     boolean audioListVisible = audioTrackListContainer != null && 
                         audioTrackListContainer.getVisibility() == View.VISIBLE;
+                    boolean subtitleListVisible = subtitleTrackListContainer != null
+                            && subtitleTrackListContainer.getVisibility() == View.VISIBLE;
+
+                    if (subtitleListVisible) {
+                        if (keyCode == KeyEvent.KEYCODE_BACK
+                                || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                            subtitleTrackListContainer.setVisibility(View.GONE);
+                            isShowingSubtitleTrackList = false;
+                            getActivity().runOnUiThread(() -> {
+                                showControls(null);
+                                if (subtitleTrackBtn != null) {
+                                    subtitleTrackBtn.requestFocus();
+                                }
+                            });
+                            return true;
+                        }
+                        View focusedView = getActivity().getCurrentFocus();
+                        if (focusedView == null || !subtitleTrackButtons.contains(focusedView)) {
+                            if (!subtitleTrackButtons.isEmpty()) {
+                                subtitleTrackButtons.get(0).requestFocus();
+                            }
+                        }
+                        return false;
+                    }
                     
                     if (audioListVisible) {
                         // If audio list is visible, only handle Back and Left to close it
@@ -1538,6 +1523,454 @@ if (event.getAction() == KeyEvent.ACTION_DOWN) {
         container.addView(audioTrackListContainer);
     }
 
+    private void createSubtitleTrackListContainer(FrameLayout container) {
+        subtitleTrackListContainer = new LinearLayout(getContext());
+        subtitleTrackListContainer.setOrientation(LinearLayout.VERTICAL);
+        subtitleTrackListContainer.setPadding(0, 0, 0, 0);
+        subtitleTrackListContainer.setGravity(Gravity.START);
+        subtitleTrackListContainer.setVisibility(View.GONE);
+        subtitleTrackListContainer.setFocusable(false);
+        subtitleTrackListContainer.setFocusableInTouchMode(false);
+        subtitleTrackListContainer.setDescendantFocusability(LinearLayout.FOCUS_AFTER_DESCENDANTS);
+        subtitleTrackListContainer.setElevation(15f);
+
+        FrameLayout.LayoutParams containerParams =
+                new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT);
+        subtitleTrackListContainer.setLayoutParams(containerParams);
+
+        LinearLayout innerContainer = new LinearLayout(getContext());
+        innerContainer.setOrientation(LinearLayout.VERTICAL);
+        int screenWidth = getContext().getResources().getDisplayMetrics().widthPixels;
+        int listWidth = screenWidth / 3;
+        LinearLayout.LayoutParams innerParams =
+                new LinearLayout.LayoutParams(
+                        listWidth, LinearLayout.LayoutParams.MATCH_PARENT);
+        innerParams.gravity = Gravity.START;
+        innerContainer.setLayoutParams(innerParams);
+        innerContainer.setGravity(Gravity.START);
+        innerContainer.setBackgroundColor(Color.argb(230, 0, 0, 0));
+        float density = getContext().getResources().getDisplayMetrics().density;
+        int pad = (int) (10 * density);
+        innerContainer.setPadding(pad, pad, pad, pad);
+        innerContainer.setFocusable(false);
+        innerContainer.setFocusableInTouchMode(false);
+        innerContainer.setDescendantFocusability(LinearLayout.FOCUS_AFTER_DESCENDANTS);
+
+        TextView titleView = new TextView(getContext());
+        titleView.setText("Select Subtitles");
+        titleView.setTextColor(Color.WHITE);
+        titleView.setTextSize(18);
+        titleView.setTypeface(null, android.graphics.Typeface.BOLD);
+        titleView.setPadding(0, 0, 0, (int) (10 * density));
+
+        subtitleTrackScrollView = new android.widget.ScrollView(getContext());
+        LinearLayout.LayoutParams scrollParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f);
+        subtitleTrackScrollView.setLayoutParams(scrollParams);
+        subtitleTrackScrollView.setFillViewport(true);
+        subtitleTrackScrollView.setFocusable(false);
+        subtitleTrackScrollView.setFocusableInTouchMode(false);
+        subtitleTrackScrollView.setDescendantFocusability(
+                android.widget.ScrollView.FOCUS_AFTER_DESCENDANTS);
+
+        subtitleTrackList = new LinearLayout(getContext());
+        subtitleTrackList.setOrientation(LinearLayout.VERTICAL);
+
+        subtitleTrackScrollView.addView(subtitleTrackList);
+        innerContainer.addView(titleView);
+        innerContainer.addView(subtitleTrackScrollView);
+        subtitleTrackListContainer.addView(innerContainer);
+        container.addView(subtitleTrackListContainer);
+    }
+
+    private void applySubtitleSelectionForLoad(String subtitleUrl) {
+        if (subtitleUrl != null && !subtitleUrl.isEmpty()) {
+            selectedSubtitleUrl = subtitleUrl;
+            selectedSubtitleTrackIndex = 0;
+            for (int i = 0; i < availableSubtitleTracks.size(); i++) {
+                if (subtitleUrl.equals(availableSubtitleTracks.get(i).url)) {
+                    selectedSubtitleTrackIndex = i;
+                    break;
+                }
+            }
+        } else if (!availableSubtitleTracks.isEmpty()) {
+            selectedSubtitleUrl = availableSubtitleTracks.get(0).url;
+            selectedSubtitleTrackIndex = 0;
+        } else {
+            selectedSubtitleUrl = null;
+            selectedSubtitleTrackIndex = -1;
+        }
+    }
+
+    private void parseSubtitleTracksFromCall(PluginCall call, String fallbackSubtitleUrl) {
+        availableSubtitleTracks.clear();
+        try {
+            JSONArray tracksJson = call.getArray("subtitleTracks");
+            if (tracksJson != null) {
+                for (int i = 0; i < tracksJson.length(); i++) {
+                    JSONObject o = tracksJson.getJSONObject(i);
+                    String label = o.optString("label", "Subtitle " + (i + 1));
+                    String url = o.optString("url", "");
+                    if (url != null && !url.isEmpty()) {
+                        availableSubtitleTracks.add(new SubtitleTrackOption(label, url));
+                    }
+                }
+            }
+        } catch (JSONException e) {
+            Log.w(TAG, "parseSubtitleTracksFromCall: " + e.getMessage());
+        }
+
+        if (fallbackSubtitleUrl != null
+                && !fallbackSubtitleUrl.isEmpty()
+                && !containsSubtitleUrl(fallbackSubtitleUrl)) {
+            availableSubtitleTracks.add(
+                    0, new SubtitleTrackOption("English (VTT)", fallbackSubtitleUrl));
+        }
+    }
+
+    private boolean containsSubtitleUrl(String url) {
+        for (SubtitleTrackOption option : availableSubtitleTracks) {
+            if (url.equals(option.url)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void updateSubtitleTrackUI() {
+        if (subtitleTrackBtn == null) {
+            return;
+        }
+        getActivity()
+                .runOnUiThread(
+                        () -> {
+                            int itemCount = availableSubtitleTracks.size() + 1;
+                            if (itemCount > 1) {
+                                subtitleTrackBtn.setVisibility(View.VISIBLE);
+                                populateSubtitleTrackList();
+                            } else {
+                                subtitleTrackBtn.setVisibility(View.GONE);
+                                hideSubtitleTrackList();
+                            }
+                        });
+    }
+
+    private void populateSubtitleTrackList() {
+        if (subtitleTrackList == null) {
+            return;
+        }
+        subtitleTrackList.removeAllViews();
+        subtitleTrackButtons.clear();
+
+        addSubtitleListButton("Off", -1, selectedSubtitleTrackIndex < 0);
+
+        for (int i = 0; i < availableSubtitleTracks.size(); i++) {
+            SubtitleTrackOption option = availableSubtitleTracks.get(i);
+            addSubtitleListButton(option.label, i, selectedSubtitleTrackIndex == i);
+        }
+    }
+
+    private void addSubtitleListButton(String label, int trackIndex, boolean selected) {
+        Button trackButton = new Button(getContext());
+        trackButton.setText(label);
+        trackButton.setTextColor(selected ? Color.YELLOW : Color.WHITE);
+        trackButton.setBackgroundColor(
+                selected ? Color.argb(100, 255, 255, 0) : Color.TRANSPARENT);
+        float density = getContext().getResources().getDisplayMetrics().density;
+        trackButton.setPadding(
+                (int) (20 * density),
+                (int) (15 * density),
+                (int) (20 * density),
+                (int) (15 * density));
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, (int) (5 * density), 0, 0);
+        trackButton.setLayoutParams(params);
+        trackButton.setFocusable(true);
+        trackButton.setFocusableInTouchMode(true);
+        setupButtonFocus(trackButton);
+
+        final int index = trackIndex;
+        trackButton.setOnClickListener(v -> selectSubtitleTrack(index));
+
+        trackButton.setOnKeyListener(
+                new View.OnKeyListener() {
+                    @Override
+                    public boolean onKey(View v, int keyCode, KeyEvent event) {
+                        if (event.getAction() != KeyEvent.ACTION_DOWN) {
+                            return false;
+                        }
+                        if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                            int btnIndex = subtitleTrackButtons.indexOf(trackButton);
+                            if (btnIndex > 0) {
+                                subtitleTrackButtons.get(btnIndex - 1).requestFocus();
+                            } else {
+                                subtitleTrackBtn.requestFocus();
+                            }
+                            return true;
+                        }
+                        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                            int btnIndex = subtitleTrackButtons.indexOf(trackButton);
+                            if (btnIndex < subtitleTrackButtons.size() - 1) {
+                                subtitleTrackButtons.get(btnIndex + 1).requestFocus();
+                            }
+                            return true;
+                        }
+                        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+                                || keyCode == KeyEvent.KEYCODE_BACK) {
+                            subtitleTrackBtn.requestFocus();
+                            hideSubtitleTrackList();
+                            return true;
+                        }
+                        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                                || keyCode == KeyEvent.KEYCODE_ENTER) {
+                            selectSubtitleTrack(index);
+                            return true;
+                        }
+                        return false;
+                    }
+                });
+
+        subtitleTrackList.addView(trackButton);
+        subtitleTrackButtons.add(trackButton);
+    }
+
+    private void selectSubtitleTrack(int trackIndex) {
+        if (trackIndex < 0) {
+            selectedSubtitleTrackIndex = -1;
+            selectedSubtitleUrl = null;
+        } else if (trackIndex < availableSubtitleTracks.size()) {
+            selectedSubtitleTrackIndex = trackIndex;
+            selectedSubtitleUrl = availableSubtitleTracks.get(trackIndex).url;
+        } else {
+            return;
+        }
+        populateSubtitleTrackList();
+        applySelectedSubtitleToPlayer();
+        hideSubtitleTrackList();
+        if (subtitleTrackBtn != null) {
+            subtitleTrackBtn.requestFocus();
+        }
+    }
+
+    /**
+     * Short branding intro (DV Amaze, etc.) — HTTP or local progressive source, no subtitles.
+     */
+    private MediaSource buildSimpleProgressiveMediaSource(String rawUrl) {
+        if (rawUrl == null || rawUrl.isEmpty()) {
+            return null;
+        }
+        try {
+            String path = rawUrl.trim();
+            boolean isHls = path.toLowerCase(Locale.US).contains(".m3u8");
+            if (!isHls
+                    && (path.startsWith("http://") || path.startsWith("https://"))) {
+                String localPath = tryResolveLocalMkvPath(path);
+                if (localPath != null) {
+                    path = localPath;
+                }
+            }
+            boolean isHttp =
+                    path.startsWith("http://") || path.startsWith("https://");
+            if (!isHttp) {
+                File localFile = new File(path);
+                if (!localFile.exists() || !localFile.canRead()) {
+                    Log.w(TAG, "Intro path not readable: " + path);
+                    return null;
+                }
+            }
+            Uri uri = isHttp ? Uri.parse(path) : Uri.fromFile(new File(path));
+            MediaItem item = new MediaItem.Builder().setUri(uri).build();
+            DataSource.Factory factory;
+            if (isHttp) {
+                factory =
+                        new DefaultHttpDataSource.Factory()
+                                .setAllowCrossProtocolRedirects(true)
+                                .setConnectTimeoutMs(15000)
+                                .setReadTimeoutMs(15000);
+            } else {
+                factory = new DefaultDataSource.Factory(getContext());
+            }
+            if (isHls) {
+                return new HlsMediaSource.Factory(factory).createMediaSource(item);
+            }
+            return new ProgressiveMediaSource.Factory(factory).createMediaSource(item);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to build intro media source: " + rawUrl, e);
+            return null;
+        }
+    }
+
+    private MediaItem buildMediaItemForCurrentPlayback() {
+        if (currentPlaybackUri == null) {
+            return null;
+        }
+        MediaItem.Builder mediaItemBuilder = new MediaItem.Builder().setUri(currentPlaybackUri);
+        if (currentPlaybackIsHls) {
+            mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8);
+        } else if (currentPlaybackIsHttpMkv) {
+            mediaItemBuilder.setMimeType(MimeTypes.VIDEO_MATROSKA);
+        }
+        if (selectedSubtitleUrl != null && !selectedSubtitleUrl.isEmpty()) {
+            mediaItemBuilder.setSubtitleConfigurations(
+                    java.util.Collections.singletonList(
+                            new MediaItem.SubtitleConfiguration.Builder(
+                                            Uri.parse(selectedSubtitleUrl))
+                                    .setMimeType(MimeTypes.TEXT_VTT)
+                                    .setLanguage("en")
+                                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                                    .build()));
+        }
+        return mediaItemBuilder.build();
+    }
+
+    private void applySelectedSubtitleToPlayer() {
+        if (exoPlayer == null || currentPlaybackUri == null) {
+            return;
+        }
+        long position = exoPlayer.getCurrentPosition();
+        boolean playWhenReady = exoPlayer.getPlayWhenReady();
+        MediaItem mediaItem = buildMediaItemForCurrentPlayback();
+        if (mediaItem == null) {
+            return;
+        }
+        exoPlayer.setMediaItem(mediaItem, true);
+        exoPlayer.prepare();
+        exoPlayer.seekTo(position);
+        exoPlayer.setPlayWhenReady(playWhenReady);
+    }
+
+    private void toggleSubtitleTrackList() {
+        if (subtitleTrackListContainer == null) {
+            return;
+        }
+        getActivity()
+                .runOnUiThread(
+                        () -> {
+                            hideAudioTrackList();
+                            if (isSubtitleTrackListVisible()) {
+                                hideSubtitleTrackList();
+                            } else {
+                                suppressAutoShowSubtitleList = false;
+                                showSubtitleTrackList();
+                            }
+                        });
+    }
+
+    private void showSubtitleTrackList() {
+        if (subtitleTrackListContainer == null || subtitleTrackList == null) {
+            return;
+        }
+        getActivity()
+                .runOnUiThread(
+                        () -> {
+                            hideAudioTrackList();
+                            isShowingSubtitleTrackList = true;
+                            hideControls(null);
+                            if (containerView != null && containerView.hasFocus()) {
+                                containerView.clearFocus();
+                            }
+                            subtitleTrackListContainer.setVisibility(View.VISIBLE);
+                            int focusIndex =
+                                    selectedSubtitleTrackIndex >= 0
+                                            ? selectedSubtitleTrackIndex + 1
+                                            : 0;
+                            if (focusIndex >= 0 && focusIndex < subtitleTrackButtons.size()) {
+                                subtitleTrackButtons.get(focusIndex).requestFocus();
+                            } else if (!subtitleTrackButtons.isEmpty()) {
+                                subtitleTrackButtons.get(0).requestFocus();
+                            }
+                        });
+    }
+
+    private void hideSubtitleTrackList() {
+        if (subtitleTrackListContainer == null) {
+            return;
+        }
+        getActivity()
+                .runOnUiThread(
+                        () -> {
+                            isShowingSubtitleTrackList = false;
+                            focusedSubtitleTrackIndex = -1;
+                            subtitleTrackListContainer.setVisibility(View.GONE);
+                            if (controlsVisible
+                                    && controlsView != null
+                                    && controlsView.getVisibility() == View.VISIBLE) {
+                                resetControlsHideTimer();
+                            } else if (!controlsVisible && !isShowingSubtitleTrackList) {
+                                showControls(null);
+                            }
+                        });
+    }
+
+    private boolean isSubtitleTrackListVisible() {
+        return isShowingSubtitleTrackList
+                || (subtitleTrackListContainer != null
+                        && subtitleTrackListContainer.getVisibility() == View.VISIBLE);
+    }
+
+    public boolean handleSubtitleListKey(int keyCode) {
+        if (!isSubtitleTrackListVisible()
+                || subtitleTrackButtons.isEmpty()
+                || getActivity() == null) {
+            return false;
+        }
+
+        View focused = getActivity().getCurrentFocus();
+        int currentIndex = 0;
+        for (int i = 0; i < subtitleTrackButtons.size(); i++) {
+            if (subtitleTrackButtons.get(i) == focused) {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                if (currentIndex < subtitleTrackButtons.size() - 1) {
+                    subtitleTrackButtons.get(currentIndex + 1).requestFocus();
+                }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_UP:
+                if (currentIndex > 0) {
+                    subtitleTrackButtons.get(currentIndex - 1).requestFocus();
+                }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                final int selectIndex = currentIndex;
+                getActivity()
+                        .runOnUiThread(
+                                () -> {
+                                    if (selectIndex == 0) {
+                                        selectSubtitleTrack(-1);
+                                    } else {
+                                        selectSubtitleTrack(selectIndex - 1);
+                                    }
+                                });
+                return true;
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_BACK:
+                getActivity()
+                        .runOnUiThread(
+                                () -> {
+                                    hideSubtitleTrackList();
+                                    if (subtitleTrackBtn != null) {
+                                        subtitleTrackBtn.requestFocus();
+                                    }
+                                    showControls(null);
+                                });
+                return true;
+            default:
+                return false;
+        }
+    }
+
     private JSObject createSkipObject(int seconds) {
         JSObject obj = new JSObject();
         obj.put("skipBy", seconds);
@@ -1710,9 +2143,8 @@ return true;
         // Store this as the pending position for next rapid skip
         pendingSeekPosition = newPosition;
         
-        lastSeekTime = System.currentTimeMillis();
         lastManualSkipTime = System.currentTimeMillis(); // Track manual skip for time update blocking
-        performSeek(newPosition, "skip_forward");
+        scheduleCoalescedSeek(newPosition, "skip_forward");
         
         // Update seekbar to reflect new position IMMEDIATELY on UI thread
         // This must happen synchronously to prevent time updates from overwriting it
@@ -1731,7 +2163,12 @@ return true;
             }
         }
         
-        android.util.Log.d("ExoPlayerPlugin", "Skipped forward " + seconds + " seconds to position " + newPosition);
+        android.util.Log.d(
+                TAG,
+                "Skipped forward "
+                        + seconds
+                        + "s (coalesced) preview="
+                        + newPosition);
     }
 
     private void skipBackward(int seconds) {
@@ -1751,9 +2188,8 @@ return true;
         // Store this as the pending position for next rapid skip
         pendingSeekPosition = newPosition;
         
-        lastSeekTime = System.currentTimeMillis();
         lastManualSkipTime = System.currentTimeMillis(); // Track manual skip for time update blocking
-        performSeek(newPosition, "skip_backward");
+        scheduleCoalescedSeek(newPosition, "skip_backward");
         
         // Update seekbar to reflect new position IMMEDIATELY on UI thread
         // This must happen synchronously to prevent time updates from overwriting it
@@ -2384,42 +2820,12 @@ if (event.getAction() == KeyEvent.ACTION_DOWN) {
 // Clear all existing audio track overrides first, then add the new one
         // This ensures only one audio track is selected at a time
         TrackSelectionParameters.Builder paramsBuilder = currentTrackParams.buildUpon();
-// Clear all audio track overrides using clearOverridesOfType
-        paramsBuilder.clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_AUDIO);
-        
-        // Now add the new override
-        paramsBuilder.addOverride(override);
-        
+        paramsBuilder.setOverrideForType(override);
+
         TrackSelectionParameters newParams = paramsBuilder.build();
         final long audioSwitchPositionMs = exoPlayer.getCurrentPosition();
-        final long audioSwitchDurationMs = exoPlayer.getDuration();
-        // #region agent log
-        try {
-            JSONObject data = new JSONObject();
-            data.put("trackName", trackName);
-            data.put("mime", format.sampleMimeType);
-            data.put("userInitiated", userInitiated);
-            data.put("positionMs", audioSwitchPositionMs);
-            agentLog("ExoPlayerPlugin.java:selectAudioTrack", "audio track switch", "D", data);
-        } catch (JSONException ignored) {
-        }
-        // #endregion
-        if (userInitiated
-                && currentStreamUrl != null
-                && currentStreamUrl.toLowerCase().contains(".mkv")
-                && streamContentLength > 0
-                && audioSwitchDurationMs > 0) {
-            new Thread(() -> {
-                prefetchClusterAroundTimeMs(audioSwitchPositionMs, audioSwitchDurationMs);
-                if (getActivity() == null) {
-                    return;
-                }
-                getActivity().runOnUiThread(() ->
-                    applyAudioTrackSelectionUi(newParams, globalIndex, trackName, groupIdx, trackIdx));
-            }, "audio-switch-prefetch").start();
-        } else {
-            applyAudioTrackSelectionUi(newParams, globalIndex, trackName, groupIdx, trackIdx);
-        }
+        lastAudioTrackSwitchMs = System.currentTimeMillis();
+        applyAudioTrackSelectionUi(newParams, globalIndex, trackName, groupIdx, trackIdx);
     }
 
     private void toggleAudioTrackList() {
@@ -2428,10 +2834,10 @@ return;
         }
 
         getActivity().runOnUiThread(() -> {
-if (audioTrackListContainer.getVisibility() == View.VISIBLE) {
-hideAudioTrackList();
+            hideSubtitleTrackList();
+            if (audioTrackListContainer.getVisibility() == View.VISIBLE) {
+                hideAudioTrackList();
             } else {
-// Clear suppress flag when user explicitly toggles
                 suppressAutoShowAudioList = false;
                 showAudioTrackList();
             }
@@ -2445,6 +2851,7 @@ return;
 
         getActivity().runOnUiThread(() -> {
             android.util.Log.d("ExoPlayerPlugin", "showAudioTrackList() called");
+            hideSubtitleTrackList();
 // Set flag to prevent hideControls from hiding the audio list
             isShowingAudioTrackList = true;
             android.util.Log.d("ExoPlayerPlugin", "Set isShowingAudioTrackList = true");
@@ -2540,11 +2947,10 @@ if (!audioTrackButtons.isEmpty()) {
         // Note: addOverride() will automatically replace any existing override for the same TrackGroup
         TrackSelectionOverride override = new TrackSelectionOverride(mediaTrackGroup, Collections.singletonList(trackIndex));
         
-        // Apply the new track selection parameters
-        // addOverride() replaces any existing override for the same TrackGroup, so we don't need to manually remove it
+        lastAudioTrackSwitchMs = System.currentTimeMillis();
         exoPlayer.setTrackSelectionParameters(
             currentTrackParams.buildUpon()
-                .addOverride(override)
+                .setOverrideForType(override)
                 .build()
         );
 
@@ -2831,84 +3237,172 @@ if (!audioTrackButtons.isEmpty()) {
         try {
             String url = call.getString("url");
             String subtitleUrl = call.getString("subtitleUrl");
-            boolean dolbyVision = call.getBoolean("dolbyVision", false);
-            currentContentIsDolbyVision = dolbyVision;
-
+            String fallbackStreamUrl = call.getString("fallbackStreamUrl");
+            String introUrl = call.getString("introUrl");
             // Note: ExoPlayer is created in this method, so we don't check for null here
             // The container and PlayerView are set up in initialize(), but ExoPlayer itself
             // is created here when loading the video
 
             getActivity().runOnUiThread(() -> {
                 try {
-                    updateAgentDebugUrlFromVideoUrl(url);
+                    if (isUgoosDevice()) {
+                        stopWebViewHtmlMedia();
+                    }
                     releaseExoPlayer(false);
-                    currentStreamUrl = url;
+                    cancelCoalescedSeek();
+                    parseSubtitleTracksFromCall(call, subtitleUrl);
+                    applySubtitleSelectionForLoad(subtitleUrl);
+
+                    String playbackPath = url;
+                    boolean isHlsUrl =
+                        playbackPath != null
+                            && playbackPath.toLowerCase().contains(".m3u8");
+                    if (playbackPath != null
+                            && !isHlsUrl
+                            && (playbackPath.startsWith("http://")
+                                    || playbackPath.startsWith("https://"))) {
+                        String localPath = tryResolveLocalMkvPath(playbackPath);
+                        if (localPath != null) {
+                            playbackPath = localPath;
+                            Log.i(TAG, "Using local MKV: " + localPath);
+                        }
+                    }
+
+                    boolean isHttpStream =
+                        playbackPath != null
+                            && (playbackPath.startsWith("http://")
+                                    || playbackPath.startsWith("https://"));
+                    boolean localMountedFile =
+                        !isHttpStream
+                            && playbackPath != null
+                            && playbackPath.startsWith("/");
+                    if (localMountedFile) {
+                        File localFile = new File(playbackPath);
+                        if (!localFile.exists() || !localFile.canRead()) {
+                            String remapped = null;
+                            if (fallbackStreamUrl != null && !fallbackStreamUrl.isEmpty()) {
+                                remapped = tryResolveLocalMkvPath(fallbackStreamUrl);
+                            }
+                            if (remapped != null) {
+                                playbackPath = remapped;
+                                Log.i(
+                                    TAG,
+                                    "Local mount remapped via SMB discovery: " + remapped);
+                                localMountedFile = true;
+                            } else if (fallbackStreamUrl != null
+                                    && (fallbackStreamUrl.startsWith("http://")
+                                            || fallbackStreamUrl.startsWith("https://"))) {
+                                playbackPath = fallbackStreamUrl;
+                                isHttpStream = true;
+                                localMountedFile = false;
+                            } else {
+                                Log.e(TAG, "Local mount path not readable: " + playbackPath);
+                            }
+                        }
+                    }
+
+                    if (playbackPath != null
+                            && !isHlsUrl
+                            && (playbackPath.startsWith("http://")
+                                    || playbackPath.startsWith("https://"))) {
+                        String localPath = tryResolveLocalMkvPath(playbackPath);
+                        if (localPath != null) {
+                            playbackPath = localPath;
+                            isHttpStream = false;
+                            localMountedFile = true;
+                            Log.i(TAG, "Using local MKV: " + localPath);
+                        }
+                    }
+
+                    isHttpStream =
+                        playbackPath != null
+                            && (playbackPath.startsWith("http://")
+                                    || playbackPath.startsWith("https://"));
+                    localMountedFile =
+                        !isHttpStream
+                            && playbackPath != null
+                            && playbackPath.startsWith("/");
+
+                    currentStreamUrl = playbackPath;
+                    currentStreamIsEventHls =
+                        isHlsUrl
+                            && playbackPath != null
+                            && playbackPath.contains("shield-streams");
                     streamContentLength = -1;
-                    mkvCueIndex = null;
-                    lastCachedPrefetchStart = -1;
-                    lastCachedPrefetchEnd = -1;
                     indexTailPrewarmed = false;
                     indexTailPrewarmInProgress = false;
-                    if (url != null && url.toLowerCase().contains(".mkv")) {
-                        fetchMkvCueIndexAsync(url);
-                    }
-                    currentContentIsDolbyVision = dolbyVision;
-                    pendingDvHdrDisplayMode = dolbyVision;
                     hasAppliedHdrDisplayMode = false;
-                    // Create HttpDataSourceFactory with cross-protocol redirects enabled
-                    // ExoPlayer's DefaultHttpDataSource automatically sends Range headers
-                    // when making requests for progressive media streams via ProgressiveMediaSource
+                    pendingHdrDisplayMode = false;
 
+                    Uri playbackUri =
+                        isHttpStream
+                            ? Uri.parse(playbackPath)
+                            : Uri.fromFile(new File(playbackPath));
 
-                    // When using ProgressiveMediaSource, ExoPlayer automatically adds Range headers
-                    // (e.g., "Range: bytes=0-1048575") for chunked requests. This is handled
-                    // internally by the DataSource when reading progressive media files.
+                    currentPlaybackUri = playbackUri;
+                    currentPlaybackIsHls = isHlsUrl;
+                    currentPlaybackIsHttpMkv =
+                        playbackPath != null
+                            && (playbackPath.toLowerCase().contains(".mkv")
+                                    || playbackPath.contains("/api/mov/stream"));
 
-                    // Create MediaItem
-                    MediaItem.Builder mediaItemBuilder = new MediaItem.Builder()
-                        .setUri(url);
-                    if (url != null && url.toLowerCase().contains(".mkv")) {
-                        mediaItemBuilder.setMimeType(MimeTypes.VIDEO_MATROSKA);
+                    MediaItem mediaItem = buildMediaItemForCurrentPlayback();
+                    if (mediaItem == null) {
+                        mediaItem =
+                                new MediaItem.Builder().setUri(playbackUri).build();
+                    }
+                    updateSubtitleTrackUI();
+
+                    DataSource.Factory playbackDataSourceFactory;
+                    if (isHttpStream) {
+                        DefaultHttpDataSource.Factory httpDataSourceFactory =
+                            new DefaultHttpDataSource.Factory()
+                                .setAllowCrossProtocolRedirects(true)
+                                .setConnectTimeoutMs(15000)
+                                .setReadTimeoutMs(15000);
+                        if (isHlsUrl) {
+                            // HLS: no SimpleCache — stale fMP4 init/playlist was causing EOF on FragmentedMp4Extractor.
+                            activeCacheDataSourceFactory = null;
+                            playbackDataSourceFactory = httpDataSourceFactory;
+                        } else {
+                            activeCacheDataSourceFactory =
+                                buildCacheDataSourceFactory(httpDataSourceFactory);
+                            playbackDataSourceFactory = activeCacheDataSourceFactory;
+                        }
+                    } else {
+                        activeCacheDataSourceFactory = null;
+                        playbackDataSourceFactory =
+                            new DefaultDataSource.Factory(getContext());
                     }
 
-                    if (subtitleUrl != null && !subtitleUrl.isEmpty() && !dolbyVision) {
-                        Uri subtitleUri = Uri.parse(subtitleUrl);
-                        mediaItemBuilder.setSubtitleConfigurations(
-                            java.util.Collections.singletonList(
-                                new androidx.media3.common.MediaItem.SubtitleConfiguration.Builder(subtitleUri)
-                                    .setMimeType("text/vtt")
-                                    .setLanguage("en")
-                                    .build()
-                            )
-                        );
+                    MediaSource mediaSource;
+                    if (isHlsUrl) {
+                        mediaSource =
+                            new HlsMediaSource.Factory(playbackDataSourceFactory)
+                                .createMediaSource(mediaItem);
+                    } else {
+                        ProgressiveMediaSource.Factory progressiveFactory =
+                            new ProgressiveMediaSource.Factory(playbackDataSourceFactory);
+                        mediaSource = progressiveFactory.createMediaSource(mediaItem);
                     }
-
-                    MediaItem mediaItem = mediaItemBuilder.build();
-
-                    // Create ProgressiveMediaSource with the configured DataSourceFactory
-
-                    // Create HttpDataSourceFactory with cross-protocol redirects enabled
-                    DefaultHttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory()
-                        .setAllowCrossProtocolRedirects(true)
-                        .setConnectTimeoutMs(15000)
-                        .setReadTimeoutMs(15000);
-
-                    activeCacheDataSourceFactory =
-                        buildCacheDataSourceFactory(httpDataSourceFactory);
-                    ProgressiveMediaSource.Factory progressiveFactory =
-                        new ProgressiveMediaSource.Factory(activeCacheDataSourceFactory);
-                    MediaSource mediaSource = progressiveFactory.createMediaSource(mediaItem);
                     
-                    this.trackSelector = buildTrackSelector();
+                    this.trackSelector = buildTrackSelector(localMountedFile);
 
-                    DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(getContext())
-                        .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-                        .setEnableDecoderFallback(true);
+                    boolean ugoosDevice = isUgoosDevice();
+                    DefaultRenderersFactory renderersFactory =
+                        ugoosDevice
+                            ? new UgoosRenderersFactory(getContext())
+                            : new DefaultRenderersFactory(getContext());
+                    if (!ugoosDevice) {
+                        renderersFactory.setExtensionRendererMode(
+                            DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
+                    }
+                    renderersFactory.setEnableDecoderFallback(true);
                     
                     exoPlayer = new ExoPlayer.Builder(getContext())
                         .setRenderersFactory(renderersFactory)
                         .setTrackSelector(trackSelector)
-                        .setLoadControl(buildLoadControl())
+                        .setLoadControl(buildLoadControl(localMountedFile))
                         .build();
                     applySeekParametersForContent();
                     exoPlayer.setAudioAttributes(
@@ -2922,6 +3416,7 @@ if (!audioTrackButtons.isEmpty()) {
                     // Set the player on the PlayerView
                     if (playerView != null) {
                         playerView.setPlayer(exoPlayer);
+                        ensureVideoSurfaceAttached();
                     }
                     setWebViewObscured(true);
 
@@ -2929,25 +3424,15 @@ if (!audioTrackButtons.isEmpty()) {
                     exoPlayer.addListener(new Player.Listener() {
                         @Override
                         public void onPlaybackStateChanged(int playbackState) {
-                            // #region agent log
-                            if (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
-                                try {
-                                    JSONObject data = new JSONObject();
-                                    data.put("playbackState", playbackState);
-                                    data.put("isPlaying", exoPlayer.isPlaying());
-                                    agentLog("ExoPlayerPlugin.java:onPlaybackStateChanged", "state", "A", data);
-                                } catch (JSONException ignored) {
-                                }
-                            }
-                            // #endregion
-                            if (playbackState == Player.STATE_READY && !hasAppliedHdrDisplayMode) {
-                                applyPendingDvHdrDisplayMode();
-                            }
                             if (playbackState == Player.STATE_READY) {
+                                ensureVideoSurfaceAttached();
                                 if (currentStreamUrl != null
+                                        && currentStreamUrl.contains("/api/mov/stream")
+                                        && activeCacheDataSourceFactory != null
                                         && currentStreamUrl.toLowerCase().contains(".mkv")) {
                                     prewarmMatroskaIndexTail(
-                                        currentStreamUrl, activeCacheDataSourceFactory);
+                                            currentStreamUrl,
+                                            activeCacheDataSourceFactory);
                                 }
                                 if (exoPlayer.getCurrentTracks() != null) {
                                     captureLastWorkingAudioSelection(exoPlayer.getCurrentTracks());
@@ -2968,6 +3453,7 @@ if (!audioTrackButtons.isEmpty()) {
                         @Override
                         public void onIsPlayingChanged(boolean isPlaying) {
                             if (isPlaying) {
+                                ensureVideoSurfaceAttached();
                                 // Start time updates when playing
                                 startTimeUpdates();
                             } else {
@@ -3068,7 +3554,7 @@ android.util.Log.d(TAG, "  Video track " + i + ": codec=" + codec +
                             }
                             
                             Log.e(TAG, errorMessage);
-                            
+
                             // Notify JavaScript about the error
                             try {
                                 JSObject errorData = new JSObject();
@@ -3084,7 +3570,20 @@ android.util.Log.d(TAG, "  Video track " + i + ": codec=" + codec +
                     });
 
                     // Set the media source directly (ProgressiveMediaSource ensures range headers are sent)
-                    exoPlayer.setMediaSource(mediaSource);
+                    List<MediaSource> playlist = new ArrayList<>();
+                    if (ugoosDevice && introUrl != null && !introUrl.isEmpty()) {
+                        MediaSource introSource = buildSimpleProgressiveMediaSource(introUrl);
+                        if (introSource != null) {
+                            playlist.add(introSource);
+                            Log.i(TAG, "Ugoos DV intro queued before movie: " + introUrl);
+                        }
+                    }
+                    playlist.add(mediaSource);
+                    if (playlist.size() > 1) {
+                        exoPlayer.setMediaSources(playlist);
+                    } else {
+                        exoPlayer.setMediaSource(mediaSource);
+                    }
                     exoPlayer.prepare();
 
                     JSObject ret = new JSObject();
@@ -3289,6 +3788,11 @@ if (!isShowingAudioTrackList && audioTrackListContainer != null && audioTrackLis
             } else if (isShowingAudioTrackList) {
                 android.util.Log.d("ExoPlayerPlugin", "NOT hiding audio track list in showControls - isShowingAudioTrackList flag is true");
             }
+            if (!isShowingSubtitleTrackList
+                    && subtitleTrackListContainer != null
+                    && subtitleTrackListContainer.getVisibility() == View.VISIBLE) {
+                subtitleTrackListContainer.setVisibility(View.GONE);
+            }
 
             // Animate alpha to visible
             controlsView.animate()
@@ -3334,10 +3838,17 @@ if (!isShowingAudioTrackList && audioTrackListContainer != null && audioTrackLis
 } else if (isShowingAudioTrackList) {
                         android.util.Log.d("ExoPlayerPlugin", "NOT hiding audio track list - isShowingAudioTrackList flag is true");
                     }
+                    if (!isShowingSubtitleTrackList
+                            && subtitleTrackListContainer != null
+                            && subtitleTrackListContainer.getVisibility() == View.VISIBLE) {
+                        subtitleTrackListContainer.setVisibility(View.GONE);
+                    }
                     
                     // Only re-request focus on containerView if audio list is NOT visible
                     // If audio list is visible, let the track buttons keep focus
-                    if (!isShowingAudioTrackList && containerView != null) {
+                    if (!isShowingAudioTrackList
+                            && !isShowingSubtitleTrackList
+                            && containerView != null) {
 containerView.post(() -> {
                             if (containerView != null) {
                                 containerView.requestFocus();
@@ -3346,6 +3857,12 @@ containerView.post(() -> {
                         android.util.Log.d("ExoPlayerPlugin", "Controls hidden - visibility: GONE, re-requested focus on containerView");
                     } else if (isShowingAudioTrackList) {
                         android.util.Log.d("ExoPlayerPlugin", "NOT re-requesting focus on containerView - audio list is visible, buttons should keep focus");
+                    }
+
+                    if (!isShowingSubtitleTrackList
+                            && subtitleTrackListContainer != null
+                            && subtitleTrackListContainer.getVisibility() == View.VISIBLE) {
+                        subtitleTrackListContainer.setVisibility(View.GONE);
                     }
                 })
                 .start();
@@ -3361,6 +3878,13 @@ containerView.post(() -> {
                 && audioTrackListContainer.getVisibility() == View.VISIBLE);
         JSObject ret = new JSObject();
         ret.put("visible", visible);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void isSubtitleTrackListVisible(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("visible", isSubtitleTrackListVisible());
         call.resolve(ret);
     }
 
@@ -3493,15 +4017,7 @@ if ("left".equals(dir) || "back".equals(dir)) {
                                     long seekPosition = (long) (duration * finalProgress / 10000.0);
                                     lastSeekTime = System.currentTimeMillis();
                                     performSeek(seekPosition, "navigate_enter");
-                                    
-                                    // Resume playback if it was playing before seeking
-                                    if (wasPlayingBeforeSeek) {
-                                        exoPlayer.play();
-                                        isPaused = false;
-                                        if (playPauseBtn != null) {
-                                            playPauseBtn.setImageResource(android.R.drawable.ic_media_pause);
-                                        }
-                                    }
+                                    resumePlaybackAfterSeekIfNeeded();
                                     
                                     // Reset seeking state
                                     isSeeking = false;

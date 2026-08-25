@@ -20,6 +20,8 @@ import { HttpClient } from "@angular/common/http";
 import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 import { ExoPlayerService } from "../services/exoplayer.service";
 import { ApiConfigService } from "../services/api-config.service";
+import { LayoutService } from "../services/layout.service";
+import { PlatformService } from "../services/platform.service";
 
 @Pipe({
   name: "safeHtml",
@@ -51,16 +53,71 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
   selectedVersionIndex: number = 0
   plotTopOffset: number = 100 // Default offset for plot position
   currentDuration: string = "" // Formatted duration of currently highlighted version
+  trailerVisible = false;
+  trailerPlayingNative = false;
+  isUgoos = false;
   private uiHideTimeout: any = null; // Timer for hiding UI after inactivity
 
+  private static readonly FALLBACK_POSTER_PATH = "/assets/404-poster.jpg";
+  private posterFallbackApplied = false;
+
+  get hasTrailer(): boolean {
+    return !!this.trailer?.trim();
+  }
+
+  private get fallbackPosterUrl(): string {
+    return OverviewComponent.FALLBACK_POSTER_PATH;
+  }
+
+  /** Poster URL for overview; falls back when cover art is missing or fails to load. */
+  get displayCoverArt(): string {
+    const art = (this.coverArt || "").trim();
+    return art || this.fallbackPosterUrl;
+  }
+
+  onPosterError(event: Event): void {
+    const img = event?.target as HTMLImageElement | null;
+    const failedSrc = img?.currentSrc || img?.src || this.coverArt || "";
+    const fallback = this.fallbackPosterUrl;
+    if (this.posterFallbackApplied || String(failedSrc).includes(OverviewComponent.FALLBACK_POSTER_PATH)) {
+      return;
+    }
+    this.posterFallbackApplied = true;
+    this.coverArt = fallback;
+  }
+
+  /** Always read from shared preference so it survives navigating between movies. */
+  get atmosIntroEnabled(): boolean {
+    return this.apiConfig.isAtmosIntroEnabled();
+  }
+
+  get showAtmosIntroToggle(): boolean {
+    if (this.infoStore.videoInfo?.audio === "truehd") {
+      return true;
+    }
+    return (this.availableVersions || []).some(
+      (version) => version?.audio === "truehd"
+    );
+  }
+
+  get shouldAutoplayTrailer(): boolean {
+    return !this.layout.isCompactLayout && !this.isUgoos && this.hasTrailer;
+  }
+
+  get showTrailerOption(): boolean {
+    return this.hasTrailer && (this.layout.isCompactLayout || this.isUgoos);
+  }
+
   constructor(
-    private infoStore: InfoStoreService,
+    public infoStore: InfoStoreService,
     private router: Router,
     private renderer: Renderer2,
     private http: HttpClient,
     private smartTv: SmartTvLibSingletonService,
     private exoPlayerService: ExoPlayerService,
-    private apiConfig: ApiConfigService
+    private apiConfig: ApiConfigService,
+    public layout: LayoutService,
+    private platformService: PlatformService
   ) {}
 
   @ViewChild("right") right!: ElementRef;
@@ -69,6 +126,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild("wrapper") wrapper!: ElementRef;
   @ViewChild("iframePlacer") iframePlacer!: ElementRef;
   @ViewChild("videoPlayer") videoPlayer!: ElementRef<HTMLVideoElement>;
+  @ViewChild("compactTrailerPlayer") compactTrailerPlayer!: ElementRef<HTMLVideoElement>;
   @ViewChild("castList") castList!: ElementRef;
   @ViewChild("info") info!: ElementRef;
   @ViewChildren("playBtn") playBtn!: QueryList<ElementRef>;
@@ -196,7 +254,90 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   playMovie() {
+    this.stopTrailerPlayback();
+    if (this.videoPlayer?.nativeElement) {
+      const el = this.videoPlayer.nativeElement;
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+    }
     this.router.navigateByUrl("/player");
+  }
+
+  onAtmosIntroToggle(enabled: boolean): void {
+    this.apiConfig.setAtmosIntroEnabled(!!enabled);
+  }
+
+  async watchTrailer(): Promise<void> {
+    if (!this.hasTrailer) {
+      return;
+    }
+
+    if (this.isUgoos) {
+      await this.playTrailerOnUgoos();
+      return;
+    }
+
+    this.trailerVisible = true;
+    setTimeout(() => this.playHtmlTrailer(this.compactTrailerPlayer?.nativeElement), 0);
+  }
+
+  closeTrailer(): void {
+    this.stopTrailerPlayback();
+  }
+
+  private playHtmlTrailer(element?: HTMLVideoElement | null): void {
+    if (!element || !this.trailer) {
+      return;
+    }
+
+    element.src = this.trailer;
+    element.load();
+    element.play().catch((err) => {
+      console.log("Trailer playback failed:", err);
+    });
+  }
+
+  private async playTrailerOnUgoos(): Promise<void> {
+    const initialized = await this.exoPlayerService.initialize("trailerPlayerContainer");
+    if (!initialized) {
+      this.trailerVisible = true;
+      setTimeout(() => this.playHtmlTrailer(this.compactTrailerPlayer?.nativeElement), 0);
+      return;
+    }
+
+    const loaded = await this.exoPlayerService.loadVideo(this.trailer);
+    if (!loaded) {
+      await this.exoPlayerService.release();
+      return;
+    }
+
+    this.trailerPlayingNative = true;
+    await this.exoPlayerService.play();
+    await this.exoPlayerService.showControls();
+  }
+
+  private stopTrailerPlayback(): void {
+    if (this.trailerPlayingNative) {
+      this.exoPlayerService.release().catch((err) => {
+        console.log("Error releasing trailer player:", err);
+      });
+      this.trailerPlayingNative = false;
+    }
+
+    if (this.compactTrailerPlayer?.nativeElement) {
+      const el = this.compactTrailerPlayer.nativeElement;
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+    }
+
+    this.trailerVisible = false;
+  }
+
+  goBack(): void {
+    this.stopTrailerPlayback();
+    this.router.navigateByUrl("/videoSelection");
   }
 
   leftEnter(e: any) {
@@ -254,19 +395,8 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit() {
-    this.trailer = this.infoStore.videoInfo.trailerUrl.replace(
-      new RegExp(" ", "g"),
-      "%20"
-    );
-    // const iframeHtml = `<iframe id="youtubeFrame" style="width: 100%; height: 100%;"
-    // src="https://www.youtube.com/embed/${this.trailer}?autoplay=1&controls=0&rel=0&fs=0&modestbranding=1&showinfo=0&fs=0" frameborder="0">
-    // </iframe>`;
-    // const divElement = this.renderer.createElement("div");
-    // divElement.id = "iframeHolder";
-    // this.renderer.setProperty(divElement, "innerHTML", iframeHtml);
-    // Append the div (with iframe) to the container
-    // this.renderer.appendChild(this.iframePlacer.nativeElement, divElement);
-    
+    this.setTrailerFromVideoInfo();
+
     // Set up navigation after view is initialized
     setTimeout(() => {
       if (this.showVersionSelector && this.versionOptions.length > 0) {
@@ -324,7 +454,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
       // Fallback
     this.http
       .post(
-        `http://pixable.local:5012/api/mov/transmux`,
+        `${this.apiConfig.getBaseUrl()}/api/mov/transmux`,
         this.infoStore.videoInfo
       )
       .subscribe((res: any) => {
@@ -354,19 +484,18 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     this.plot = version.overview;
     this.cast = JSON.parse(version.cast || "[]");
     this.coverArt = version.coverArt;
+    this.posterFallbackApplied = false;
     this.currentDuration = this.formatDuration(version.duration);
-    const newTrailer = version.trailerUrl.replace(new RegExp(" ", "g"), "%20");
-    
-    // Update trailer and reload video if it changed
+    const newTrailer = this.formatTrailerUrl(version.trailerUrl);
+
     if (this.trailer !== newTrailer) {
       this.trailer = newTrailer;
-      // Reload the video element with the new trailer
-      if (this.videoPlayer && this.videoPlayer.nativeElement) {
-        this.videoPlayer.nativeElement.src = this.trailer;
-        this.videoPlayer.nativeElement.load();
-        this.videoPlayer.nativeElement.play().catch(err => {
-          console.log("Video autoplay prevented or failed:", err);
-        });
+      if (this.shouldAutoplayTrailer && this.videoPlayer?.nativeElement) {
+        this.playHtmlTrailer(this.videoPlayer.nativeElement);
+      } else if (this.trailerVisible && this.compactTrailerPlayer?.nativeElement) {
+        this.playHtmlTrailer(this.compactTrailerPlayer.nativeElement);
+      } else if (this.trailerPlayingNative) {
+        this.stopTrailerPlayback();
       }
     } else {
       this.trailer = newTrailer;
@@ -382,10 +511,8 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cast = JSON.parse(this.infoStore.videoInfo.cast);
     this.coverArt = this.infoStore.videoInfo.coverArt;
     this.currentDuration = this.formatDuration(this.infoStore.videoInfo.duration);
-    this.trailer = this.infoStore.videoInfo.trailerUrl.replace(
-      new RegExp(" ", "g"),
-      "%20"
-    );
+    this.trailer = this.formatTrailerUrl(this.infoStore.videoInfo.trailerUrl);
+    this.stopTrailerPlayback();
     
     // Navigate to player with selected version
     this.router.navigateByUrl("/player");
@@ -409,6 +536,8 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
 
 
   ngOnInit(): void {
+    this.isUgoos = this.platformService.isUgoos();
+    this.setTrailerFromVideoInfo();
     // console.log("INFOO: ", this.infoStore.videoInfo);
     // Filter movies by same title AND tmdbId
     this.availableVersions = this.infoStore.videoInfo.versions;
@@ -432,6 +561,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     this.plot = this.infoStore.videoInfo.overview;
     this.cast = JSON.parse(this.infoStore.videoInfo.cast);
     this.coverArt = this.infoStore.videoInfo.coverArt;
+    this.posterFallbackApplied = false;
     this.currentDuration = this.formatDuration(this.infoStore.videoInfo.duration);
     console.log("CURRENT DURATION: ", this.currentDuration);
     
@@ -456,7 +586,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
         console.error('Error loading config before pidkill API call:', error);
         // Fallback
       this.http
-        .post(`http://pixable.local:5012/api/mov/pidkill`, {
+        .post(`${this.apiConfig.getBaseUrl()}/api/mov/pidkill`, {
           pid: this.infoStore.videoInfo.pid,
         })
         .subscribe((res) => {
@@ -466,8 +596,17 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  private formatTrailerUrl(url?: string): string {
+    return (url || "").replace(/ /g, "%20");
+  }
+
+  private setTrailerFromVideoInfo(videoInfo?: movieInfo): void {
+    this.trailer = this.formatTrailerUrl((videoInfo ?? this.infoStore.videoInfo).trailerUrl);
+  }
+
   ngOnDestroy() {
-    // Clear the UI hide timer when component is destroyed
+    this.stopTrailerPlayback();
+
     if (this.uiHideTimeout) {
       clearTimeout(this.uiHideTimeout);
       this.uiHideTimeout = null;

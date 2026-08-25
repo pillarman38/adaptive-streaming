@@ -42,18 +42,14 @@ class BonusFeatures {
                     title: movie,
                     resolution: `${metaData.streams[0].coded_width}x${metaData.streams[0].coded_height}`,
                     seekTime: 0,
-                    location: urlTransformer.transformUrl(`http://pixable.local:5012/plexTemp/${featuresForMovie[
-                      i
-                    ]
+                    location: `/plexTemp/${featuresForMovie[i]
                       .replace(new RegExp(" ", "g"), "%20")
-                      .replace(new RegExp("'", "g"), "")}`),
+                      .replace(new RegExp("'", "g"), "")}`,
                     filePath: `G:/bonusFeatures/${movie}/${featuresForMovie[i]}`,
                     featureTitle: featuresForMovie[i],
-                    posterUrl: urlTransformer.transformUrl(`http://pixable.local:5012/bonusFeatures/thumbnails/${featuresForMovie[
-                      i
-                    ]
+                    posterUrl: `/bonusFeatures/thumbnails/${featuresForMovie[i]
                       .replace(new RegExp(" ", "g"), "%20")
-                      .replace(new RegExp("'", "g"), "")}`),
+                      .replace(new RegExp("'", "g"), "")}`,
                   };
 
                   pool.query(
@@ -96,7 +92,10 @@ class BonusFeatures {
         }
         // res.title = res.featureTitle
         // delete res.featureTitle
-        callback(res);
+        const rows = Array.isArray(res)
+          ? res.map((row) => urlTransformer.prepareRecordForResponse({ ...row }))
+          : res;
+        callback(rows);
       }
     );
   }

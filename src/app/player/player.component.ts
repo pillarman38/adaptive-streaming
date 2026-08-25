@@ -10,15 +10,19 @@ import {
   HostListener,
   ElementRef,
   OnDestroy,
+  ChangeDetectorRef,
 } from "@angular/core";
 import { InfoStoreService } from "../info-store.service";
 import { HttpClient } from "@angular/common/http";
+import { Subscription } from "rxjs";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { Router } from "@angular/router";
 import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 import { PlatformService } from "../services/platform.service";
 import { ExoPlayerService } from "../services/exoplayer.service";
+import { KodiPlayerService } from "../services/kodi-player.service";
 import { ApiConfigService } from "../services/api-config.service";
+import { LayoutService } from "../services/layout.service";
 
 @Pipe({
   name: "safeHtml",
@@ -47,10 +51,17 @@ export class PlayerComponent implements OnInit, OnDestroy {
   subtitleUrl: string = "";
   isAndroid: boolean = false;
   useExoPlayer: boolean = false;
+  useKodiPlayer: boolean = false;
+  kodiPlaybackActive: boolean = false;
+  private kodiOpenInProgress = false;
+  private videoLoadId = 0;
+  private pullVideoSub?: Subscription;
   controlsVisible: boolean = false;
   controlsTimeout: any = null;
   playPauseListener: any = null;
   timeUpdateListener: any = null;
+  private kodiStopUnsubscribe?: () => void;
+  private kodiPositionTimer?: ReturnType<typeof setInterval>;
   isSeeking: boolean = false;
   wasPlayingBeforeSeek: boolean = false;
   
@@ -69,6 +80,91 @@ export class PlayerComponent implements OnInit, OnDestroy {
   @ViewChildren("controlBtns") controlBtns!: QueryList<ElementRef>;
   @ViewChild("controlsContainer", { read: ElementRef }) controlsContainer!: ElementRef;
 
+  /** HTML seek/play controls (web player or Kodi JSON-RPC remote). */
+  usesWebPlayerControls(): boolean {
+    return (
+      (!this.useExoPlayer && !this.useKodiPlayer) ||
+      (this.useKodiPlayer && this.kodiPlaybackActive)
+    );
+  }
+
+  private registerControlBtnsForNavigation(): void {
+    setTimeout(() => {
+      if (this.controlBtns?.length > 0 && this.smartTv.smartTv) {
+        this.smartTv.smartTv.addCurrentList({
+          startingList: true,
+          listName: "controlBtns",
+          startingIndex: 0,
+          listElements: this.controlBtns,
+        });
+      }
+    }, 100);
+  }
+
+  private startKodiPositionPolling(): void {
+    this.stopKodiPositionPolling();
+    this.kodiPositionTimer = setInterval(() => {
+      void this.pollKodiPosition();
+    }, 2500);
+  }
+
+  private stopKodiPositionPolling(): void {
+    if (this.kodiPositionTimer) {
+      clearInterval(this.kodiPositionTimer);
+      this.kodiPositionTimer = undefined;
+    }
+  }
+
+  private async pollKodiPosition(): Promise<void> {
+    if (!this.kodiPlaybackActive) {
+      return;
+    }
+    try {
+      const snap = await this.kodiPlayerService.getPlaybackSnapshot();
+      if (snap.playerId === null) {
+        return;
+      }
+      const dur =
+        snap.duration > 0
+          ? snap.duration
+          : this.infoStore.videoInfo.duration || 0;
+      if (!this.isSeeking && this.seekBar?.nativeElement && dur > 0) {
+        this.currentTime = snap.position;
+        this.seekBar.nativeElement.style.width = `${(snap.position / dur) * 100}%`;
+      }
+      this.paused = !snap.playing;
+    } catch {
+      /* player may be idle between polls */
+    }
+  }
+
+  onPlayerContainerClick(): void {
+    if (this.useKodiPlayer && this.kodiPlaybackActive) {
+      this.showControls();
+    }
+  }
+
+  /** After kodiPlaybackActive flips true, DOM controls are not ready until next CD cycle. */
+  private activateKodiControlsUi(): void {
+    this.kodiPlaybackActive = true;
+    this.paused = false;
+    this.cdr.detectChanges();
+    this.startKodiPositionPolling();
+    this.applyControlsVisibility();
+  }
+
+  private applyControlsVisibility(retry = 0): void {
+    if (this.controlsContainer?.nativeElement) {
+      this.controlsContainer.nativeElement.classList.add('visible');
+      this.controlsVisible = true;
+      this.registerControlBtnsForNavigation();
+      return;
+    }
+    if (retry < 15) {
+      setTimeout(() => this.applyControlsVisibility(retry + 1), 50);
+    }
+  }
+
   @HostListener("window:skipAction", ["$event"])
   onSkipAction(event: CustomEvent): void {
     if (event.detail && event.detail.action) {
@@ -86,16 +182,23 @@ export class PlayerComponent implements OnInit, OnDestroy {
   async onKeyDown(event: KeyboardEvent) {
     console.log("EVENT: ", event.code, event.key, event.keyCode);
 
-    // Handle back button (Escape, Backspace, or Android TV Back button)
+    // Handle back button (Escape, Backspace, Android TV Back, browser Back)
     const isBackKey = event.code === "Escape" || 
-                      event.code === "Backspace" || 
+                      event.code === "Backspace" ||
+                      event.code === "BrowserBack" ||
                       event.key === "Escape" ||
                       event.key === "Backspace" ||
+                      event.key === "Back" ||
+                      event.key === "GoBack" ||
                       event.keyCode === 27 || // Escape
-                      event.keyCode === 8;    // Backspace
+                      event.keyCode === 8 ||  // Backspace
+                      event.keyCode === 4;    // Android KEYCODE_BACK
 
     if (isBackKey) {
-      // Navigate back to overview page
+      event.preventDefault();
+      if (this.useKodiPlayer) {
+        await this.stopKodiPlayback();
+      }
       this.router.navigateByUrl("/overview");
       return;
     }
@@ -137,7 +240,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
       }
 
       // Ensure controls are registered for navigation
-      if (this.smartTv.smartTv && !this.useExoPlayer && this.controlBtns.length > 0) {
+      if (this.smartTv.smartTv && this.usesWebPlayerControls() && this.controlBtns.length > 0) {
         // Check if controls list is already registered
         if (!this.smartTv.smartTv.currentListName || this.smartTv.smartTv.currentListName !== "controlBtns") {
           // Register controls if not already registered
@@ -149,7 +252,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
           });
           console.log('[Player] Registered controls for navigation, currentListName:', this.smartTv.smartTv.currentListName);
         }
-      } else if (this.smartTv.smartTv && !this.useExoPlayer && this.controlBtns.length === 0) {
+      } else if (this.smartTv.smartTv && this.usesWebPlayerControls() && this.controlBtns.length === 0) {
         console.warn('[Player] Arrow key pressed but controlBtns are not available yet');
       }
     }
@@ -210,7 +313,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
     // console.log("THI IND: ", ind);
     
     // Reset controls timeout when navigating HTML controls
-    if (ind && !this.useExoPlayer) {
+    if (ind && this.usesWebPlayerControls()) {
       this.resetControlsTimeout();
     }
   }
@@ -229,8 +332,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
       console.log('[Player] Not calling exoPlayerService.showControls() - useExoPlayer:', this.useExoPlayer, 'isAndroid:', this.isAndroid);
     }
     
-    // Add visible class to controls container for web player
-    if (!this.useExoPlayer && this.controlsContainer && this.controlsContainer.nativeElement) {
+    // Show web/Kodi overlay controls
+    if (this.usesWebPlayerControls() && this.controlsContainer?.nativeElement) {
       this.controlsContainer.nativeElement.classList.add('visible');
     }
     
@@ -246,6 +349,10 @@ export class PlayerComponent implements OnInit, OnDestroy {
   }
 
   hideControls() {
+    // Kodi Chrome UI stays visible — it's the only on-screen remote.
+    if (this.useKodiPlayer && this.kodiPlaybackActive) {
+      return;
+    }
     this.controlsVisible = false;
     
     // Hide native Android controls if using ExoPlayer
@@ -253,8 +360,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
       this.exoPlayerService.hideControls();
     }
     
-    // Remove visible class from controls container for web player
-    if (!this.useExoPlayer && this.controlsContainer && this.controlsContainer.nativeElement) {
+    if (this.usesWebPlayerControls() && this.controlsContainer?.nativeElement) {
       this.controlsContainer.nativeElement.classList.remove('visible');
     }
     
@@ -277,18 +383,23 @@ export class PlayerComponent implements OnInit, OnDestroy {
   }
 
   constructor(
-    private infoStore: InfoStoreService,
+    public infoStore: InfoStoreService,
     private http: HttpClient,
     private sanitizer: DomSanitizer,
     private router: Router,
     private smartTv: SmartTvLibSingletonService,
     private platformService: PlatformService,
     private exoPlayerService: ExoPlayerService,
+    private kodiPlayerService: KodiPlayerService,
     private apiConfig: ApiConfigService,
+    private cdr: ChangeDetectorRef,
+    public layout: LayoutService,
   ) {
     this.isAndroid = this.platformService.isAndroid();
+    this.useKodiPlayer = this.platformService.isKodi();
     // Don't use ExoPlayer for Zidoo devices - they have their own player
-    this.useExoPlayer = this.isAndroid && !this.platformService.isZidoo();
+    this.useExoPlayer =
+      this.isAndroid && !this.platformService.isZidoo() && !this.useKodiPlayer;
   }
 
   async playPause() {
@@ -302,6 +413,9 @@ export class PlayerComponent implements OnInit, OnDestroy {
         await this.exoPlayerService.pause();
         this.paused = true;
       }
+    } else if (this.useKodiPlayer) {
+      await this.kodiPlayerService.playPause();
+      this.paused = await this.kodiPlayerService.isPlaying().then((playing) => !playing);
     } else {
       this.videoElem.nativeElement.paused
         ? this.videoElem.nativeElement.play()
@@ -320,6 +434,13 @@ export class PlayerComponent implements OnInit, OnDestroy {
       const newTime = Math.max(0, currentPos + skipBy);
       await this.exoPlayerService.seekTo(newTime);
       this.currentTime = newTime;
+    } else if (this.useKodiPlayer) {
+      await this.kodiPlayerService.seekRelative(skipBy);
+      const newTime = Math.max(
+        0,
+        (await this.kodiPlayerService.getCurrentPosition()) || this.currentTime + skipBy
+      );
+      this.currentTime = newTime;
     } else {
       const currentPos = this.videoElem.nativeElement.currentTime;
       const newTime = Math.max(0, currentPos + skipBy);
@@ -328,7 +449,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
     }
   }
 
-  async seekBarClick($event: MouseEvent, skipReload: boolean = false) {
+  async seekBarClick($event: MouseEvent | Touch, skipReload: boolean = false) {
     if (!this.seekBar || !this.seekBar.nativeElement) {
       return;
     }
@@ -338,43 +459,82 @@ export class PlayerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Get the actual width of the seekbar container
+    const clientX = 'clientX' in $event ? $event.clientX : ($event as Touch).clientX;
+    await this.seekFromClientX(clientX, skipReload);
+  }
+
+  private async seekFromClientX(clientX: number, skipReload: boolean = false): Promise<void> {
+    if (!this.seekBar?.nativeElement) {
+      return;
+    }
+    const seekSpace = this.seekBar.nativeElement.parentElement;
+    if (!seekSpace) {
+      return;
+    }
+
     const rect = seekSpace.getBoundingClientRect();
-    const clickX = $event.clientX - rect.left;
+    const clickX = clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, clickX / rect.width));
-    
+
     this.currentTime = Math.floor(
       this.infoStore.videoInfo.duration * percentage
     );
-    console.log("SEEK TO: ", this.currentTime, "of", this.infoStore.videoInfo.duration);
 
     if (this.useExoPlayer) {
       await this.exoPlayerService.seekTo(this.currentTime);
+    } else if (this.useKodiPlayer) {
+      await this.kodiPlayerService.seek(this.currentTime);
     } else {
-      // For Dolby Vision files, just set currentTime directly
       if (this.event.fileformat === "dvhe" || this.event.fileformat === "dvh1") {
         this.videoElem.nativeElement.currentTime = this.currentTime;
       } else {
-        // For non-DV files, only reload if not dragging (skipReload = false)
         if (!skipReload) {
           this.videoElem.nativeElement.pause();
           this.infoStore.videoInfo.seekTime = this.currentTime;
           this.getVideo();
         } else {
-          // During dragging, just update the visual position
-          // The actual seek will happen on mouse up
           this.videoElem.nativeElement.pause();
         }
       }
     }
   }
 
-  onSeekBarMouseDown($event: MouseEvent) {
+  onSeekBarTouchStart(event: TouchEvent): void {
+    event.preventDefault();
+    if (event.touches.length === 0) {
+      return;
+    }
+    void this.onSeekBarMouseDown(this.touchToMouse(event, event.touches[0]));
+  }
+
+  onSeekBarTouchMove(event: TouchEvent): void {
+    if (!this.isSeeking || event.touches.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    this.onSeekBarMouseMove(this.touchToMouse(event, event.touches[0]));
+  }
+
+  onSeekBarTouchEnd(event: TouchEvent): void {
+    if (event.changedTouches.length === 0) {
+      return;
+    }
+    void this.onSeekBarMouseUp(this.touchToMouse(event, event.changedTouches[0]));
+  }
+
+  private touchToMouse(event: TouchEvent, touch: Touch): MouseEvent {
+    return {
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+      preventDefault: () => event.preventDefault(),
+    } as MouseEvent;
+  }
+
+  async onSeekBarMouseDown($event: MouseEvent) {
     this.isSeeking = true;
     
     // Store whether video was playing before seeking
-    if (this.useExoPlayer) {
-      // For ExoPlayer, we'll check the paused state
+    if (this.useExoPlayer || this.useKodiPlayer) {
       this.wasPlayingBeforeSeek = !this.paused;
     } else {
       this.wasPlayingBeforeSeek = !this.videoElem.nativeElement.paused;
@@ -384,6 +544,11 @@ export class PlayerComponent implements OnInit, OnDestroy {
     if (this.useExoPlayer) {
       if (!this.paused) {
         this.exoPlayerService.pause();
+        this.paused = true;
+      }
+    } else if (this.useKodiPlayer) {
+      if (!this.paused) {
+        await this.kodiPlayerService.playPause();
         this.paused = true;
       }
     } else {
@@ -415,7 +580,12 @@ export class PlayerComponent implements OnInit, OnDestroy {
       this.isSeeking = false;
       
       // Now do the actual seek/reload for non-DV files
-      if (!this.useExoPlayer && this.event.fileformat !== "dvhe" && this.event.fileformat !== "dvh1") {
+      if (this.useKodiPlayer) {
+        if (this.wasPlayingBeforeSeek && this.paused) {
+          await this.kodiPlayerService.playPause();
+          this.paused = false;
+        }
+      } else if (!this.useExoPlayer && this.event.fileformat !== "dvhe" && this.event.fileformat !== "dvh1") {
         this.infoStore.videoInfo.seekTime = this.currentTime;
         this.getVideo();
         // Note: getVideo() will handle playback state, but we should resume if it was playing
@@ -452,7 +622,12 @@ export class PlayerComponent implements OnInit, OnDestroy {
       this.isSeeking = false;
       
       // Do the actual seek/reload when mouse leaves during drag
-      if (!this.useExoPlayer && this.event.fileformat !== "dvhe" && this.event.fileformat !== "dvh1") {
+      if (this.useKodiPlayer) {
+        if (this.wasPlayingBeforeSeek && this.paused) {
+          await this.kodiPlayerService.playPause();
+          this.paused = false;
+        }
+      } else if (!this.useExoPlayer && this.event.fileformat !== "dvhe" && this.event.fileformat !== "dvh1") {
         this.infoStore.videoInfo.seekTime = this.currentTime;
         this.getVideo();
         // Resume if it was playing
@@ -488,9 +663,11 @@ export class PlayerComponent implements OnInit, OnDestroy {
         console.log("NEXT EP: ", res);
         this.infoStore.videoInfo = res[0];
         this.infoStore.videoInfo.seekTime = 0;
-        this.infoStore.videoInfo.browser = "Safari";
+        this.infoStore.videoInfo.browser = this.useKodiPlayer ? "Kodi" : "Safari";
         if (this.useExoPlayer) {
           await this.exoPlayerService.pause();
+        } else if (this.useKodiPlayer) {
+          await this.stopKodiPlayback();
         } else {
           this.videoElem.nativeElement.pause();
         }
@@ -499,6 +676,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
   }
 
   getVideo() {
+    const loadId = ++this.videoLoadId;
+    this.pullVideoSub?.unsubscribe();
     // console.log(
     //   "VIDEO INFO: ",
     //   this.infoStore.videoInfo,
@@ -531,34 +710,55 @@ export class PlayerComponent implements OnInit, OnDestroy {
       this.infoStore.videoInfo.pid = this.event.pid;
     }
 
-    // Add device name to videoInfo for transcoder
+    // Drive CoreELEC when kodiBoxIp is configured (desktop + iPhone). Use in-memory
+    // flag so blocked sessionStorage still targets the box.
+    this.apiConfig.enableKodiPlaybackTarget();
+    this.useKodiPlayer = this.apiConfig.isKodiRemotePlayback();
     const videoInfoWithDevice = {
       ...this.infoStore.videoInfo,
-      device: this.platformService.getDeviceName()
+      device: this.useKodiPlayer
+        ? 'coreelec'
+        : this.platformService.getDeviceName(),
+      browser: this.useKodiPlayer ? 'Kodi' : this.infoStore.videoInfo.browser,
+      atmosIntroEnabled: this.apiConfig.isAtmosIntroEnabled(),
     };
 
-    this.http
+    this.pullVideoSub = this.http
       .post(
         `${this.apiConfig.getBaseUrl()}/api/mov/pullVideo`,
         videoInfoWithDevice
       )
       .subscribe(async (event: any) => {
+        if (loadId !== this.videoLoadId) {
+          console.warn("[Player] Ignoring stale pullVideo response", loadId, this.videoLoadId);
+          return;
+        }
+
         this.event = event;
-        // console.log("EVENT: ", this.event);
+
+        if (!event || event.err || !event.location) {
+          console.error('[Player] pullVideo missing location:', event);
+          alert(
+            'Server did not return a playback URL.\n\n' +
+              JSON.stringify(event?.err || event, null, 2)
+          );
+          return;
+        }
+
         this.infoStore.videoInfo.pid = this.event.pid;
 
-        let videoUrl = this.event.location.replace(
-          new RegExp(" ", "g"),
-          "%20"
-        );
+        let videoUrl = this.event.location;
+        // URL-encode spaces for HTTP only; local SMB/NFS paths must keep literal spaces.
+        if (videoUrl.startsWith("http://") || videoUrl.startsWith("https://")) {
+          videoUrl = videoUrl.replace(/ /g, "%20");
+        }
         // Transform URL to use IP address on Android
         console.log("VIDEO URL: ", videoUrl);
         
         videoUrl = this.apiConfig.transformUrl(videoUrl);
         console.log("USING EXOPLAYER: ", this.useExoPlayer);
         console.log("IS ZIDOO: ", this.platformService.isZidoo());
-        
-        // Check if Zidoo device - launch Zidoo player instead
+
         const isZidooDevice = this.platformService.isZidoo();
         if (isZidooDevice) {
           console.log("Zidoo device detected - launching Zidoo player");
@@ -587,18 +787,119 @@ export class PlayerComponent implements OnInit, OnDestroy {
             // Show error message to user
             alert(`Error launching Zidoo player\n\n${errorMessage}\n\nPlease open Zidoo File Manager manually and navigate to:\n${videoUrl}`);
           }
-          return; // Don't continue with ExoPlayer or HTML5 video
+          return;
+        }
+
+        if (this.useKodiPlayer) {
+          if (this.kodiOpenInProgress || this.kodiPlayerService.hasOpenInFlight()) {
+            console.warn('[Player] Kodi open already in progress, skipping duplicate getVideo');
+            return;
+          }
+          this.kodiOpenInProgress = true;
+          console.log("[Player] Launching Kodi player via JSON-RPC");
+          try {
+          let kodiSubtitle: string | undefined;
+          if (this.subtitle && this.subtitleUrl) {
+            kodiSubtitle = this.apiConfig.transformStreamUrl(this.subtitleUrl);
+          } else if (this.event?.subtitleFile) {
+            kodiSubtitle = this.apiConfig.transformStreamUrl(
+              this.apiConfig.transformUrl(this.event.subtitleFile)
+            );
+          }
+
+          const connected = await this.kodiPlayerService.ensureConnected();
+          if (!connected) {
+            alert(
+              "Cannot connect to Kodi JSON-RPC on port 9090.\n\n" +
+                "In Kodi: Settings → Services → Control → enable\n" +
+                "• Allow remote control from applications on this system\n" +
+                "• Allow remote control from applications on other systems\n\n" +
+                "If using Angular dev on a PC, open the app with ?platform=kodi&kodiHost=10.0.0.22"
+            );
+            return;
+          }
+
+          let kodiVideoUrl = this.apiConfig.transformStreamUrl(this.event.location);
+          if (kodiVideoUrl.startsWith("http://") || kodiVideoUrl.startsWith("https://")) {
+            kodiVideoUrl = kodiVideoUrl.replace(/ /g, "%20");
+          }
+          const fallbackUrl = this.event?.fallbackLocation
+            ? this.apiConfig.transformStreamUrl(this.event.fallbackLocation)
+            : undefined;
+          let introUrl: string | undefined;
+          if (
+            this.event?.introLocation &&
+            !(this.infoStore.videoInfo.seekTime > 0)
+          ) {
+            introUrl = this.apiConfig.transformStreamUrl(this.event.introLocation);
+            console.log("[Player] CoreELEC/Kodi DV intro before movie:", introUrl);
+          }
+
+          console.log('[Player] Kodi URLs', {
+            location: kodiVideoUrl,
+            fallbackLocation: fallbackUrl,
+            introLocation: introUrl,
+            playbackMode: this.event?.playbackMode,
+          });
+
+          const success = await this.kodiPlayerService.openVideo(
+            kodiVideoUrl,
+            kodiSubtitle,
+            fallbackUrl,
+            introUrl
+          );
+          if (!success) {
+            alert("Kodi could not open the video stream.");
+            return;
+          }
+
+          this.activateKodiControlsUi();
+          if (this.infoStore.videoInfo.seekTime > 0) {
+            await this.kodiPlayerService.seek(this.infoStore.videoInfo.seekTime);
+            this.currentTime = this.infoStore.videoInfo.seekTime;
+          }
+          } finally {
+            this.kodiOpenInProgress = false;
+          }
+          return;
         }
 
         if (this.useExoPlayer) {
           // Use ExoPlayer for Android
           try {
+            if (this.event?.playbackMode) {
+              console.log("Plex playback mode:", this.event.playbackMode);
+            }
+            const subtitleTracks = Array.isArray(this.event?.subtitleTracks)
+              ? this.event.subtitleTracks
+              : [];
+            let exoSubtitleFallback: string | undefined;
+            if (this.subtitle && this.subtitleUrl) {
+              exoSubtitleFallback = this.subtitleUrl;
+            } else if (this.event?.subtitleFile) {
+              exoSubtitleFallback = this.apiConfig.transformUrl(
+                this.event.subtitleFile
+              );
+            }
+            let fallbackStreamUrl = this.event?.fallbackLocation as string | undefined;
+            if (fallbackStreamUrl) {
+              fallbackStreamUrl = this.apiConfig.transformUrl(fallbackStreamUrl);
+            }
+            let introUrl: string | undefined;
+            if (
+              this.event?.introLocation &&
+              !(this.infoStore.videoInfo.seekTime > 0)
+            ) {
+              introUrl = this.apiConfig.transformUrl(this.event.introLocation);
+              console.log("[Player] DV intro before movie:", introUrl);
+            }
             const loadSuccess = await this.exoPlayerService.loadVideo(
               videoUrl,
-              this.subtitle ? this.subtitleUrl : undefined,
-              this.infoStore.videoInfo.dolbyVision === 1
+              exoSubtitleFallback,
+              subtitleTracks,
+              fallbackStreamUrl,
+              introUrl
             );
-            
             if (!loadSuccess) {
               console.error('Failed to load video in ExoPlayer');
               return;
@@ -626,7 +927,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
           //   this.seekBar.nativeElement.style.width = `${percentComplete}%`;
           // });
           
-        } else {
+        } else if (!this.useKodiPlayer) {
           // Use HTML5 video for web browsers
           console.log("VIDEO URL: ", videoUrl);
           
@@ -669,7 +970,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
    * Called after video metadata loads
    */
   detectAudioTracks() {
-    if (this.useExoPlayer || !this.videoElem?.nativeElement) {
+    if (this.useExoPlayer || this.useKodiPlayer || !this.videoElem?.nativeElement) {
       return;
     }
 
@@ -769,23 +1070,31 @@ export class PlayerComponent implements OnInit, OnDestroy {
     this.showAudioTrackList = !this.showAudioTrackList;
   }
   async ngOnInit(): Promise<void> {
-    // console.log("INFO STORE: ", this.infoStore.videoInfo);
-    // this.location = this.infoStore.videoInfo.location
-    this.infoStore.videoInfo.browser = "Safari";
+    await this.apiConfig.ensureConfigLoaded();
+    // Target CoreELEC/Kodi whenever kodiBoxIp is configured (desktop + iPhone Safari).
+    this.apiConfig.enableKodiPlaybackTarget();
+    this.useKodiPlayer = this.apiConfig.isKodiRemotePlayback();
+    this.infoStore.videoInfo.browser = this.useKodiPlayer ? "Kodi" : "Safari";
     this.smartTv.changeVisibility(false);
 
-    // Initialize ExoPlayer on Android
-    if (this.useExoPlayer) {
+    if (this.useKodiPlayer) {
+      this.kodiStopUnsubscribe = this.kodiPlayerService.onNotification(
+        "Player.OnStop",
+        () => {
+          this.kodiPlaybackActive = false;
+          this.paused = true;
+          this.stopKodiPositionPolling();
+          this.hideControls();
+        }
+      );
+      this.getVideo();
+    } else if (this.useExoPlayer) {
       try {
         const initialized = await this.exoPlayerService.initialize("videoContainer");
         
         console.log("INITIALIZED: " , initialized);
         if (!initialized) {
           console.error("ExoPlayer initialization failed");
-          if (this.infoStore.videoInfo?.dolbyVision === 1) {
-            console.error("Dolby Vision requires native ExoPlayer; rebuild with cap:sync and reinstall the app.");
-            return;
-          }
           this.useExoPlayer = false;
           this.getVideo();
         } else {
@@ -797,9 +1106,6 @@ export class PlayerComponent implements OnInit, OnDestroy {
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);
         console.error("Error initializing ExoPlayer:", error);
-        if (this.infoStore.videoInfo?.dolbyVision === 1) {
-          return;
-        }
         this.useExoPlayer = false;
         this.getVideo();
       }
@@ -808,9 +1114,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
       this.getVideo();
     }
 
-    // Only add controlBtns to Smart TV navigation if not using ExoPlayer
-    // (ExoPlayer uses native Android controls, not HTML controls)
-    if (!this.useExoPlayer) {
+    // ExoPlayer and Kodi use external/native players, not HTML controls
+    if (!this.useExoPlayer && !this.useKodiPlayer) {
       setTimeout(() => {
         setTimeout(() => {
           // Only add if controlBtns exist and have elements
@@ -824,6 +1129,19 @@ export class PlayerComponent implements OnInit, OnDestroy {
           }
         }, 500);
       });
+    }
+  }
+
+  private async stopKodiPlayback(): Promise<void> {
+    if (!this.useKodiPlayer) {
+      return;
+    }
+    this.stopKodiPositionPolling();
+    this.kodiPlaybackActive = false;
+    try {
+      await this.kodiPlayerService.stop();
+    } catch (err) {
+      console.warn('[Player] Kodi stop failed:', err);
     }
   }
 
@@ -841,6 +1159,13 @@ export class PlayerComponent implements OnInit, OnDestroy {
     }
     if (this.useExoPlayer) {
       await this.exoPlayerService.release();
+    }
+    this.kodiStopUnsubscribe?.();
+    this.pullVideoSub?.unsubscribe();
+    if (this.useKodiPlayer) {
+      this.kodiPlayerService.cancelPendingOpen();
+      await this.stopKodiPlayback();
+      await this.kodiPlayerService.disconnect();
     }
   }
 }

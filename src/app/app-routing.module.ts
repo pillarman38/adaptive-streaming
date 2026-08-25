@@ -2,6 +2,7 @@ import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
 import { OverviewComponent } from "./overview/overview.component";
 import { VideoSelectionComponent } from "./video-selection/video-selection.component";
+import { DemoSelectionComponent } from "./demo-selection/demo-selection.component";
 import { PlayerComponent } from "./player/player.component";
 import { SearchComponent } from "./search/search.component";
 import { TvComponent } from "./tv/tv.component";
@@ -14,6 +15,11 @@ const routes: Routes = [
   {
     path: "videoSelection",
     component: VideoSelectionComponent,
+    providers: [SmartTvComponent],
+  },
+  {
+    path: "demoSelection",
+    component: DemoSelectionComponent,
     providers: [SmartTvComponent],
   },
   { path: "player", component: PlayerComponent },

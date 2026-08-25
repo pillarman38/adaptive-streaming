@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="webinterface.adaptivestreaming"
+       name="Adaptive Streaming"
+       version="1.0.2"
+       provider-name="adaptive-streaming">
+  <requires>
+    <import addon="xbmc.webinterface" version="1.0.0"/>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.script" library="launch.py">
+    <provides>executable</provides>
+  </extension>
+  <extension point="xbmc.webinterface" type="static" library="http" entry="index.html"/>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Adaptive Streaming library (redirects to your PC server).</summary>
+    <description lang="en_GB">Select as Kodi's web interface (Settings → Services → Control), then open in a browser. Run shows the URL. Playback uses Kodi's native player.</description>
+    <platform>all</platform>
+    <license>MIT</license>
+  </extension>
+</addon>

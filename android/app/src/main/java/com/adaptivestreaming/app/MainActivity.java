@@ -31,6 +31,9 @@ public class MainActivity extends BridgeActivity {
                 if (handle != null) {
                     Plugin plugin = handle.getInstance();
                     if (plugin instanceof ExoPlayerPlugin) {
+                        if (((ExoPlayerPlugin) plugin).handleSubtitleListKey(event.getKeyCode())) {
+                            return true;
+                        }
                         if (((ExoPlayerPlugin) plugin).handleAudioListKey(event.getKeyCode())) {
                             return true;
                         }

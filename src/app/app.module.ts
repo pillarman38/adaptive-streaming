@@ -5,9 +5,11 @@ import { AppRoutingModule } from "./app-routing.module";
 import { AppComponent } from "./app.component";
 import { OverviewComponent } from "./overview/overview.component";
 import { VideoSelectionComponent } from "./video-selection/video-selection.component";
+import { DemoSelectionComponent } from "./demo-selection/demo-selection.component";
 import { ServiceWorkerModule } from "@angular/service-worker";
 import { PlayerComponent, SafeHtmlPipe } from "./player/player.component";
 import { SearchComponent } from "./search/search.component";
+import { CompactSearchBarComponent } from "./compact-search-bar/compact-search-bar.component";
 import { SideBarComponent } from "./side-bar/side-bar.component";
 import { TvComponent } from "./tv/tv.component";
 import { SeasonsComponent } from "./seasons/seasons.component";
@@ -22,9 +24,11 @@ import { ApiUrlInterceptor } from "./interceptors/api-url.interceptor";
     AppComponent,
     OverviewComponent,
     VideoSelectionComponent,
+    DemoSelectionComponent,
     PlayerComponent,
     SafeHtmlPipe,
     SearchComponent,
+    CompactSearchBarComponent,
     SideBarComponent,
     TvComponent,
     SeasonsComponent,

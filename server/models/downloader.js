@@ -1,8 +1,6 @@
 var fetch = require("node-fetch");
 const { spawn, execSync } = require("child_process");
 let fs = require("fs");
-const urlTransformer = require("../utils/url-transformer");
-
 /** Windows cannot create files whose names contain <>:"/\\|?* or control chars. */
 function safeFileBaseName(name) {
   if (!name || typeof name !== "string") return "untitled";
@@ -67,12 +65,12 @@ class Downloader {
               (100 * totalBytes) / contentLength
             );
             if (downloadComplete === 100) {
-              return resolve(urlTransformer.transformUrl(`http://pixable.local:5012/tvCoverArt/${encodeURIComponent(notIncludedFileName)}.jpg`));
+              return resolve(`/tvCoverArt/${encodeURIComponent(notIncludedFileName)}.jpg`);
             }
           });
         });
       } else {
-        return urlTransformer.transformUrl(`http://pixable.local:5012/tvCoverArt/${encodeURIComponent(notIncludedFileName)}.jpg`);
+        return `/tvCoverArt/${encodeURIComponent(notIncludedFileName)}.jpg`;
       }
     }
 
@@ -120,12 +118,12 @@ const url = `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0
               (100 * totalBytes) / contentLength
             );
             if (downloadComplete === 100) {
-              return resolve(urlTransformer.transformUrl(`http://pixable.local:5012/MovieCoverArt/${encodeURIComponent(movieFileBase)}.jpg`));
+              return resolve(`/MovieCoverArt/${encodeURIComponent(movieFileBase)}.jpg`);
             }
           });
         });
       } else {
-        return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCoverArt/${encodeURIComponent(movieFileBase)}.jpg`);
+        return `/MovieCoverArt/${encodeURIComponent(movieFileBase)}.jpg`;
       }
     }
   }
@@ -174,7 +172,7 @@ const url = `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0
         });
       });
     } else {
-      return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
+      return '/assets/four0four.gif';
     }
   }
 
@@ -254,7 +252,7 @@ const url = `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0
              );
           }
 
-          return urlTransformer.transformUrl(`http://pixable.local:5012/Trailers/${encodeURIComponent(trailerBase)}.mp4`);
+          return `/Trailers/${encodeURIComponent(trailerBase)}.mp4`;
         } else {
           return "";
         }
@@ -339,7 +337,7 @@ const url = `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0
           const extraction = await execSync(
             `mkvextract "G:/Videos/${fileName}" attachments "${id}:G:/MovieCards/${cardFileBase}.jpg"`
           );
-          return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCards/${encodeURIComponent(cardFileBase)}.jpg`);
+          return `/MovieCards/${encodeURIComponent(cardFileBase)}.jpg`;
         } catch (err) {
           try {
             if(data.results.length > 0 && data.results[0].backdrop_path) {
@@ -376,16 +374,16 @@ const url = `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0
                 fileStreamPosters.on("finish", resolve);
               });
 
-              return `http://pixable.local:5012/MovieCards/${encodeURIComponent(cardFileBase)}.jpg`;
+              return `/MovieCards/${encodeURIComponent(cardFileBase)}.jpg`;
             }
           } catch (err) {
             console.error(`Failed to get poster for ${fileName}:`, err);
-            return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
+            return '/assets/four0four.gif';
           }
         }
       } else {
         // Poster already exists, return the path
-        return urlTransformer.transformUrl(`http://pixable.local:5012/MovieCards/${encodeURIComponent(cardFileBase)}.jpg`);
+        return `/MovieCards/${encodeURIComponent(cardFileBase)}.jpg`;
       }
     }
 
@@ -410,7 +408,7 @@ const url = `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0
           const extraction = await execSync(
             `mkvextract "G:/Videos/${fileName}" attachments "${id}:/mnt/263A6E793A6E45C1/tvPosters/${notIncluded}.jpg"`
           );
-          return urlTransformer.transformUrl(`/tvPosters/${encodeURIComponent(notIncluded)}.jpg`);
+          return `/tvPosters/${encodeURIComponent(notIncluded)}.jpg`;
         } catch (err) {
           try {
             var downloadUrl = `https://www.themoviedb.org/t/p/original${data.results[0].backdrop_path}`;
@@ -439,10 +437,10 @@ const url = `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0
               fileStreamPosters.on("finish", resolve);
             });
 
-            return urlTransformer.transformUrl(`http://pixable.local:5012/tvPosters/${encodeURIComponent(notIncluded)}.jpg`);
+            return `/tvPosters/${encodeURIComponent(notIncluded)}.jpg`;
           } catch (err) {
             console.error(`Failed to get TV poster for ${notIncluded}:`, err);
-            return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
+            return '/assets/four0four.gif';
           }
         }
       }
@@ -486,22 +484,22 @@ const url = `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0
                 });
                 fileStreamPosters.on("finish", resolve);
               });
-              return urlTransformer.transformUrl(`http://pixable.local:5012/BackgroundImages/${encodeURIComponent(bgFileBase)}.jpg`);
+              return `/BackgroundImages/${encodeURIComponent(bgFileBase)}.jpg`;
             } else {
-              return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
+              return '/assets/four0four.gif';
             }
           } else {
-            return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
+            return '/assets/four0four.gif';
           }
         } else {
-          return urlTransformer.transformUrl(`http://pixable.local:5012/BackgroundImages/${encodeURIComponent(bgFileBase)}.jpg`);
+          return `/BackgroundImages/${encodeURIComponent(bgFileBase)}.jpg`;
         }
       } else {
-        return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
+        return '/assets/four0four.gif';
       }
     } catch (err) {
       console.log(err);
-      return urlTransformer.transformUrl("http://pixable.local:5012/assets/four0four.gif");
+      return '/assets/four0four.gif';
     }
   }
 
@@ -641,16 +639,13 @@ const url = `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tmdbInfo.results[0
           });
         }
 
-        return urlTransformer.transformUrl(`http://pixable.local:5012/subtitles/${encodeURIComponent(notIncluded)}.vtt`);
+        return `/subtitles/${encodeURIComponent(notIncluded)}.vtt`;
       } catch (error) {
         console.error("Error executing the process:", error);
         return null;
       }
     } else {
-      return urlTransformer.transformUrl(`http://pixable.local:5012/subtitles/${notIncluded.replaceAll(
-        " ",
-        "%20"
-      )}.vtt`);
+      return `/subtitles/${notIncluded.replaceAll(" ", "%20")}.vtt`;
     }
   }
 }

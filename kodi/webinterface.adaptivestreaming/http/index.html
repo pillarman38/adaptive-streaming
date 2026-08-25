@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adaptive Streaming</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #111;
+      color: #ddd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      text-align: center;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <p>Opening library…</p>
+  <script>
+    (function () {
+      // JSON-RPC must hit local Kodi, not the box LAN IP (hairpin can fail on CoreELEC).
+      var kodiHost = '127.0.0.1';
+      fetch('config.json', { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (cfg) {
+          var ip = cfg.serverIp || '10.0.0.15';
+          var port = cfg.serverPort || '5012';
+          var target =
+            'http://' + ip + ':' + port +
+            '/videoSelection?platform=kodi&kodiHost=' +
+            encodeURIComponent(kodiHost);
+          window.location.replace(target);
+        })
+        .catch(function () {
+          document.body.innerHTML =
+            '<p>Could not load config.json. Rebuild the Kodi add-on after setting server-config.json.</p>';
+        });
+    })();
+  </script>
+</body>
+</html>

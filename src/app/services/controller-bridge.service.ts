@@ -16,6 +16,9 @@ export class ControllerBridgeService implements OnDestroy {
     // Subscribe to websocket messages
     this.messageSubscription = this.websocketService.messages$.subscribe(
       (message: WebSocketMessage) => {
+        if (!this.websocketService.isDisplayClient()) {
+          return;
+        }
         if (message.type === 'controller' && message.action) {
           this.handleControllerAction(message.action);
         }

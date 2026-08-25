@@ -38,6 +38,7 @@ export interface movieInfo {
   threeD: number;
   versions: movieInfo[];
   posterUrl: string;
+  thumbnailPath?: string;
   isExtendedEdition?: number;
 }
 
@@ -110,6 +111,8 @@ export class InfoStoreService {
   videoSelectionIndex: number = 0 // Store the index from video selection page
   videoSelectionMovies: movieInfo[] = [] // Store all loaded movies for video selection page
   videoSelectionOffset: number = 0 // Store the current offset for pagination
+  demoSelectionIndex: number = 0
+  demoSelectionDemos: movieInfo[] = []
 
   videoInfo: movieInfo = {
     id: 0,

@@ -1,6 +1,7 @@
 import {
   Component,
   ElementRef,
+  OnDestroy,
   OnInit,
   ViewChild,
   QueryList,
@@ -16,13 +17,17 @@ import { SideBarComponent } from "../side-bar/side-bar.component";
 import { ApiConfigService } from "../services/api-config.service";
 import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 import { PlatformService } from "../services/platform.service";
+import { LayoutService } from "../services/layout.service";
+import { CompactScrollService } from "../services/compact-scroll.service";
+import { LibrarySearchService } from "../services/library-search.service";
+import { Subscription } from "rxjs";
 
 @Component({
   selector: "app-video-selection",
   templateUrl: "./video-selection.component.html",
   styleUrls: ["./video-selection.component.css"],
 })
-export class VideoSelectionComponent implements OnInit {
+export class VideoSelectionComponent implements OnInit, OnDestroy {
   title = "demoSmartTvLib";
   index = 0;
   movies: Array<movieInfo> = [];
@@ -32,6 +37,23 @@ export class VideoSelectionComponent implements OnInit {
   deviceName: string = "";
   isAndroid: boolean = false;
   isLoadingMore: boolean = false;
+  isSearching = false;
+  searchQuery = "";
+  searchResults: movieInfo[] = [];
+  private searchRequest?: Subscription;
+  private searchDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
+  private scrollUnbind?: () => void;
+
+  get displayMovies(): Array<movieInfo> {
+    if (!this.searchQuery.trim()) {
+      return this.movies;
+    }
+    return this.searchResults;
+  }
+
+  get isSearchActive(): boolean {
+    return !!this.searchQuery.trim();
+  }
 
   constructor(
     private http: HttpClient,
@@ -39,7 +61,10 @@ export class VideoSelectionComponent implements OnInit {
     private infoStore: InfoStoreService,
     private apiConfig: ApiConfigService,
     private smartTv: SmartTvLibSingletonService,
-    private platformService: PlatformService
+    private platformService: PlatformService,
+    public layout: LayoutService,
+    private librarySearch: LibrarySearchService,
+    private compactScroll: CompactScrollService
   ) {}
 
   @ViewChild("wrapper") wrapper!: ElementRef;
@@ -51,8 +76,16 @@ export class VideoSelectionComponent implements OnInit {
 
   @HostListener("window:keydown", ["$event"])
   async onKeyDown(event: KeyboardEvent) {
-    // console.log("EVENT: ", event.code);
-    
+    const target = event.target as HTMLElement | null;
+    const isEditableTarget =
+      target?.tagName === "INPUT" ||
+      target?.tagName === "TEXTAREA" ||
+      target?.isContentEditable;
+
+    if (this.layout.isCompactLayout || isEditableTarget) {
+      return;
+    }
+
     if (!this.smartTv.smartTv) {
       return;
     }
@@ -95,6 +128,7 @@ export class VideoSelectionComponent implements OnInit {
     // console.log("INDEX: ", this.index, this.boxes.length, "borderReached:", ind?.borderReached);
     if (ind?.borderReached === "left edge") {
       this.smartTv.smartTv?.switchList("sideBar", 0);
+      this.infoStore.onSideBarHover(0);
     }
     if (
       ind?.borderReached === "right edge" &&
@@ -166,14 +200,23 @@ export class VideoSelectionComponent implements OnInit {
   }
 
   async updateCurrentBox() {
+    if (!this.movies[this.index]) {
+      return;
+    }
+
     this.currentBox = this.movies[this.index];
+    this.poster = this.currentBox.posterUrl;
+
+    if (!this.image?.nativeElement) {
+      return;
+    }
+
     this.image.nativeElement.style.opacity = "0";
     await this.delay(1000);
 
     this.poster = this.currentBox.posterUrl;
-    this.delay(1000);
+    await this.delay(1000);
     this.image.nativeElement.style.opacity = "1";
-    // console.log("CURRENT MOVIE: ", this.currentBox);
   }
 
   @HostListener("window:resize", ["$event"])
@@ -186,12 +229,79 @@ export class VideoSelectionComponent implements OnInit {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  selectMovie() {
-    // console.log("SELECTED MOVIE: ", this.index, this.movies[this.index]);
-    // Store the current index before navigating to overview
-    this.infoStore.videoSelectionIndex = this.index;
-    this.infoStore.videoInfo = this.movies[this.index];
+  selectMovie(movieOrIndex?: movieInfo | number) {
+    const selected =
+      typeof movieOrIndex === "number"
+        ? this.displayMovies[movieOrIndex]
+        : movieOrIndex ?? this.displayMovies[this.index];
+    if (!selected) {
+      return;
+    }
+
+    const index = this.movies.indexOf(selected);
+    if (index >= 0) {
+      this.index = index;
+      this.infoStore.videoSelectionIndex = index;
+    }
+
+    this.infoStore.videoInfo = selected;
+    this.storeFlatMoviesForSelection(selected);
     this.router.navigateByUrl("/overview");
+  }
+
+  onSearchQueryChange(query: string): void {
+    this.searchQuery = query;
+
+    if (this.searchDebounceTimeout) {
+      clearTimeout(this.searchDebounceTimeout);
+    }
+
+    if (!query.trim()) {
+      this.searchRequest?.unsubscribe();
+      this.searchResults = [];
+      this.isSearching = false;
+      return;
+    }
+
+    this.searchDebounceTimeout = setTimeout(() => {
+      this.runMovieSearch(query.trim());
+    }, 300);
+  }
+
+  private runMovieSearch(query: string): void {
+    this.searchRequest?.unsubscribe();
+    this.isSearching = true;
+
+    this.searchRequest = this.librarySearch.searchMovies(query).subscribe({
+      next: (results) => {
+        this.searchResults = Array.isArray(results) ? results : [];
+        this.isSearching = false;
+      },
+      error: (err) => {
+        console.error("Movie search failed:", err);
+        this.searchResults = [];
+        this.isSearching = false;
+      },
+    });
+  }
+
+  private storeFlatMoviesForSelection(selected: movieInfo): void {
+    const flatMovies: movieInfo[] = [];
+    const groupedMovie: any = selected;
+    if (groupedMovie.versions && groupedMovie.versions.length > 0) {
+      flatMovies.push(...groupedMovie.versions);
+    } else {
+      flatMovies.push(selected);
+    }
+    this.infoStore.movies = flatMovies;
+  }
+
+  ngOnDestroy(): void {
+    this.scrollUnbind?.();
+    this.searchRequest?.unsubscribe();
+    if (this.searchDebounceTimeout) {
+      clearTimeout(this.searchDebounceTimeout);
+    }
   }
 
   async onHover(e: number, listName: string) {
@@ -200,7 +310,6 @@ export class VideoSelectionComponent implements OnInit {
 
     if (ind?.currentListName === "movies") {
       this.index = e;
-      // console.log("INDEX MOVIE TWO: ", this.index);
 
       // Check if we need to load more items when hovering near the end
       this.checkAndLoadMore();
@@ -214,6 +323,10 @@ export class VideoSelectionComponent implements OnInit {
   }
 
   checkAndLoadMore() {
+    if (this.isSearchActive) {
+      return;
+    }
+
     // Don't trigger multiple loads at once
     if (this.isLoadingMore) {
       return;
@@ -360,12 +473,21 @@ export class VideoSelectionComponent implements OnInit {
   }
 
   ngAfterViewInit() {
-    this.list.nativeElement.addEventListener("scroll", () => {
-      if (
-        this.list.nativeElement.scrollTop +
-          this.list.nativeElement.offsetHeight >=
-        this.list.nativeElement.scrollHeight
-      ) {
+    const scrollContainer = this.layout.isCompactLayout
+      ? this.wrapper?.nativeElement ?? null
+      : this.list?.nativeElement ?? null;
+    if (!scrollContainer) {
+      return;
+    }
+
+    this.scrollUnbind = this.compactScroll.bindScroll(scrollContainer, () => {
+      if (this.isSearchActive) {
+        return;
+      }
+
+      const { scrollTop, clientHeight, scrollHeight } =
+        this.compactScroll.getScrollMetrics(scrollContainer);
+      if (scrollTop + clientHeight >= scrollHeight - 50) {
         this.loadMoreItems();
       }
     });
@@ -651,7 +773,9 @@ setTimeout(() => {
       });
     } catch (error: any) {
       console.error('Error loading config before API call:', error);
-      // Fallback: try with pixable.local (might work on some networks)
+      console.log(this.apiConfig.getBaseUrl());
+      
+      // Fallback: try with configured server IP
       this.http
         .post(`${this.apiConfig.getBaseUrl()}/api/mov/movies`, {
           pid: 0,

@@ -1,18 +1,125 @@
 <!-- <app-side-bar></app-side-bar> -->
 
-<div id="wrapper" #wrapper>
-    <div id="iframePlacer" #iframePlacer>
-        <video id="videoPlayer" #videoPlayer autoplay src="{{trailer}}" type="video/mp4">
-            <!-- <source src="{{trailer}}" type="video/mp4"> -->
+<div id="wrapper" #wrapper [class.compact-scroll-page]="layout.isCompactLayout">
+    <div id="iframePlacer" class="tv-only-block" #iframePlacer *ngIf="shouldAutoplayTrailer">
+        <video id="videoPlayer" #videoPlayer autoplay [src]="trailer" type="video/mp4">
         </video>
     </div>
-    <div id="info" #info (mouseover)="hover()" (mouseout)="hoverOut()">
+
+    <div id="trailerPlayerContainer" class="ugoos-trailer-container tv-only-block" *ngIf="isUgoos"></div>
+
+    <!-- Compact stacked layout -->
+    <div class="compact-only-block compact-overview-stack" *ngIf="layout.isCompactLayout">
+        <div class="compact-page-header" style="width: 100%; padding-left: 0;">
+            <button type="button" class="compact-back-btn" (click)="goBack()" aria-label="Back">&#8592;</button>
+            <h1 class="compact-page-title">{{ infoStore.videoInfo.title }}</h1>
+        </div>
+
+        <img [src]="displayCoverArt | safeUrl" class="compact-overview-poster" [alt]="infoStore.videoInfo.title" (error)="onPosterError($event)">
+
+        <div class="compact-badge-row">
+            <span *ngIf="infoStore.videoInfo.resolution === '3840x2160'" class="compact-badge">4K</span>
+            <span *ngIf="infoStore.videoInfo.resolution === '1920x1080'" class="compact-badge">HD</span>
+            <span *ngIf="infoStore.videoInfo.audio === 'truehd'" class="compact-badge">Atmos</span>
+            <span *ngIf="infoStore.videoInfo.audio === 'dts'" class="compact-badge">DTS</span>
+            <span *ngIf="infoStore.videoInfo.dolbyVision === 1" class="compact-badge">Dolby Vision</span>
+            <span *ngIf="infoStore.videoInfo.threeD === 1" class="compact-badge">3D</span>
+            <span *ngIf="currentDuration" class="compact-badge">{{ currentDuration }}</span>
+        </div>
+
+        <label *ngIf="showAtmosIntroToggle" class="atmos-intro-toggle compact-atmos-intro-toggle">
+            <span class="atmos-intro-toggle-label">Dolby Atmos intro</span>
+            <input
+                type="checkbox"
+                role="switch"
+                [checked]="atmosIntroEnabled"
+                (change)="onAtmosIntroToggle($any($event.target).checked)"
+                aria-label="Play Dolby unfold intro before Atmos movies">
+            <span class="atmos-intro-switch" aria-hidden="true"></span>
+        </label>
+
+        <div *ngIf="showVersionSelector" class="compact-version-list">
+            <p id="versionLabel">Choose version</p>
+            <div *ngFor="let version of availableVersions; index as i"
+                 class="versionOption versionOption-compact"
+                 [class.selected]="i === selectedVersionIndex"
+                 (click)="selectVersion(i)"
+                 (touchstart)="onVersionHover(i)">
+                <p class="versionInfo">
+                    <span *ngIf="version.isExtendedEdition === 1" class="extended-label">Extended Edition | </span>
+                    <span *ngIf="version.resolution === '1920x1080'">HD | </span>
+                    <span *ngIf="version.resolution === '3840x2160'">4k | </span>
+                    <span *ngIf="version.audio === 'truehd'">Dolby Atmos</span>
+                    <span *ngIf="version.audio !== 'truehd'">{{version.audio}}</span>
+                    <span *ngIf="version.dolbyVision === 1"> | Dolby Vision</span>
+                    <span *ngIf="version.threeD === 1"> | 3D</span>
+                </p>
+            </div>
+            <label *ngIf="showAtmosIntroToggle" class="atmos-intro-toggle compact-atmos-intro-toggle">
+                <span class="atmos-intro-toggle-label">Dolby Atmos intro</span>
+                <input
+                    type="checkbox"
+                    role="switch"
+                    [checked]="atmosIntroEnabled"
+                    (change)="onAtmosIntroToggle($any($event.target).checked)"
+                    aria-label="Play Dolby unfold intro before Atmos movies">
+                <span class="atmos-intro-switch" aria-hidden="true"></span>
+            </label>
+        </div>
+
+        <p class="compact-overview-plot">{{ plot }}</p>
+
+        <div *ngIf="!showVersionSelector" class="compact-overview-actions">
+            <button
+                *ngIf="showTrailerOption"
+                type="button"
+                class="compact-trailer-btn"
+                (click)="watchTrailer()"
+                aria-label="Watch trailer">
+                Watch Trailer
+            </button>
+            <img id="playBtn" class="compact-play-btn" src="assets/play-video-icon.svg" (click)="playMovie()" alt="Play">
+        </div>
+
+        <div class="compact-trailer-overlay compact-only-block" *ngIf="trailerVisible && !isUgoos">
+            <button type="button" class="compact-trailer-close" (click)="closeTrailer()" aria-label="Close trailer">Close</button>
+            <video #compactTrailerPlayer class="compact-trailer-video" controls playsinline type="video/mp4"></video>
+        </div>
+
+        <div class="compact-cast-scroll" *ngIf="cast.length">
+            <div *ngFor="let castMember of cast" class="compact-cast-member">
+                <img [src]="castMember.picture | safeUrl" [alt]="castMember.name">
+                <p>{{ castMember.name }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TV layout -->
+    <div id="info" class="tv-only-block" #info (mouseover)="hover()" (mouseout)="hoverOut()">
         <div id="posterContainer">
-            <img [src]="coverArt | safeUrl" id="coverArt">
+            <img [src]="displayCoverArt | safeUrl" id="coverArt" (error)="onPosterError($event)">
             <p *ngIf="currentDuration" id="duration">Duration: {{currentDuration}}</p>
         </div>
         <div *ngIf="!showVersionSelector" id="playBtnContainer" #playBtnContainer>
-            <img id="playBtn" src="assets/playVideo.png" #playBtn (click)="playMovie()">
+            <button
+                *ngIf="showTrailerOption"
+                type="button"
+                class="overview-trailer-btn"
+                (click)="watchTrailer()"
+                aria-label="Watch trailer">
+                Watch Trailer
+            </button>
+            <img id="playBtn" src="assets/play-video-icon.svg" #playBtn (click)="playMovie()">
+            <label *ngIf="showAtmosIntroToggle" class="atmos-intro-toggle">
+                <span class="atmos-intro-toggle-label">Atmos intro</span>
+                <input
+                    type="checkbox"
+                    role="switch"
+                    [checked]="atmosIntroEnabled"
+                    (change)="onAtmosIntroToggle($any($event.target).checked)"
+                    aria-label="Play Dolby unfold intro before Atmos movies">
+                <span class="atmos-intro-switch" aria-hidden="true"></span>
+            </label>
         </div>
 
         <div *ngIf="showVersionSelector" id="versionSelector" #versionSelector>
@@ -35,20 +142,22 @@
                 </p>
               </div>
             </div>
+            <label *ngIf="showAtmosIntroToggle" class="atmos-intro-toggle" style="margin-left: 0; margin-top: 12px;">
+                <span class="atmos-intro-toggle-label">Atmos intro</span>
+                <input
+                    type="checkbox"
+                    role="switch"
+                    [checked]="atmosIntroEnabled"
+                    (change)="onAtmosIntroToggle($any($event.target).checked)"
+                    aria-label="Play Dolby unfold intro before Atmos movies">
+                <span class="atmos-intro-switch" aria-hidden="true"></span>
+            </label>
           </div>
 
-        <!-- <p id="transferTxt">Transmux Pixie transfer</p>
-
-        <div *ngIf="!transmuxToPixie">
-            <img src="assets/check.png" class="transferIcons" (click)="changeTransmuxStatus(0)">
-        </div>
-        <div *ngIf="transmuxToPixie">
-            <img src="assets/copy.png" class="transferIcons" (click)="changeTransmuxStatus(1)">
-        </div> -->
         <p id="plot" [style.margin-top.px]="plotTopOffset">{{plot}}</p>
     </div>
     
-    <div id="castList" #castList (mouseover)="hover()" (mouseout)="hoverOut()">
+    <div id="castList" class="tv-only-block" #castList (mouseover)="hover()" (mouseout)="hoverOut()">
         <div class="arrow-container">
             <div class="left" id="left" #left (mouseenter)="leftEnter($event)" (mouseleave)="clear()"></div>
             <div class="right" id="right" #right (mouseenter)="rightEnter($event)" (mouseleave)="clear()"></div>

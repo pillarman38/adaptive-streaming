@@ -1,4 +1,5 @@
 let pool = require("../../config/connections");
+const urlTransformer = require("../utils/url-transformer");
 
 let routeFunctions = {
   search: (query, callback) => {
@@ -9,7 +10,10 @@ let routeFunctions = {
         LIMIT 5;`,
       (err, res) => {
         console.log(err, res);
-        callback(null, res);
+        const rows = Array.isArray(res)
+          ? res.map((row) => urlTransformer.prepareRecordForResponse({ ...row }, ['posterUrl']))
+          : res;
+        callback(null, rows);
       }
     );
   },

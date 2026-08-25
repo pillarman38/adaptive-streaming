@@ -1,0 +1,17 @@
+{
+  "serverIp": "10.0.0.15",
+  "serverPort": "5012",
+  "serverVideosRoot": "G:/Videos",
+  "serverDemoRoot": "G:/Demo videos",
+  "shieldVideosMount": "/storage/XXXX/Videos",
+  "ugoosVideosMount": "/mnt/smb/pixable.local/Videos",
+  "coreelecVideosMount": "/storage/pixable.local/Videos",
+  "coreelecDemoMount": "/storage/pixable.local/Demos",
+  "kodiWsHost": "127.0.0.1",
+  "kodiWsPort": 9090,
+  "kodiBoxIp": "10.0.0.22",
+  "kodiHlsMinSizeGb": 12,
+  "kodiUseLocalMount": false,
+  "ugoosDvIntroPath": "G:/DvIntros/dolby-unfold.mkv",
+  "dvIntroPath": "G:/DvIntros/dolby-unfold.mkv"
+}

@@ -2,10 +2,14 @@ import { Injectable } from '@angular/core';
 import { Subject, Observable } from 'rxjs';
 import { ApiConfigService } from './api-config.service';
 
+export type WebSocketClientRole = 'display' | 'controller';
+
 export interface WebSocketMessage {
   type: string;
   action?: string;
   data?: any;
+  role?: WebSocketClientRole;
+  clientId?: string;
   [key: string]: any;
 }
 
@@ -19,6 +23,8 @@ export class WebSocketService {
   private reconnectDelay = 3000;
   private isConnecting = false;
   private shouldReconnect = true;
+  private readonly clientId = `client_${Math.random().toString(36).slice(2, 10)}`;
+  private clientRole: WebSocketClientRole = 'display';
 
   private messageSubject = new Subject<WebSocketMessage>();
   public messages$: Observable<WebSocketMessage> = this.messageSubject.asObservable();
@@ -28,8 +34,30 @@ export class WebSocketService {
 
   constructor(private apiConfig: ApiConfigService) {}
 
-  async connect(): Promise<void> {
-    if (this.ws?.readyState === WebSocket.OPEN || this.isConnecting) {
+  isDisplayClient(): boolean {
+    return this.clientRole === 'display';
+  }
+
+  getClientRole(): WebSocketClientRole {
+    return this.clientRole;
+  }
+
+  setRole(role: WebSocketClientRole): void {
+    this.clientRole = role;
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.sendRegister();
+    }
+  }
+
+  async connect(role: WebSocketClientRole = 'display'): Promise<void> {
+    this.clientRole = role;
+
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.sendRegister();
+      return;
+    }
+
+    if (this.isConnecting) {
       return;
     }
 
@@ -37,33 +65,31 @@ export class WebSocketService {
     this.shouldReconnect = true;
 
     try {
-      // Ensure config is loaded to get the correct server IP
       await this.apiConfig.ensureConfigLoaded();
-      
-      // Get base URL and extract host
+
       const baseUrl = this.apiConfig.getBaseUrl();
-      // baseUrl is like "http://10.0.0.13:5012" or "http://pixable.local:5012"
-      // Extract hostname (remove http:// and port)
       const hostMatch = baseUrl.match(/https?:\/\/([^:]+)/);
-      const host = hostMatch ? hostMatch[1] : 'pixable.local';
-      
-      // WebSocket server runs on port 4444
+      const host = hostMatch ? hostMatch[1] : '10.0.0.15';
       const wsUrl = `ws://${host}:4444`;
-      
-      console.log('[WebSocket] Connecting to:', wsUrl);
-      
+
+      console.log('[WebSocket] Connecting to:', wsUrl, 'as', this.clientRole);
+
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        console.log('[WebSocket] Connected');
+        console.log('[WebSocket] Connected as', this.clientRole);
         this.isConnecting = false;
         this.reconnectAttempts = 0;
+        this.sendRegister();
         this.connectionStatusSubject.next(true);
       };
 
       this.ws.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
+          if (message.type === 'register') {
+            return;
+          }
           console.log('[WebSocket] Message received:', message);
           this.messageSubject.next(message);
         } catch (error) {
@@ -86,7 +112,7 @@ export class WebSocketService {
         if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
           console.log(`[WebSocket] Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-          setTimeout(() => this.connect(), this.reconnectDelay);
+          setTimeout(() => this.connect(this.clientRole), this.reconnectDelay);
         } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
           console.error('[WebSocket] Max reconnect attempts reached');
         }
@@ -98,15 +124,22 @@ export class WebSocketService {
     }
   }
 
+  private sendRegister(): void {
+    this.send({
+      type: 'register',
+      role: this.clientRole,
+      clientId: this.clientId,
+    });
+  }
+
   send(message: WebSocketMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       console.log('[WebSocket] Sending message:', message);
       this.ws.send(JSON.stringify(message));
     } else {
       console.warn('[WebSocket] Cannot send message - connection not open');
-      // Try to reconnect if not already connecting
       if (!this.isConnecting) {
-        this.connect();
+        void this.connect(this.clientRole);
       }
     }
   }
