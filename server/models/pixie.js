@@ -15,17 +15,29 @@ console.log("WSS: ");
 
 let clients = [];
 
+const {
+  broadcastVoteState,
+  sendVoteStateToConnection,
+  handleVoteMessage,
+  onClientDisconnect,
+  voteSession,
+} = require("../utils/voting-session");
+
 function removeClient(connection) {
   clients = clients.filter((client) => client !== connection);
 }
 
-function broadcastControllerMessage(message) {
+function broadcastToDisplays(message) {
   const payload = JSON.stringify(message);
   clients.forEach((client) => {
     if (client.readyState === 1 && client.clientRole === "display") {
       client.send(payload);
     }
   });
+}
+
+function broadcastControllerMessage(message) {
+  broadcastToDisplays(message);
 }
 
 wss.on("connection", function (connection) {
@@ -42,6 +54,21 @@ wss.on("connection", function (connection) {
       connection.clientRole =
         message.role === "controller" ? "controller" : "display";
       connection.clientId = message.clientId || null;
+      if (connection.clientRole === "display" && connection.clientId) {
+        sendVoteStateToConnection(connection, clients);
+        if (voteSession.active) {
+          broadcastVoteState(clients, broadcastToDisplays);
+        }
+      }
+      return;
+    }
+
+    if (
+      message.type === "voteEnable" ||
+      message.type === "voteDisable" ||
+      message.type === "voteFinish"
+    ) {
+      handleVoteMessage(message, connection, clients, broadcastToDisplays);
       return;
     }
 
@@ -534,6 +561,7 @@ wss.on("connection", function (connection) {
       new Date() + " Peer " + connection.remoteAddress + " disconnected."
     );
     removeClient(connection);
+    onClientDisconnect(connection, clients, broadcastToDisplays);
   });
 });
 

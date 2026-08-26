@@ -38,6 +38,10 @@ export class WebSocketService {
     return this.clientRole === 'display';
   }
 
+  getClientId(): string {
+    return this.clientId;
+  }
+
   getClientRole(): WebSocketClientRole {
     return this.clientRole;
   }

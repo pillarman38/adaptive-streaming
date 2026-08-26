@@ -33,6 +33,18 @@ body.compact-layout #wrapper {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   min-width: 0;
+  position: relative;
+}
+
+.compact-grid-item .vote-circle {
+  z-index: 20;
+  width: 36px;
+  height: 36px;
+}
+
+.compact-grid-item .compact-poster {
+  position: relative;
+  z-index: 1;
 }
 
 .compact-poster {
@@ -146,9 +158,39 @@ body.compact-layout.player-route .compact-scroll-page {
   gap: 12px;
 }
 
+.compact-overview-poster-wrap {
+  position: relative;
+  display: inline-block;
+  align-self: center;
+  overflow: visible;
+}
+
+.compact-overview-poster-wrap .vote-circle {
+  z-index: 20;
+}
+
 .compact-overview-poster {
   width: 160px;
   border-radius: 8px;
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+.compact-overview-vote-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.compact-overview-actions .vote-circle-action,
+.compact-overview-vote-actions .vote-circle-action {
+  position: static;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
 }
 
 .compact-overview-title {
@@ -278,8 +320,13 @@ body.compact-layout.player-route .compact-scroll-page {
 
   /* Show compact blocks but preserve their own display modes (grid/flex/block) */
   .compact-only-block.compact-page-header,
-  .compact-only-block.compact-overview-stack {
+  .compact-only-block.compact-overview-stack,
+  .compact-only-block.compact-video-selection-top {
     display: flex !important;
+  }
+
+  .compact-only-block.compact-video-selection-top {
+    flex-direction: column;
   }
 
   .compact-only-block.compact-grid {
@@ -403,6 +450,10 @@ body.compact-layout.player-route .compact-scroll-page {
     position: sticky;
     top: 0;
     z-index: 50;
+  }
+
+  .compact-video-selection-top app-compact-search-bar {
+    position: static;
   }
 
   .compact-search-area,

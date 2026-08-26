@@ -15,7 +15,18 @@
             <h1 class="compact-page-title">{{ infoStore.videoInfo.title }}</h1>
         </div>
 
-        <img [src]="displayCoverArt | safeUrl" class="compact-overview-poster" [alt]="infoStore.videoInfo.title" (error)="onPosterError($event)">
+        <div class="overview-poster-wrap compact-overview-poster-wrap">
+            <button
+                *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+                type="button"
+                class="vote-circle"
+                [class.voted]="voteSession.isDraftVoted(getVoteKey())"
+                (click)="onVoteClick($event)"
+                [attr.aria-label]="voteSession.isDraftVoted(getVoteKey()) ? 'Remove vote' : 'Vote for this movie'">
+                <span class="vote-check" aria-hidden="true">&#10003;</span>
+            </button>
+            <img [src]="displayCoverArt | safeUrl" class="compact-overview-poster" [alt]="infoStore.videoInfo.title" (error)="onPosterError($event)">
+        </div>
 
         <div class="compact-badge-row">
             <span *ngIf="infoStore.videoInfo.resolution === '3840x2160'" class="compact-badge">4K</span>
@@ -27,7 +38,19 @@
             <span *ngIf="currentDuration" class="compact-badge">{{ currentDuration }}</span>
         </div>
 
-        <label *ngIf="showAtmosIntroToggle" class="atmos-intro-toggle compact-atmos-intro-toggle">
+        <p *ngIf="voteSession.shouldShowVoteStatus()" class="vote-progress-status compact-only-block">
+            {{ voteSession.getStatusText() }}
+            <button
+                *ngIf="voteSession.canDismissVotingComplete()"
+                type="button"
+                class="vote-complete-dismiss"
+                (click)="voteSession.disableVoting()"
+                aria-label="Show all movies">
+                &#10005;
+            </button>
+        </p>
+
+        <label *ngIf="showAtmosIntroToggle && !showVersionSelector" class="atmos-intro-toggle compact-atmos-intro-toggle">
             <span class="atmos-intro-toggle-label">Dolby Atmos intro</span>
             <input
                 type="checkbox"
@@ -37,6 +60,25 @@
                 aria-label="Play Dolby unfold intro before Atmos movies">
             <span class="atmos-intro-switch" aria-hidden="true"></span>
         </label>
+
+        <div
+            *ngIf="showVersionSelector && voteSession.isCollecting() && !voteSession.hasUserFinished()"
+            class="compact-overview-vote-actions">
+            <button
+                type="button"
+                class="vote-circle vote-circle-action"
+                [class.voted]="voteSession.isDraftVoted(getVoteKey())"
+                (click)="onVoteClick($event)"
+                [attr.aria-label]="voteSession.isDraftVoted(getVoteKey()) ? 'Remove vote' : 'Vote for this movie'">
+                <span class="vote-check" aria-hidden="true">&#10003;</span>
+            </button>
+            <button
+                type="button"
+                class="vote-toolbar-btn vote-toolbar-btn-finish compact-finish-vote-btn"
+                (click)="finishVotingSelection()">
+                Finish Selection
+            </button>
+        </div>
 
         <div *ngIf="showVersionSelector" class="compact-version-list">
             <p id="versionLabel">Choose version</p>
@@ -71,6 +113,22 @@
 
         <div *ngIf="!showVersionSelector" class="compact-overview-actions">
             <button
+                *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+                type="button"
+                class="vote-circle vote-circle-action"
+                [class.voted]="voteSession.isDraftVoted(getVoteKey())"
+                (click)="onVoteClick($event)"
+                [attr.aria-label]="voteSession.isDraftVoted(getVoteKey()) ? 'Remove vote' : 'Vote for this movie'">
+                <span class="vote-check" aria-hidden="true">&#10003;</span>
+            </button>
+            <button
+                *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+                type="button"
+                class="vote-toolbar-btn vote-toolbar-btn-finish compact-finish-vote-btn"
+                (click)="finishVotingSelection()">
+                Finish Selection
+            </button>
+            <button
                 *ngIf="showTrailerOption"
                 type="button"
                 class="compact-trailer-btn"
@@ -96,11 +154,27 @@
 
     <!-- TV layout -->
     <div id="info" class="tv-only-block" #info (mouseover)="hover()" (mouseout)="hoverOut()">
-        <div id="posterContainer">
+        <div id="posterContainer" class="overview-poster-wrap">
+            <button
+                *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+                type="button"
+                class="vote-circle"
+                [class.voted]="voteSession.isDraftVoted(getVoteKey())"
+                (click)="onVoteClick($event)"
+                [attr.aria-label]="voteSession.isDraftVoted(getVoteKey()) ? 'Remove vote' : 'Vote for this movie'">
+                <span class="vote-check" aria-hidden="true">&#10003;</span>
+            </button>
             <img [src]="displayCoverArt | safeUrl" id="coverArt" (error)="onPosterError($event)">
             <p *ngIf="currentDuration" id="duration">Duration: {{currentDuration}}</p>
         </div>
         <div *ngIf="!showVersionSelector" id="playBtnContainer" #playBtnContainer>
+            <button
+                *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+                type="button"
+                class="vote-toolbar-btn vote-toolbar-btn-finish overview-finish-vote-btn"
+                (click)="finishVotingSelection()">
+                Finish Selection
+            </button>
             <button
                 *ngIf="showTrailerOption"
                 type="button"
@@ -152,7 +226,26 @@
                     aria-label="Play Dolby unfold intro before Atmos movies">
                 <span class="atmos-intro-switch" aria-hidden="true"></span>
             </label>
+            <button
+                *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+                type="button"
+                class="vote-toolbar-btn vote-toolbar-btn-finish overview-finish-vote-btn"
+                (click)="finishVotingSelection()">
+                Finish Selection
+            </button>
           </div>
+
+        <p *ngIf="voteSession.shouldShowVoteStatus()" class="vote-progress-status tv-only-block">
+            {{ voteSession.getStatusText() }}
+            <button
+                *ngIf="voteSession.canDismissVotingComplete()"
+                type="button"
+                class="vote-complete-dismiss"
+                (click)="voteSession.disableVoting()"
+                aria-label="Show all movies">
+                &#10005;
+            </button>
+        </p>
 
         <p id="plot" [style.margin-top.px]="plotTopOffset">{{plot}}</p>
     </div>

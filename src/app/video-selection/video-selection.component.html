@@ -4,6 +4,42 @@
 </div>
 
 <div id="wrapper" #wrapper [class.compact-scroll-page]="layout.isCompactLayout">
+  <!-- TV layout voting toolbar -->
+  <div class="vote-toolbar tv-only-block" *ngIf="!layout.isCompactLayout">
+    <button
+      *ngIf="voteSession.canStartVoting()"
+      type="button"
+      class="vote-toolbar-btn"
+      (click)="voteSession.enableVoting()">
+      Start Voting
+    </button>
+    <button
+      *ngIf="voteSession.canEndVotingEarly()"
+      type="button"
+      class="vote-toolbar-btn vote-toolbar-btn-end"
+      (click)="voteSession.disableVoting()">
+      End Voting
+    </button>
+    <button
+      *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+      type="button"
+      class="vote-toolbar-btn vote-toolbar-btn-finish"
+      (click)="voteSession.finishSelection()">
+      Finish Selection
+    </button>
+    <span *ngIf="voteSession.shouldShowVoteStatus()" class="vote-status-text">
+      {{ voteSession.getStatusText() }}
+      <button
+        *ngIf="voteSession.canDismissVotingComplete()"
+        type="button"
+        class="vote-complete-dismiss"
+        (click)="voteSession.disableVoting()"
+        aria-label="Show all movies">
+        &#10005;
+      </button>
+    </span>
+  </div>
+
   <!-- TV layout info panel -->
   <div id="info" class="tv-only-block">
     <p id="titleStyling">{{currentBox.title}}</p>
@@ -34,21 +70,74 @@
     </div>
   </div>
 
-  <!-- Compact layout header -->
-  <div class="compact-only-block compact-page-header" *ngIf="layout.isCompactLayout">
-    <h1 class="compact-page-title">Movies</h1>
+  <!-- Compact fixed top: title, voting controls, search -->
+  <div class="compact-video-selection-top compact-only-block" *ngIf="layout.isCompactLayout">
+    <div class="compact-page-header">
+      <h1 class="compact-page-title">Movies</h1>
+    </div>
+
+    <div class="compact-toolbar-row">
+      <div class="compact-vote-actions">
+        <button
+          *ngIf="voteSession.canStartVoting()"
+          type="button"
+          class="vote-toolbar-btn"
+          (click)="voteSession.enableVoting()">
+          Start Voting
+        </button>
+        <button
+          *ngIf="voteSession.canEndVotingEarly()"
+          type="button"
+          class="vote-toolbar-btn vote-toolbar-btn-end"
+          (click)="voteSession.disableVoting()">
+          End Voting
+        </button>
+        <button
+          *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+          type="button"
+          class="vote-toolbar-btn vote-toolbar-btn-finish"
+          (click)="voteSession.finishSelection()">
+          Finish
+        </button>
+      </div>
+      <app-compact-search-bar
+        placeholder="Search movies"
+        [value]="searchQuery"
+        (valueChange)="onSearchQueryChange($event)">
+      </app-compact-search-bar>
+    </div>
+
+    <p *ngIf="voteSession.shouldShowVoteStatus()" class="compact-vote-status">
+      {{ voteSession.getStatusText() }}
+      <button
+        *ngIf="voteSession.canDismissVotingComplete()"
+        type="button"
+        class="vote-complete-dismiss"
+        (click)="voteSession.disableVoting()"
+        aria-label="Show all movies">
+        &#10005;
+      </button>
+    </p>
   </div>
 
-    <app-compact-search-bar
+  <div
     *ngIf="layout.isCompactLayout"
-    placeholder="Search movies"
-    [value]="searchQuery"
-    (valueChange)="onSearchQueryChange($event)">
-  </app-compact-search-bar>
+    class="compact-video-selection-spacer compact-only-block"
+    [class.with-status]="voteSession.shouldShowVoteStatus()">
+  </div>
 
   <!-- TV layout: horizontal card strip -->
   <div id="list" #list class="tv-only-block" *ngIf="!layout.isCompactLayout">
-    <div class="boxes" #boxes boxes *ngFor="let movie of movies; index as i" (mouseover)="onHover(i, 'movies')" (click)="selectMovie(i)">
+    <div class="boxes movie-card" #boxes boxes *ngFor="let movie of visibleMovies; index as i" (mouseover)="onHover(i, 'movies')" (click)="selectMovie(i)">
+      <button
+        *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+        type="button"
+        class="vote-circle"
+        [class.voted]="voteSession.isDraftVoted(getVoteKey(movie))"
+        (click)="onVoteClick($event, movie)"
+        [attr.aria-label]="voteSession.isDraftVoted(getVoteKey(movie)) ? 'Remove vote for ' + movie.title : 'Vote for ' + movie.title">
+        <span class="vote-check" aria-hidden="true">&#10003;</span>
+      </button>
       <img [src]="movie.movieCard | safeUrl" class="posterArt">
       <div class="titleCards">
         <p>{{movie.title}}</p>
@@ -62,7 +151,16 @@
 
   <!-- Compact layout: portrait cover art grid -->
   <div class="compact-only-block compact-grid compact-list-scroll" #list *ngIf="layout.isCompactLayout">
-    <div class="compact-grid-item" #boxes boxes *ngFor="let movie of displayMovies" (click)="selectMovie(movie)">
+    <div class="compact-grid-item movie-card" #boxes boxes *ngFor="let movie of displayMovies" (click)="selectMovie(movie)">
+      <button
+        *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+        type="button"
+        class="vote-circle"
+        [class.voted]="voteSession.isDraftVoted(getVoteKey(movie))"
+        (click)="onVoteClick($event, movie)"
+        [attr.aria-label]="voteSession.isDraftVoted(getVoteKey(movie)) ? 'Remove vote for ' + movie.title : 'Vote for ' + movie.title">
+        <span class="vote-check" aria-hidden="true">&#10003;</span>
+      </button>
       <img [src]="(movie.coverArt || movie.movieCard) | safeUrl" class="compact-poster" [alt]="movie.title">
       <p class="compact-poster-title">{{ movie.title }}</p>
     </div>

@@ -20,6 +20,7 @@ import { PlatformService } from "../services/platform.service";
 import { LayoutService } from "../services/layout.service";
 import { CompactScrollService } from "../services/compact-scroll.service";
 import { LibrarySearchService } from "../services/library-search.service";
+import { VoteSessionService } from "../services/vote-session.service";
 import { Subscription } from "rxjs";
 
 @Component({
@@ -43,10 +44,24 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
   private searchRequest?: Subscription;
   private searchDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
   private scrollUnbind?: () => void;
+  private voteStateSubscription?: Subscription;
+
+  private filterMoviesForVoting(movies: movieInfo[]): movieInfo[] {
+    if (!this.voteSession.shouldFilterMovies()) {
+      return movies;
+    }
+    return movies.filter((movie) =>
+      this.voteSession.movieIsInResults(this.voteSession.getVoteKey(movie))
+    );
+  }
+
+  get visibleMovies(): Array<movieInfo> {
+    return this.filterMoviesForVoting(this.movies);
+  }
 
   get displayMovies(): Array<movieInfo> {
     if (!this.searchQuery.trim()) {
-      return this.movies;
+      return this.filterMoviesForVoting(this.movies);
     }
     return this.searchResults;
   }
@@ -64,7 +79,8 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
     private platformService: PlatformService,
     public layout: LayoutService,
     private librarySearch: LibrarySearchService,
-    private compactScroll: CompactScrollService
+    private compactScroll: CompactScrollService,
+    public voteSession: VoteSessionService
   ) {}
 
   @ViewChild("wrapper") wrapper!: ElementRef;
@@ -199,12 +215,20 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
     }
   }
 
+  private getActiveMovieList(): movieInfo[] {
+    if (this.layout.isCompactLayout) {
+      return this.displayMovies;
+    }
+    return this.voteSession.shouldFilterMovies() ? this.visibleMovies : this.movies;
+  }
+
   async updateCurrentBox() {
-    if (!this.movies[this.index]) {
+    const activeMovies = this.getActiveMovieList();
+    if (!activeMovies[this.index]) {
       return;
     }
 
-    this.currentBox = this.movies[this.index];
+    this.currentBox = activeMovies[this.index];
     this.poster = this.currentBox.posterUrl;
 
     if (!this.image?.nativeElement) {
@@ -230,10 +254,11 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
   }
 
   selectMovie(movieOrIndex?: movieInfo | number) {
+    const activeMovies = this.getActiveMovieList();
     const selected =
       typeof movieOrIndex === "number"
-        ? this.displayMovies[movieOrIndex]
-        : movieOrIndex ?? this.displayMovies[this.index];
+        ? activeMovies[movieOrIndex]
+        : movieOrIndex ?? activeMovies[this.index];
     if (!selected) {
       return;
     }
@@ -299,9 +324,19 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.scrollUnbind?.();
     this.searchRequest?.unsubscribe();
+    this.voteStateSubscription?.unsubscribe();
     if (this.searchDebounceTimeout) {
       clearTimeout(this.searchDebounceTimeout);
     }
+  }
+
+  getVoteKey(movie: movieInfo): string {
+    return this.voteSession.getVoteKey(movie);
+  }
+
+  onVoteClick(event: Event, movie: movieInfo): void {
+    event.stopPropagation();
+    this.voteSession.toggleDraftVote(this.getVoteKey(movie));
   }
 
   async onHover(e: number, listName: string) {
@@ -494,6 +529,7 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
+    this.voteStateSubscription = this.voteSession.state$.subscribe();
     this.deviceName = this.platformService.getDeviceName();
     console.log("========================================");
     console.log("DEVICE NAME:", this.deviceName);

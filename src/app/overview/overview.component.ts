@@ -10,6 +10,7 @@ import {
   PipeTransform,
   Renderer2,
   AfterViewInit,
+  ChangeDetectorRef,
   OnDestroy,
 } from "@angular/core";
 import { InfoStoreService, movieInfo } from "../info-store.service";
@@ -22,6 +23,8 @@ import { ExoPlayerService } from "../services/exoplayer.service";
 import { ApiConfigService } from "../services/api-config.service";
 import { LayoutService } from "../services/layout.service";
 import { PlatformService } from "../services/platform.service";
+import { VoteSessionService } from "../services/vote-session.service";
+import { Subscription } from "rxjs";
 
 @Pipe({
   name: "safeHtml",
@@ -57,6 +60,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
   trailerPlayingNative = false;
   isUgoos = false;
   private uiHideTimeout: any = null; // Timer for hiding UI after inactivity
+  private voteStateSubscription?: Subscription;
 
   private static readonly FALLBACK_POSTER_PATH = "/assets/404-poster.jpg";
   private posterFallbackApplied = false;
@@ -117,7 +121,9 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     private exoPlayerService: ExoPlayerService,
     private apiConfig: ApiConfigService,
     public layout: LayoutService,
-    private platformService: PlatformService
+    private platformService: PlatformService,
+    public voteSession: VoteSessionService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   @ViewChild("right") right!: ElementRef;
@@ -536,6 +542,9 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
 
 
   ngOnInit(): void {
+    this.voteStateSubscription = this.voteSession.state$.subscribe(() => {
+      this.cdr.markForCheck();
+    });
     this.isUgoos = this.platformService.isUgoos();
     this.setTrailerFromVideoInfo();
     // console.log("INFOO: ", this.infoStore.videoInfo);
@@ -604,8 +613,22 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     this.trailer = this.formatTrailerUrl((videoInfo ?? this.infoStore.videoInfo).trailerUrl);
   }
 
+  getVoteKey(): string {
+    return this.voteSession.getVoteKey(this.infoStore.videoInfo);
+  }
+
+  onVoteClick(event: Event): void {
+    event.stopPropagation();
+    this.voteSession.toggleDraftVote(this.getVoteKey());
+  }
+
+  finishVotingSelection(): void {
+    this.voteSession.finishSelection();
+  }
+
   ngOnDestroy() {
     this.stopTrailerPlayback();
+    this.voteStateSubscription?.unsubscribe();
 
     if (this.uiHideTimeout) {
       clearTimeout(this.uiHideTimeout);
