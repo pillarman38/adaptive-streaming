@@ -4,15 +4,71 @@
 </div>
 
 <div id="wrapper" #wrapper [class.compact-scroll-page]="layout.isCompactLayout">
-  <!-- TV layout voting toolbar -->
-  <div class="vote-toolbar tv-only-block" *ngIf="!layout.isCompactLayout">
+  <!-- TV layout top controls: sort + voting -->
+  <div class="tv-top-controls tv-only-block" *ngIf="!layout.isCompactLayout">
+    <div class="movie-sort-control" role="group" aria-label="Sort movies">
+      <button
+        type="button"
+        class="movie-sort-btn"
+        [class.active]="sortBy === 'title'"
+        (click)="onSortChange('title')">
+        Title
+      </button>
+      <button
+        type="button"
+        class="movie-sort-btn"
+        [class.active]="sortBy === 'added'"
+        (click)="onSortChange('added')">
+        Date added
+      </button>
+    </div>
+
+    <div class="vote-toolbar" *ngIf="voteSession.shouldShowVoteToolbar()">
     <button
-      *ngIf="voteSession.canStartVoting()"
+      *ngIf="voteSession.canShowStartVotingButton()"
       type="button"
       class="vote-toolbar-btn"
-      (click)="voteSession.enableVoting()">
+      (click)="voteSession.requestStartVoting()">
       Start Voting
     </button>
+
+    <button
+      *ngIf="voteSession.canShowJoinVotingButton()"
+      type="button"
+      class="vote-toolbar-btn"
+      (click)="voteSession.requestJoinVoting()">
+      Join Voting
+    </button>
+
+    <div *ngIf="voteSession.isParticipationPromptVisible()" class="vote-inline-prompt">
+      <span class="vote-inline-label">Join voting?</span>
+      <button type="button" class="vote-toolbar-btn vote-toolbar-btn-finish" (click)="onChooseParticipation(true)">
+        Yes
+      </button>
+      <button type="button" class="vote-toolbar-btn" (click)="onChooseParticipation(false)">
+        No
+      </button>
+    </div>
+
+    <form *ngIf="voteSession.isHostCodePromptVisible()" class="vote-inline-host" (submit)="onSubmitHostCode($event)">
+      <input
+        type="password"
+        inputmode="numeric"
+        autocomplete="off"
+        class="vote-inline-input"
+        [(ngModel)]="hostCodeInput"
+        name="hostCode"
+        placeholder="Host code"
+        aria-label="Host code">
+      <button type="submit" class="vote-toolbar-btn vote-toolbar-btn-finish">Start</button>
+      <button type="button" class="vote-toolbar-btn" (click)="onOptOutOfHost()">Vote only</button>
+      <p class="vote-inline-error" *ngIf="voteSession.hostCodeError$ | async as error">{{ error }}</p>
+    </form>
+
+    <span *ngIf="voteSession.getHostLockoutMessage()" class="vote-status-text">
+      {{ voteSession.getHostLockoutMessage() }}
+    </span>
+
     <button
       *ngIf="voteSession.canEndVotingEarly()"
       type="button"
@@ -21,11 +77,18 @@
       End Voting
     </button>
     <button
-      *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+      *ngIf="voteSession.isParticipating() && voteSession.isCollecting() && !voteSession.hasUserFinished()"
       type="button"
       class="vote-toolbar-btn vote-toolbar-btn-finish"
       (click)="voteSession.finishSelection()">
       Finish Selection
+    </button>
+    <button
+      *ngIf="voteSession.canStartNextRound()"
+      type="button"
+      class="vote-toolbar-btn vote-toolbar-btn-finish"
+      (click)="voteSession.startNextRound()">
+      Next Round
     </button>
     <span *ngIf="voteSession.shouldShowVoteStatus()" class="vote-status-text">
       {{ voteSession.getStatusText() }}
@@ -38,6 +101,7 @@
         &#10005;
       </button>
     </span>
+    </div>
   </div>
 
   <!-- TV layout info panel -->
@@ -77,35 +141,104 @@
     </div>
 
     <div class="compact-toolbar-row">
-      <div class="compact-vote-actions">
-        <button
-          *ngIf="voteSession.canStartVoting()"
-          type="button"
-          class="vote-toolbar-btn"
-          (click)="voteSession.enableVoting()">
-          Start Voting
-        </button>
-        <button
-          *ngIf="voteSession.canEndVotingEarly()"
-          type="button"
-          class="vote-toolbar-btn vote-toolbar-btn-end"
-          (click)="voteSession.disableVoting()">
-          End Voting
-        </button>
-        <button
-          *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
-          type="button"
-          class="vote-toolbar-btn vote-toolbar-btn-finish"
-          (click)="voteSession.finishSelection()">
-          Finish
-        </button>
-      </div>
       <app-compact-search-bar
         placeholder="Search movies"
         [value]="searchQuery"
         (valueChange)="onSearchQueryChange($event)">
       </app-compact-search-bar>
     </div>
+
+    <div class="compact-actions-row">
+      <div class="compact-vote-actions" *ngIf="voteSession.shouldShowVoteToolbar()">
+        <button
+          *ngIf="voteSession.canShowStartVotingButton()"
+          type="button"
+          class="vote-toolbar-btn"
+          (click)="voteSession.requestStartVoting()">
+          Start Voting
+        </button>
+
+        <button
+          *ngIf="voteSession.canShowJoinVotingButton()"
+          type="button"
+          class="vote-toolbar-btn"
+          (click)="voteSession.requestJoinVoting()">
+          Join Voting
+        </button>
+
+        <div *ngIf="voteSession.isParticipationPromptVisible()" class="vote-inline-prompt vote-inline-prompt-compact">
+          <button type="button" class="vote-toolbar-btn vote-toolbar-btn-finish" (click)="onChooseParticipation(true)">
+            Vote
+          </button>
+          <button type="button" class="vote-toolbar-btn" (click)="onChooseParticipation(false)">
+            Skip
+          </button>
+        </div>
+
+        <form *ngIf="voteSession.isHostCodePromptVisible()" class="vote-inline-host vote-inline-host-compact" (submit)="onSubmitHostCode($event)">
+          <input
+            type="password"
+            inputmode="numeric"
+            autocomplete="off"
+            class="vote-inline-input"
+            [(ngModel)]="hostCodeInput"
+            name="hostCodeMobile"
+            placeholder="Code"
+            aria-label="Host code"
+            (keyup.enter)="onSubmitHostCode($event)">
+          <button
+            type="button"
+            class="vote-toolbar-btn vote-toolbar-btn-finish"
+            (click)="onGoHostCodeClick($event)">
+            Go
+          </button>
+          <button type="button" class="vote-toolbar-btn vote-toolbar-btn-compact-text" (click)="onOptOutOfHost()">Skip</button>
+          <p class="vote-inline-error" *ngIf="voteSession.hostCodeError$ | async as error">{{ error }}</p>
+        </form>
+
+        <button
+          *ngIf="voteSession.canEndVotingEarly()"
+          type="button"
+          class="vote-toolbar-btn vote-toolbar-btn-end"
+          (click)="voteSession.disableVoting()">
+          End
+        </button>
+        <button
+          *ngIf="voteSession.isParticipating() && voteSession.isCollecting() && !voteSession.hasUserFinished()"
+          type="button"
+          class="vote-toolbar-btn vote-toolbar-btn-finish"
+          (click)="voteSession.finishSelection()">
+          Finish
+        </button>
+        <button
+          *ngIf="voteSession.canStartNextRound()"
+          type="button"
+          class="vote-toolbar-btn vote-toolbar-btn-finish"
+          (click)="voteSession.startNextRound()">
+          Next Round
+        </button>
+      </div>
+      <div class="movie-sort-control movie-sort-control-compact" role="group" aria-label="Sort movies">
+        <button
+          type="button"
+          class="movie-sort-btn"
+          [class.active]="sortBy === 'title'"
+          (click)="onSortChange('title')">
+          Title
+        </button>
+        <button
+          type="button"
+          class="movie-sort-btn"
+          [class.active]="sortBy === 'added'"
+          (click)="onSortChange('added')">
+          Date added
+        </button>
+      </div>
+    </div>
+
+    <p *ngIf="voteSession.getHostLockoutMessage()" class="compact-vote-status">
+      {{ voteSession.getHostLockoutMessage() }}
+    </p>
 
     <p *ngIf="voteSession.shouldShowVoteStatus()" class="compact-vote-status">
       {{ voteSession.getStatusText() }}
@@ -123,24 +256,35 @@
   <div
     *ngIf="layout.isCompactLayout"
     class="compact-video-selection-spacer compact-only-block"
-    [class.with-status]="voteSession.shouldShowVoteStatus()">
+    [class.with-status]="voteSession.shouldShowVoteStatus() || !!voteSession.getHostLockoutMessage()">
   </div>
 
   <!-- TV layout: horizontal card strip -->
   <div id="list" #list class="tv-only-block" *ngIf="!layout.isCompactLayout">
     <div class="boxes movie-card" #boxes boxes *ngFor="let movie of visibleMovies; index as i" (mouseover)="onHover(i, 'movies')" (click)="selectMovie(i)">
       <button
-        *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+        *ngIf="voteSession.isParticipating() && voteSession.isCollecting() && !voteSession.hasUserFinished()"
         type="button"
         class="vote-circle"
-        [class.voted]="voteSession.isDraftVoted(getVoteKey(movie))"
+        [class.voted]="voteSession.isDraftVotedForMovie(movie)"
         (click)="onVoteClick($event, movie)"
-        [attr.aria-label]="voteSession.isDraftVoted(getVoteKey(movie)) ? 'Remove vote for ' + movie.title : 'Vote for ' + movie.title">
+        [attr.aria-label]="voteSession.isDraftVotedForMovie(movie) ? 'Remove vote for ' + movie.title : 'Vote for ' + movie.title">
         <span class="vote-check" aria-hidden="true">&#10003;</span>
+      </button>
+      <button
+        *ngIf="voteSession.canKnockOffMovie(getVoteKey(movie))"
+        type="button"
+        class="knock-off-btn"
+        (click)="onKnockOffClick($event, movie)"
+        [attr.aria-label]="'Knock off ' + movie.title">
+        &#10005;
       </button>
       <img [src]="movie.movieCard | safeUrl" class="posterArt">
       <div class="titleCards">
-        <p>{{movie.title}}</p>
+        <p>{{i + 1}}: {{movie.title}}</p>
+        <p *ngIf="voteSession.shouldShowVoteCounts()" class="vote-count-label">
+          {{ voteSession.getVoteCountLabelForMovie(movie) }}
+        </p>
       </div>
     </div>
     <div *ngIf="isLoadingMore" class="loading-indicator">
@@ -151,18 +295,29 @@
 
   <!-- Compact layout: portrait cover art grid -->
   <div class="compact-only-block compact-grid compact-list-scroll" #list *ngIf="layout.isCompactLayout">
-    <div class="compact-grid-item movie-card" #boxes boxes *ngFor="let movie of displayMovies" (click)="selectMovie(movie)">
+    <div class="compact-grid-item movie-card" #boxes boxes *ngFor="let movie of displayMovies; index as i" (click)="selectMovie(movie)">
       <button
-        *ngIf="voteSession.isCollecting() && !voteSession.hasUserFinished()"
+        *ngIf="voteSession.isParticipating() && voteSession.isCollecting() && !voteSession.hasUserFinished()"
         type="button"
         class="vote-circle"
-        [class.voted]="voteSession.isDraftVoted(getVoteKey(movie))"
+        [class.voted]="voteSession.isDraftVotedForMovie(movie)"
         (click)="onVoteClick($event, movie)"
-        [attr.aria-label]="voteSession.isDraftVoted(getVoteKey(movie)) ? 'Remove vote for ' + movie.title : 'Vote for ' + movie.title">
+        [attr.aria-label]="voteSession.isDraftVotedForMovie(movie) ? 'Remove vote for ' + movie.title : 'Vote for ' + movie.title">
         <span class="vote-check" aria-hidden="true">&#10003;</span>
       </button>
+      <button
+        *ngIf="voteSession.canKnockOffMovie(getVoteKey(movie))"
+        type="button"
+        class="knock-off-btn"
+        (click)="onKnockOffClick($event, movie)"
+        [attr.aria-label]="'Knock off ' + movie.title">
+        &#10005;
+      </button>
       <img [src]="(movie.coverArt || movie.movieCard) | safeUrl" class="compact-poster" [alt]="movie.title">
-      <p class="compact-poster-title">{{ movie.title }}</p>
+      <p class="compact-poster-title">{{i + 1}}: {{ movie.title }}</p>
+      <p *ngIf="voteSession.shouldShowVoteCounts()" class="vote-count-label">
+        {{ voteSession.getVoteCountLabel(getVoteKey(movie)) }}
+      </p>
     </div>
     <div *ngIf="isSearching" class="compact-grid-item loading-indicator-compact">
       <div class="spinner"></div>

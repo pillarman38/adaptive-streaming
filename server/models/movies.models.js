@@ -7,7 +7,7 @@ var fetch = require("node-fetch");
 const Downloader = require("./downloader");
 const BonusFeatures = require("./bonusFeatures");
 const urlTransformer = require("../utils/url-transformer");
-const { groupMovieRows, prepareMovieRecord } = require("../utils/group-movies");
+const { groupMovieRows, prepareMovieRecord, sortGroupedMovies } = require("../utils/group-movies");
 const { escapeLikeTerm } = require("../utils/search-term");
 const { pushMovieToShelfOs, syncLibraryMissingToShelfOs } = require("./shelfos-movies-sync");
 var arrOfObj = [];
@@ -21,6 +21,59 @@ let scanProgress = {
   total: 0,
   currentFile: ""
 };
+
+let createdAtEnsured = false;
+let createdAtEnsureQueue = [];
+
+function movieOrderClause(sort, useCreatedAt = true) {
+  if (sort === "added") {
+    return useCreatedAt
+      ? "ORDER BY created_at DESC, id DESC"
+      : "ORDER BY id DESC";
+  }
+  return "ORDER BY title ASC";
+}
+
+function ensureCreatedAtColumn(done) {
+  if (createdAtEnsured) {
+    done();
+    return;
+  }
+
+  createdAtEnsureQueue.push(done);
+  if (createdAtEnsureQueue.length > 1) {
+    return;
+  }
+
+  const finish = () => {
+    createdAtEnsured = true;
+    const queued = createdAtEnsureQueue;
+    createdAtEnsureQueue = [];
+    queued.forEach((fn) => fn());
+  };
+
+  pool.query(`SHOW COLUMNS FROM movies LIKE 'created_at'`, (err, rows) => {
+    if (err || (rows && rows.length > 0)) {
+      finish();
+      return;
+    }
+
+    pool.query(
+      `ALTER TABLE movies ADD COLUMN created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP`,
+      (alterErr) => {
+        if (alterErr) {
+          console.warn(
+            "[movies] could not add created_at column",
+            alterErr.message
+          );
+        }
+        finish();
+      }
+    );
+  });
+}
+
+ensureCreatedAtColumn(() => {});
 
 async function updateMoviesInDB(callback) {
 setTimeout(function () {
@@ -678,9 +731,19 @@ updateMoviesInDB(callback);
       }
     }
 
+    const offset = Math.max(0, parseInt(reqObj.offset, 10) || 0);
+    const queryMovies = (orderBy) => {
     pool.query(
-      `SELECT * FROM movies ORDER BY title ASC LIMIT 50 OFFSET ${reqObj.offset}`,
+      `SELECT * FROM movies ${orderBy} LIMIT 50 OFFSET ${offset}`,
       async (err, res) => {
+        if (
+          err &&
+          reqObj.sort === "added" &&
+          orderBy.includes("created_at")
+        ) {
+          queryMovies(movieOrderClause("added", false));
+          return;
+        }
         if (err) {
           callback(err, null);
           return;
@@ -873,7 +936,15 @@ updateMoviesInDB(callback);
                         const fileformat = findFirstValid('fileformat', null);
 
                         movies.push({
-                          title: groupItems[0].title, 
+                          title: groupItems[0].title,
+                          id: groupItems[0].id,
+                          created_at: groupItems.reduce((latest, item) => {
+                            if (!item.created_at) return latest;
+                            if (!latest) return item.created_at;
+                            return new Date(item.created_at) > new Date(latest)
+                              ? item.created_at
+                              : latest;
+                          }, null),
                           versions: groupItems,
                           posterUrl: posterUrl,
                           movieCard: movieCard,
@@ -909,7 +980,7 @@ updateMoviesInDB(callback);
               console.error(`Error querying all versions for group "${groupKey}":`, queryErr);
               // Keep the grouped version from current batch if query fails
             }
-          callback(err, movies);
+          callback(err, sortGroupedMovies(movies, reqObj.sort));
         } else {
           callback(err, {
             message: "no more movies",
@@ -917,6 +988,11 @@ updateMoviesInDB(callback);
         }
       }
     );
+    };
+
+    ensureCreatedAtColumn(() => {
+      queryMovies(movieOrderClause(reqObj.sort));
+    });
   },
   searchMovies: (reqObj, callback) => {
     const term = escapeLikeTerm(reqObj.searchVal).trim();
@@ -925,9 +1001,14 @@ updateMoviesInDB(callback);
       return;
     }
 
+    const runSearch = (orderBy) => {
     pool.query(
-      `SELECT * FROM movies WHERE title LIKE '%${term}%' ORDER BY title ASC LIMIT 200`,
+      `SELECT * FROM movies WHERE title LIKE '%${term}%' ${orderBy} LIMIT 200`,
       (err, res) => {
+        if (err && reqObj.sort === "added" && orderBy.includes("created_at")) {
+          runSearch(movieOrderClause("added", false));
+          return;
+        }
         if (err) {
           callback(err, null);
           return;
@@ -939,9 +1020,14 @@ updateMoviesInDB(callback);
         }
 
         res.forEach(prepareMovieRecord);
-        callback(null, groupMovieRows(res));
+        callback(null, sortGroupedMovies(groupMovieRows(res), reqObj.sort));
       }
     );
+    };
+
+    ensureCreatedAtColumn(() => {
+      runSearch(movieOrderClause(reqObj.sort));
+    });
   },
 };
 

@@ -66,7 +66,10 @@ wss.on("connection", function (connection) {
     if (
       message.type === "voteEnable" ||
       message.type === "voteDisable" ||
-      message.type === "voteFinish"
+      message.type === "voteFinish" ||
+      message.type === "voteParticipation" ||
+      message.type === "voteNextRound" ||
+      message.type === "voteKnockOff"
     ) {
       handleVoteMessage(message, connection, clients, broadcastToDisplays);
       return;

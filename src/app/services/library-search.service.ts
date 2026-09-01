@@ -14,12 +14,15 @@ export class LibrarySearchService {
     private apiConfig: ApiConfigService
   ) {}
 
-  searchMovies(searchVal: string): Observable<movieInfo[]> {
+  searchMovies(
+    searchVal: string,
+    sort: "title" | "added" = "title"
+  ): Observable<movieInfo[]> {
     return from(this.apiConfig.ensureConfigLoaded()).pipe(
       switchMap(() =>
         this.http.post<movieInfo[]>(
           `${this.apiConfig.getBaseUrl()}/api/mov/search/movies`,
-          { searchVal }
+          { searchVal, sort }
         )
       )
     );

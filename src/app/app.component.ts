@@ -7,6 +7,7 @@ import { ControllerBridgeService } from "./services/controller-bridge.service";
 import { WebSocketService } from "./services/websocket.service";
 import { LayoutService } from "./services/layout.service";
 import { CompactScrollService } from "./services/compact-scroll.service";
+import { VoteSessionService } from "./services/vote-session.service";
 import { Subscription } from "rxjs";
 import { filter } from "rxjs/operators";
 
@@ -30,7 +31,8 @@ export class AppComponent implements OnInit, OnDestroy {
     private controllerBridge: ControllerBridgeService,
     private websocketService: WebSocketService,
     private layout: LayoutService,
-    private compactScroll: CompactScrollService
+    private compactScroll: CompactScrollService,
+    private voteSession: VoteSessionService
   ) {
     // Initialize logger early - this will override console methods on native platforms
     // smartTv.create();
@@ -50,6 +52,7 @@ export class AppComponent implements OnInit, OnDestroy {
     const initialPath = window.location.pathname;
     const initialRole = initialPath.startsWith('/controller') ? 'controller' : 'display';
     await this.websocketService.connect(initialRole);
+    this.voteSession.syncParticipationOnConnect();
     console.log("BASE URL: ", this.apiConfig.getBaseUrl());
     
     // Subscribe to sidebar visibility changes, but only apply if not on controller route
@@ -75,6 +78,7 @@ export class AppComponent implements OnInit, OnDestroy {
           this.isOnControllerRoute = false;
           this.visibility = true;
           this.websocketService.setRole('display');
+          this.voteSession.syncParticipationOnConnect();
         }
         this.updatePlayerRouteClass(url);
       });

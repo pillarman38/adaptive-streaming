@@ -170,6 +170,7 @@ router.post("/movies", (req, res) => {
     {
       pid: req.body["pid"],
       offset: req.body["offset"],
+      sort: req.body["sort"],
     },
     (err, results) => {
       if (err) {

@@ -8,6 +8,7 @@ import {
   ViewChildren,
   HostListener,
   SecurityContext,
+  ChangeDetectorRef,
 } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { Router } from "@angular/router";
@@ -41,6 +42,8 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
   isSearching = false;
   searchQuery = "";
   searchResults: movieInfo[] = [];
+  hostCodeInput = "";
+  sortBy: "title" | "added" = "title";
   private searchRequest?: Subscription;
   private searchDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
   private scrollUnbind?: () => void;
@@ -50,9 +53,7 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
     if (!this.voteSession.shouldFilterMovies()) {
       return movies;
     }
-    return movies.filter((movie) =>
-      this.voteSession.movieIsInResults(this.voteSession.getVoteKey(movie))
-    );
+    return movies.filter((movie) => this.voteSession.movieIsInResults(movie));
   }
 
   get visibleMovies(): Array<movieInfo> {
@@ -60,10 +61,10 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
   }
 
   get displayMovies(): Array<movieInfo> {
-    if (!this.searchQuery.trim()) {
-      return this.filterMoviesForVoting(this.movies);
-    }
-    return this.searchResults;
+    const source = !this.searchQuery.trim()
+      ? this.movies
+      : this.searchResults;
+    return this.filterMoviesForVoting(source);
   }
 
   get isSearchActive(): boolean {
@@ -80,7 +81,8 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
     public layout: LayoutService,
     private librarySearch: LibrarySearchService,
     private compactScroll: CompactScrollService,
-    public voteSession: VoteSessionService
+    public voteSession: VoteSessionService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   @ViewChild("wrapper") wrapper!: ElementRef;
@@ -297,7 +299,7 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
     this.searchRequest?.unsubscribe();
     this.isSearching = true;
 
-    this.searchRequest = this.librarySearch.searchMovies(query).subscribe({
+    this.searchRequest = this.librarySearch.searchMovies(query, this.sortBy).subscribe({
       next: (results) => {
         this.searchResults = Array.isArray(results) ? results : [];
         this.isSearching = false;
@@ -308,6 +310,117 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
         this.isSearching = false;
       },
     });
+  }
+
+  onSortChange(sort: "title" | "added"): void {
+    if (sort !== "title" && sort !== "added") {
+      return;
+    }
+    if (sort === this.sortBy) {
+      return;
+    }
+
+    this.sortBy = sort;
+    this.infoStore.videoSelectionSort = sort;
+    this.infoStore.videoSelectionIndex = 0;
+    this.infoStore.videoSelectionMovies = [];
+    this.infoStore.videoSelectionOffset = 0;
+    this.index = 0;
+    this.offset = 0;
+    this.movies = [];
+    this.isLoadingMore = false;
+
+    this.reloadMoviesFromStart();
+    if (this.isSearchActive) {
+      this.runMovieSearch(this.searchQuery.trim());
+    }
+  }
+
+  private moviesRequestBody(offset: number) {
+    return {
+      pid: 0,
+      offset,
+      sort: this.sortBy,
+    };
+  }
+
+  private storeFlatMoviesFromList(movies: movieInfo[]): void {
+    const flatMovies: movieInfo[] = [];
+    movies.forEach((groupedMovie: any) => {
+      if (groupedMovie.versions && groupedMovie.versions.length > 0) {
+        flatMovies.push(...groupedMovie.versions);
+      } else {
+        flatMovies.push(groupedMovie);
+      }
+    });
+    this.infoStore.movies = flatMovies;
+  }
+
+  private rebindMovieList(startingIndex: number): void {
+    if (!this.smartTv.smartTv || this.boxes.length === 0) {
+      return;
+    }
+
+    const safeIndex = Math.min(startingIndex, this.boxes.length - 1);
+    this.index = safeIndex;
+
+    this.smartTv.smartTv.addCurrentList({
+      startingList: true,
+      listName: "movies",
+      startingIndex: safeIndex,
+      listElements: this.boxes,
+    });
+    this.clearInlineBorderStyles(true);
+    this.smartTv.smartTv.createChunks();
+    this.smartTv.smartTv.updateRowLength();
+    this.smartTv.smartTv.setCurrentIndex(safeIndex);
+    this.updateBorderStyling(safeIndex);
+
+    const activeMovies = this.getActiveMovieList();
+    if (activeMovies[safeIndex]) {
+      this.currentBox = activeMovies[safeIndex];
+      this.poster = this.currentBox.posterUrl;
+    }
+  }
+
+  private async reloadMoviesFromStart(): Promise<void> {
+    this.isLoadingMore = true;
+    try {
+      await this.apiConfig.ensureConfigLoaded();
+    } catch (error) {
+      console.error("Error loading config before sort reload:", error);
+    }
+
+    this.http
+      .post(`${this.apiConfig.getBaseUrl()}/api/mov/movies`, this.moviesRequestBody(0))
+      .subscribe({
+        next: (res: any) => {
+          this.isLoadingMore = false;
+          if (!Array.isArray(res)) {
+            this.movies = [];
+            this.infoStore.videoSelectionMovies = [];
+            this.infoStore.videoSelectionOffset = 0;
+            return;
+          }
+
+          this.movies = res;
+          this.offset = res.length;
+          this.infoStore.videoSelectionMovies = res;
+          this.infoStore.videoSelectionOffset = res.length;
+          this.storeFlatMoviesFromList(res);
+          this.index = 0;
+          if (res[0]) {
+            this.currentBox = res[0];
+            this.poster = res[0].posterUrl || "";
+          }
+
+          setTimeout(() => this.rebindMovieList(0), 200);
+        },
+        error: (err) => {
+          this.isLoadingMore = false;
+          console.error("Error reloading movies after sort change:", err);
+        },
+      });
   }
 
   private storeFlatMoviesForSelection(selected: movieInfo): void {
@@ -336,7 +449,42 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
 
   onVoteClick(event: Event, movie: movieInfo): void {
     event.stopPropagation();
-    this.voteSession.toggleDraftVote(this.getVoteKey(movie));
+    this.voteSession.toggleDraftVoteForMovie(movie);
+  }
+
+  onKnockOffClick(event: Event, movie: movieInfo): void {
+    event.stopPropagation();
+    this.voteSession.knockOffMovie(this.getVoteKey(movie));
+  }
+
+  onChooseParticipation(participating: boolean): void {
+    this.voteSession.chooseParticipation(participating);
+  }
+
+  onGoHostCodeClick(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.onSubmitHostCode(event);
+  }
+
+  onSubmitHostCode(event: Event): void {
+    event.preventDefault();
+    const target = event.target as HTMLElement | null;
+    const form =
+      target?.tagName === "FORM"
+        ? (target as HTMLFormElement)
+        : target?.closest?.("form") ?? null;
+    const input = form?.querySelector("input") as HTMLInputElement | null;
+    const codeFromDom = input?.value ?? "";
+    const code =
+      (this.hostCodeInput || "").trim() || (codeFromDom || "").trim();
+    this.voteSession.submitHostCode(code);
+    this.hostCodeInput = "";
+  }
+
+  onOptOutOfHost(): void {
+    this.hostCodeInput = "";
+    this.voteSession.optOutOfHost();
   }
 
   async onHover(e: number, listName: string) {
@@ -393,10 +541,7 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
     try {
       await this.apiConfig.ensureConfigLoaded();
       this.http
-        .post(`${this.apiConfig.getBaseUrl()}/api/mov/movies`, {
-          pid: 0,
-          offset: this.offset,
-        })
+        .post(`${this.apiConfig.getBaseUrl()}/api/mov/movies`, this.moviesRequestBody(this.offset))
         .subscribe((response: any) => {
         // console.log("RESPONSE: ", response);
         // console.log("RESPONSE TYPE: ", typeof response, "IS ARRAY: ", Array.isArray(response));
@@ -488,10 +633,7 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
       console.error('Error loading config before loading more items:', error);
       // Fallback: try with current getBaseUrl (might work)
       this.http
-        .post(`${this.apiConfig.getBaseUrl()}/api/mov/movies`, {
-          pid: 0,
-          offset: this.offset,
-        })
+        .post(`${this.apiConfig.getBaseUrl()}/api/mov/movies`, this.moviesRequestBody(this.offset))
         .subscribe((response: any) => {
           if (Array.isArray(response) && response.length > 0) {
             const newMovies = this.movies.concat(response);
@@ -529,7 +671,10 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
-    this.voteStateSubscription = this.voteSession.state$.subscribe();
+    this.voteStateSubscription = this.voteSession.state$.subscribe(() => {
+      this.cdr.markForCheck();
+    });
+    this.sortBy = this.infoStore.videoSelectionSort || "title";
     this.deviceName = this.platformService.getDeviceName();
     console.log("========================================");
     console.log("DEVICE NAME:", this.deviceName);
@@ -655,10 +800,7 @@ export class VideoSelectionComponent implements OnInit, OnDestroy {
       const fullUrl = `${baseUrl}/api/mov/movies`;
       console.log(`[VideoSelection] Making request to: ${fullUrl}`);
       this.http
-        .post(fullUrl, {
-          pid: 0,
-          offset: 0, // Always start from 0 on fresh load
-        })
+        .post(fullUrl, this.moviesRequestBody(0))
         .subscribe({
           next: (res: any) => {
             console.log("RES: ", res);
@@ -813,10 +955,7 @@ setTimeout(() => {
       
       // Fallback: try with configured server IP
       this.http
-        .post(`${this.apiConfig.getBaseUrl()}/api/mov/movies`, {
-          pid: 0,
-          offset: this.offset,
-        })
+        .post(`${this.apiConfig.getBaseUrl()}/api/mov/movies`, this.moviesRequestBody(this.offset))
         .subscribe((res: any) => {
           if (res.message) {
             this.movies = [];

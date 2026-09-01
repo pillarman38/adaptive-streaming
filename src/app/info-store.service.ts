@@ -40,6 +40,7 @@ export interface movieInfo {
   posterUrl: string;
   thumbnailPath?: string;
   isExtendedEdition?: number;
+  created_at?: string;
 }
 
 export interface showInfo {
@@ -111,6 +112,7 @@ export class InfoStoreService {
   videoSelectionIndex: number = 0 // Store the index from video selection page
   videoSelectionMovies: movieInfo[] = [] // Store all loaded movies for video selection page
   videoSelectionOffset: number = 0 // Store the current offset for pagination
+  videoSelectionSort: "title" | "added" = "title"
   demoSelectionIndex: number = 0
   demoSelectionDemos: movieInfo[] = []
 

@@ -157,9 +157,11 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     // Determine available lists based on whether version selector is shown
-    const availableLists = this.showVersionSelector 
+    const availableLists = this.showVersionSelector
       ? ["versionOptions", "sideBar"]
-      : ["playBtn", "sideBar"];
+      : this.voteSession.canPlayMovie()
+        ? ["playBtn", "sideBar"]
+        : ["sideBar"];
 
     // Only handle navigation if current list is in available lists
     if (!this.smartTv.smartTv || 
@@ -260,6 +262,9 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   playMovie() {
+    if (!this.voteSession.canPlayMovie()) {
+      return;
+    }
     this.stopTrailerPlayback();
     if (this.videoPlayer?.nativeElement) {
       const el = this.videoPlayer.nativeElement;
@@ -510,6 +515,12 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
 
   selectVersion(index: number) {
     this.selectedVersionIndex = index;
+    this.updateUIForVersion(index);
+
+    if (!this.voteSession.canPlayMovie()) {
+      return;
+    }
+
     this.infoStore.videoInfo = this.availableVersions[index];
     
     // Update component properties with new version data
@@ -619,7 +630,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
 
   onVoteClick(event: Event): void {
     event.stopPropagation();
-    this.voteSession.toggleDraftVote(this.getVoteKey());
+    this.voteSession.toggleDraftVoteForMovie(this.infoStore.videoInfo);
   }
 
   finishVotingSelection(): void {

@@ -26,9 +26,11 @@
 #info {
     margin-left: 50px;
     width: 500px;
-    height: 300px;
+    min-height: 300px;
+    height: auto;
     color: #fff;
     margin-top: 100px;
+    overflow: visible;
 }
 
 #overview {
@@ -147,15 +149,68 @@
     min-height: 80px;
 }
 
-.vote-toolbar {
+.tv-top-controls {
     position: fixed;
     top: 20px;
     right: 40px;
-    z-index: 100;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.vote-toolbar {
     display: flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+}
+
+.movie-sort-control {
+    display: inline-flex;
+    align-items: stretch;
+    flex-shrink: 0;
+    border: 2px solid #fff;
+    border-radius: 20px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.75);
+}
+
+.movie-sort-control-tv {
+    margin-top: 16px;
+    clear: both;
+}
+
+.movie-sort-btn {
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.movie-sort-btn + .movie-sort-btn {
+    border-left: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.movie-sort-btn.active {
+    background: rgba(255, 255, 255, 0.22);
+    font-weight: 600;
+}
+
+.movie-sort-btn:hover,
+.movie-sort-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.15);
+    outline: none;
+}
+
+.movie-sort-control-compact .movie-sort-btn {
+    padding: 8px 10px;
+    font-size: 13px;
+    min-height: 40px;
 }
 
 .compact-video-selection-top {
@@ -178,19 +233,27 @@
 }
 
 .compact-video-selection-spacer {
-    height: calc(112px + var(--compact-top-safe, 0px));
+    height: calc(164px + var(--compact-top-safe, 0px));
     flex-shrink: 0;
 }
 
 .compact-video-selection-spacer.with-status {
-    height: calc(140px + var(--compact-top-safe, 0px));
+    height: calc(192px + var(--compact-top-safe, 0px));
 }
 
 .compact-toolbar-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 16px 12px;
+    padding: 8px 16px 8px;
+    box-sizing: border-box;
+}
+
+.compact-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px 12px;
     box-sizing: border-box;
 }
 
@@ -199,6 +262,11 @@
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.compact-actions-row .movie-sort-control {
+    margin-left: auto;
 }
 
 .compact-toolbar-row app-compact-search-bar {
@@ -283,6 +351,69 @@
     outline-offset: 2px;
 }
 
+.vote-inline-prompt {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.vote-inline-prompt-compact {
+    gap: 6px;
+}
+
+.vote-inline-label {
+    color: #ccc;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.vote-inline-host {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.vote-inline-host-compact {
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+
+.vote-inline-input {
+    width: 88px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-size: 14px;
+}
+
+.compact-vote-actions .vote-inline-input {
+    width: 64px;
+    padding: 8px;
+    font-size: 13px;
+}
+
+.vote-inline-input:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+.vote-inline-error {
+    width: 100%;
+    margin: 0;
+    color: #ff8a80;
+    font-size: 12px;
+}
+
+.vote-toolbar-btn-compact-text {
+    padding: 8px 10px;
+    font-size: 12px;
+}
+
 .movie-card {
     position: relative;
 }
@@ -323,5 +454,45 @@
 .vote-circle:hover,
 .vote-circle:focus-visible {
     outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.vote-count-label {
+    margin: 4px 0 0;
+    color: #9ecbff;
+    font-size: 12px;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.titleCards .vote-count-label {
+    font-size: 13px;
+    margin-top: 6px;
+}
+
+.knock-off-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 10;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 2px solid #ff8a80;
+    border-radius: 50%;
+    background: rgba(120, 0, 0, 0.75);
+    color: #fff;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.knock-off-btn:hover,
+.knock-off-btn:focus-visible {
+    background: rgba(180, 0, 0, 0.9);
+    outline: 2px solid #ff8a80;
     outline-offset: 2px;
 }

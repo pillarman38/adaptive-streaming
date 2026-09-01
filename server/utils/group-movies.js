@@ -68,6 +68,8 @@ function groupMovieRows(rows) {
 
     movies.push({
       title: groupItems[0].title,
+      id: groupItems[0].id,
+      created_at: latestCreatedAt(groupItems),
       versions: groupItems,
       posterUrl: findFirstValid("posterUrl", defaultPosterUrl),
       movieCard: findFirstValid("movieCard", defaultPosterUrl),
@@ -103,7 +105,64 @@ function groupMovieRows(rows) {
   return movies;
 }
 
+function latestCreatedAt(items) {
+  let latest = null;
+  let latestTime = 0;
+  for (const item of items || []) {
+    if (!item || !item.created_at) {
+      continue;
+    }
+    const time = new Date(item.created_at).getTime();
+    if (!Number.isNaN(time) && time >= latestTime) {
+      latestTime = time;
+      latest = item.created_at;
+    }
+  }
+  return latest;
+}
+
+function getLatestAddedTime(movie) {
+  const versions =
+    movie && movie.versions && movie.versions.length
+      ? movie.versions
+      : movie
+        ? [movie]
+        : [];
+  let max = 0;
+  for (const version of versions) {
+    if (!version || !version.created_at) {
+      continue;
+    }
+    const time = new Date(version.created_at).getTime();
+    if (!Number.isNaN(time) && time > max) {
+      max = time;
+    }
+  }
+  if (max === 0 && movie && movie.id) {
+    return Number(movie.id) || 0;
+  }
+  return max;
+}
+
+function sortGroupedMovies(movies, sort) {
+  if (sort !== "added" || !Array.isArray(movies)) {
+    return movies;
+  }
+  return movies.slice().sort((a, b) => {
+    const timeDiff = getLatestAddedTime(b) - getLatestAddedTime(a);
+    if (timeDiff !== 0) {
+      return timeDiff;
+    }
+    const idDiff = Number(b.id || 0) - Number(a.id || 0);
+    if (idDiff !== 0) {
+      return idDiff;
+    }
+    return String(a.title || "").localeCompare(String(b.title || ""));
+  });
+}
+
 module.exports = {
   prepareMovieRecord,
   groupMovieRows,
+  sortGroupedMovies,
 };

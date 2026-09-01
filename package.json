@@ -4,7 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "concurrently \"npm run start:client\" \"npm run start:server\"",
-    "start:client": "ng serve --open",
+    "start:client": "ng serve",
     "start:server": "nodemon server.js",
     "sync-server-config": "node scripts/sync-server-config.js",
     "build": "npm run sync-server-config && ng build",

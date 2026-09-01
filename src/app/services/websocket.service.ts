@@ -85,6 +85,7 @@ export class WebSocketService {
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.sendRegister();
+        this.flushPendingMessages();
         this.connectionStatusSubject.next(true);
       };
 
@@ -136,16 +137,49 @@ export class WebSocketService {
     });
   }
 
+  private pendingMessages: WebSocketMessage[] = [];
+
   send(message: WebSocketMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
+      this.flushPendingMessages();
       console.log('[WebSocket] Sending message:', message);
       this.ws.send(JSON.stringify(message));
-    } else {
-      console.warn('[WebSocket] Cannot send message - connection not open');
-      if (!this.isConnecting) {
-        void this.connect(this.clientRole);
-      }
+      return;
     }
+
+    if (message.type === 'voteFinish') {
+      this.clearPendingMessages('voteFinish');
+    }
+
+    this.pendingMessages.push(message);
+    console.warn('[WebSocket] Queued message - connection not open');
+    if (!this.isConnecting) {
+      void this.connect(this.clientRole);
+    }
+  }
+
+  clearPendingMessages(type?: string): void {
+    if (!type) {
+      this.pendingMessages = [];
+      return;
+    }
+
+    this.pendingMessages = this.pendingMessages.filter(
+      (message) => message.type !== type
+    );
+  }
+
+  private flushPendingMessages(): void {
+    if (this.ws?.readyState !== WebSocket.OPEN || this.pendingMessages.length === 0) {
+      return;
+    }
+
+    const queued = [...this.pendingMessages];
+    this.pendingMessages = [];
+    queued.forEach((message) => {
+      console.log('[WebSocket] Flushing queued message:', message);
+      this.ws?.send(JSON.stringify(message));
+    });
   }
 
   disconnect(): void {
