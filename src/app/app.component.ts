@@ -8,6 +8,7 @@ import { WebSocketService } from "./services/websocket.service";
 import { LayoutService } from "./services/layout.service";
 import { CompactScrollService } from "./services/compact-scroll.service";
 import { VoteSessionService } from "./services/vote-session.service";
+import { RemotePlaybackService } from "./services/remote-playback.service";
 import { Subscription } from "rxjs";
 import { filter } from "rxjs/operators";
 
@@ -32,7 +33,8 @@ export class AppComponent implements OnInit, OnDestroy {
     private websocketService: WebSocketService,
     private layout: LayoutService,
     private compactScroll: CompactScrollService,
-    private voteSession: VoteSessionService
+    private voteSession: VoteSessionService,
+    private remotePlayback: RemotePlaybackService
   ) {
     // Initialize logger early - this will override console methods on native platforms
     // smartTv.create();

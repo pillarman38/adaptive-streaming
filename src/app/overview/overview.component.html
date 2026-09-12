@@ -145,6 +145,14 @@
                 alt="Play">
         </div>
 
+        <ng-container *ngIf="remotePlayback.status$ | async as status">
+        <p class="remote-play-status" *ngIf="status.state !== 'idle'">
+            <span *ngIf="status.state === 'sending'">Sending to Ugoos…</span>
+            <span *ngIf="status.state === 'playing'">Playing on Ugoos: {{ status.title }}</span>
+            <span *ngIf="status.state === 'error'">{{ status.message }}</span>
+        </p>
+        </ng-container>
+
         <div class="compact-trailer-overlay compact-only-block" *ngIf="trailerVisible && !isUgoos">
             <button type="button" class="compact-trailer-close" (click)="closeTrailer()" aria-label="Close trailer">Close</button>
             <video #compactTrailerPlayer class="compact-trailer-video" controls playsinline type="video/mp4"></video>
@@ -195,6 +203,13 @@
                 src="assets/play-video-icon.svg"
                 #playBtn
                 (click)="playMovie()">
+            <ng-container *ngIf="remotePlayback.status$ | async as status">
+            <p class="remote-play-status" *ngIf="status.state !== 'idle'">
+                <span *ngIf="status.state === 'sending'">Sending to Ugoos…</span>
+                <span *ngIf="status.state === 'playing'">Playing on Ugoos: {{ status.title }}</span>
+                <span *ngIf="status.state === 'error'">{{ status.message }}</span>
+            </p>
+            </ng-container>
             <label *ngIf="showAtmosIntroToggle" class="atmos-intro-toggle">
                 <span class="atmos-intro-toggle-label">Atmos intro</span>
                 <input

@@ -622,3 +622,9 @@ body.compact-layout.player-route .compact-scroll-page {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   }
 }
+
+.remote-play-status {
+  margin: 8px 16px 0;
+  color: #9ecbff;
+  font-size: 14px;
+}

@@ -41,6 +41,7 @@ yarn-error.log
 testem.log
 /typings
 /server/models/yt-dlp.exe
+/ffmpegBin/*.exe
 
 # System Files
 .DS_Store

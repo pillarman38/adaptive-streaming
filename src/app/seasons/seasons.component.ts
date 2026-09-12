@@ -20,6 +20,7 @@ import { SeaseonChangesService } from "../seaseon-changes.service";
 import { SideBarComponent } from "../side-bar/side-bar.component";
 import { LayoutService } from "../services/layout.service";
 import { ApiConfigService } from "../services/api-config.service";
+import { RemotePlaybackService } from "../services/remote-playback.service";
 
 @Component({
   selector: "app-seasons",
@@ -113,6 +114,7 @@ export class SeasonsComponent implements OnInit {
     private seasonService: SeaseonChangesService,
     public layout: LayoutService,
     private apiConfig: ApiConfigService,
+    public remotePlayback: RemotePlaybackService,
   ) {}
 
   onHover(e: number, listName: string) {
@@ -134,7 +136,7 @@ export class SeasonsComponent implements OnInit {
     }
     this.index = index;
     this.infoStore.videoInfo = ep;
-    this.router.navigateByUrl("/player");
+    this.remotePlayback.play(ep);
   }
 
   selectSeason(seasonIndex: number): void {

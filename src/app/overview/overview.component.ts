@@ -24,6 +24,7 @@ import { ApiConfigService } from "../services/api-config.service";
 import { LayoutService } from "../services/layout.service";
 import { PlatformService } from "../services/platform.service";
 import { VoteSessionService } from "../services/vote-session.service";
+import { RemotePlaybackService } from "../services/remote-playback.service";
 import { Subscription } from "rxjs";
 
 @Pipe({
@@ -123,6 +124,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     public layout: LayoutService,
     private platformService: PlatformService,
     public voteSession: VoteSessionService,
+    public remotePlayback: RemotePlaybackService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -272,7 +274,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
       el.removeAttribute("src");
       el.load();
     }
-    this.router.navigateByUrl("/player");
+    this.remotePlayback.play(this.infoStore.videoInfo);
   }
 
   onAtmosIntroToggle(enabled: boolean): void {
@@ -531,8 +533,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
     this.trailer = this.formatTrailerUrl(this.infoStore.videoInfo.trailerUrl);
     this.stopTrailerPlayback();
     
-    // Navigate to player with selected version
-    this.router.navigateByUrl("/player");
+    this.remotePlayback.play(this.infoStore.videoInfo);
   }
 
   formatDuration(duration: number): string {

@@ -3,6 +3,13 @@
         <button type="button" class="compact-back-btn" (click)="goBack()" aria-label="Back">&#8592;</button>
         <h1 class="compact-page-title">{{ infoStore.showInfo.title }}</h1>
     </div>
+    <ng-container *ngIf="remotePlayback.status$ | async as status">
+    <p class="remote-play-status" *ngIf="status.state !== 'idle'">
+        <span *ngIf="status.state === 'sending'">Sending to Ugoos…</span>
+        <span *ngIf="status.state === 'playing'">Playing on Ugoos: {{ status.title }}</span>
+        <span *ngIf="status.state === 'error'">{{ status.message }}</span>
+    </p>
+    </ng-container>
 
     <div id="seasonsWrapper" [class.compact-season-tabs]="layout.isCompactLayout">
       <div class="seasons" *ngFor="let season of seasons; index as i"

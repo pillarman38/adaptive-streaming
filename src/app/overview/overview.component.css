@@ -401,3 +401,10 @@
     outline: 2px solid #fff;
     outline-offset: 2px;
 }
+
+.remote-play-status {
+    margin: 12px 0 0;
+    color: #9ecbff;
+    font-size: 16px;
+    clear: both;
+}

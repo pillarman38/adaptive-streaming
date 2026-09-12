@@ -2,6 +2,14 @@
 
 This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 7.3.9.
 
+## Remote control (WebSocket)
+
+External devices can start playback on the Ugoos and send player controls
+(play/pause, skip, back/stop, D-pad) over WebSocket port **4444**.
+
+See **[docs/websocket-remote-control.md](docs/websocket-remote-control.md)** for
+message shapes (`playRequest`, `playerControl`, etc.).
+
 ## Development server
 
 Run `ng serve` for a dev server. Navigate to `http://pixable.local:4200/`. The app will automatically reload if you change any of the source files.

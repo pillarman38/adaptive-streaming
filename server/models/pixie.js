@@ -22,6 +22,9 @@ const {
   onClientDisconnect,
   voteSession,
 } = require("../utils/voting-session");
+const transcoder = require("./transcoder");
+const kodiRemote = require("../utils/kodi-remote");
+const urlTransformer = require("../utils/url-transformer");
 
 function removeClient(connection) {
   clients = clients.filter((client) => client !== connection);
@@ -37,7 +40,220 @@ function broadcastToDisplays(message) {
 }
 
 function broadcastControllerMessage(message) {
-  broadcastToDisplays(message);
+  const payload = JSON.stringify(message);
+  let targets = getUgoosClients();
+
+  // Prefer the Angular Ugoos app; fall back to any connected display.
+  if (targets.length === 0) {
+    targets = clients.filter(
+      (client) => client.readyState === 1 && client.clientRole === "display"
+    );
+  }
+
+  targets.forEach((client) => client.send(payload));
+
+  // CoreELEC/Kodi on the Ugoos has no Angular client — drive JSON-RPC directly.
+  if (getUgoosClients().length === 0 && kodiRemote.isKodiConfigured()) {
+    void handleKodiPlayerControl(message).catch((err) => {
+      console.warn("[playerControl] Kodi control failed:", err.message);
+    });
+  }
+}
+
+function resolvePlaybackForKodi(movie) {
+  return new Promise((resolve, reject) => {
+    const body = {
+      ...movie,
+      device: "coreelec",
+      browser: "Kodi",
+    };
+    transcoder.startConverting(body, (err, result) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(result);
+    });
+  });
+}
+
+async function playOnKodi(movie) {
+  const target = kodiRemote.getKodiTarget();
+
+  const playback = await resolvePlaybackForKodi(movie);
+  if (!playback || !playback.location) {
+    throw new Error("No playback URL from transcoder");
+  }
+
+  let fileUrl = playback.location;
+  let introUrl = playback.introLocation || null;
+  let subtitleUrl = playback.subtitleFile || null;
+
+  // Prefer HTTP URLs Kodi can fetch from the media server.
+  if (playback.fallbackLocation && !String(fileUrl).startsWith("http")) {
+    fileUrl = playback.fallbackLocation;
+  }
+  if (fileUrl && urlTransformer.toPublicUrl && !String(fileUrl).startsWith("http")) {
+    // leave local smb/nfs paths as-is for CoreELEC mounts
+  }
+
+  console.log("[playRequest] opening on Kodi", target.host, fileUrl);
+  await kodiRemote.openFile(fileUrl, {
+    introUrl,
+    subtitleUrl,
+  });
+
+  return { fileUrl, host: target.host };
+}
+
+async function handleKodiPlayerControl(message) {
+  const action = String(message.action || "");
+
+  if (action === "playPause") {
+    return kodiRemote.playPause();
+  }
+  if (action === "skipForward") {
+    const seconds =
+      typeof message.seconds === "number" && message.seconds > 0
+        ? message.seconds
+        : 15;
+    return kodiRemote.seekRelative(seconds);
+  }
+  if (action === "skipBackward") {
+    const seconds =
+      typeof message.seconds === "number" && message.seconds > 0
+        ? message.seconds
+        : 15;
+    return kodiRemote.seekRelative(-seconds);
+  }
+  if (action === "back") {
+    // Stop playback entirely on the box.
+    return kodiRemote.stop();
+  }
+  if (
+    action === "arrowUp" ||
+    action === "arrowDown" ||
+    action === "arrowLeft" ||
+    action === "arrowRight" ||
+    action === "enter"
+  ) {
+    return kodiRemote.navigate(action);
+  }
+  return false;
+}
+
+async function handlePlayRequest(connection, message) {
+  const movie = message.movie;
+  if (!movie) {
+    sendJson(connection, {
+      type: "playRequestResult",
+      ok: false,
+      reason: "missing_movie",
+    });
+    return;
+  }
+
+  const forwarded = {
+    type: "playRequest",
+    movie,
+    fromClientId: message.clientId || connection.clientId,
+  };
+  const payload = JSON.stringify(forwarded);
+  const ugoosTargets = getUgoosClients().filter(
+    (client) => client !== connection
+  );
+
+  // 1) Angular app on a device named "ugoos" (rare; CoreELEC has no app).
+  if (ugoosTargets.length > 0) {
+    console.log(
+      "[playRequest] forwarding",
+      movie.title,
+      "to",
+      ugoosTargets.length,
+      "Angular Ugoos client(s)"
+    );
+    ugoosTargets.forEach((client) => client.send(payload));
+    sendJson(connection, {
+      type: "playRequestResult",
+      ok: true,
+      title: movie.title,
+      target: "ugoos-app",
+    });
+    return;
+  }
+
+  // 2) CoreELEC/Kodi on the Ugoos (kodiBoxIp) — normal path.
+  if (kodiRemote.isKodiConfigured()) {
+    try {
+      await playOnKodi(movie);
+      sendJson(connection, {
+        type: "playRequestResult",
+        ok: true,
+        title: movie.title,
+        target: "kodi",
+        host: kodiRemote.getKodiTarget().host,
+      });
+      return;
+    } catch (err) {
+      console.error("[playRequest] Kodi playback failed:", err.message);
+      sendJson(connection, {
+        type: "playRequestResult",
+        ok: false,
+        reason: "kodi_failed",
+        title: movie.title,
+        error: err.message,
+      });
+      return;
+    }
+  }
+
+  // 3) Last resort: any other connected display browser.
+  const displayTargets = clients.filter(
+    (client) =>
+      client.readyState === 1 &&
+      client.clientRole === "display" &&
+      client !== connection
+  );
+  if (displayTargets.length > 0) {
+    console.log(
+      "[playRequest] forwarding",
+      movie.title,
+      "to",
+      displayTargets.length,
+      "display client(s)"
+    );
+    displayTargets.forEach((client) => client.send(payload));
+    sendJson(connection, {
+      type: "playRequestResult",
+      ok: true,
+      title: movie.title,
+      target: "display",
+    });
+    return;
+  }
+
+  console.log("[playRequest] no Kodi config and no display clients for", movie.title);
+  sendJson(connection, {
+    type: "playRequestResult",
+    ok: false,
+    reason: "no_ugoos",
+    title: movie.title,
+  });
+}
+
+function getUgoosClients() {
+  return clients.filter(
+    (client) =>
+      client.readyState === 1 &&
+      client.clientRole === "display" &&
+      client.device === "ugoos"
+  );
+}
+
+function sendJson(connection, message) {
+  if (connection && connection.readyState === 1) {
+    connection.send(JSON.stringify(message));
+  }
 }
 
 wss.on("connection", function (connection) {
@@ -54,6 +270,7 @@ wss.on("connection", function (connection) {
       connection.clientRole =
         message.role === "controller" ? "controller" : "display";
       connection.clientId = message.clientId || null;
+      connection.device = message.device || null;
       if (connection.clientRole === "display" && connection.clientId) {
         sendVoteStateToConnection(connection, clients);
         if (voteSession.active) {
@@ -82,9 +299,14 @@ wss.on("connection", function (connection) {
       return;
     }
     
-    // Relay controller input to every display client (Ugoos box, etc.)
-    if (message.type === "controller") {
+    // Relay player/controller input to the Ugoos (preferred) or any display.
+    if (message.type === "controller" || message.type === "playerControl") {
       broadcastControllerMessage(message);
+      return;
+    }
+
+    if (message.type === "playRequest") {
+      await handlePlayRequest(connection, message);
       return;
     }
 

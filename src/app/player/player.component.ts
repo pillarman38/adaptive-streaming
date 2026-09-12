@@ -23,6 +23,7 @@ import { ExoPlayerService } from "../services/exoplayer.service";
 import { KodiPlayerService } from "../services/kodi-player.service";
 import { ApiConfigService } from "../services/api-config.service";
 import { LayoutService } from "../services/layout.service";
+import { RemotePlaybackService } from "../services/remote-playback.service";
 
 @Pipe({
   name: "safeHtml",
@@ -56,6 +57,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
   private kodiOpenInProgress = false;
   private videoLoadId = 0;
   private pullVideoSub?: Subscription;
+  private remotePlaySub?: Subscription;
   controlsVisible: boolean = false;
   controlsTimeout: any = null;
   playPauseListener: any = null;
@@ -168,13 +170,49 @@ export class PlayerComponent implements OnInit, OnDestroy {
   @HostListener("window:skipAction", ["$event"])
   onSkipAction(event: CustomEvent): void {
     if (event.detail && event.detail.action) {
+      const seconds =
+        typeof event.detail.seconds === "number" && event.detail.seconds > 0
+          ? event.detail.seconds
+          : 15;
       if (event.detail.action === 'skipForward') {
-        console.log('[Player] Skip forward requested');
-        this.skipButtons(15);
+        console.log('[Player] Skip forward requested', seconds);
+        this.skipButtons(seconds);
       } else if (event.detail.action === 'skipBackward') {
-        console.log('[Player] Skip backward requested');
-        this.skipButtons(-15);
+        console.log('[Player] Skip backward requested', seconds);
+        this.skipButtons(-seconds);
       }
+    }
+  }
+
+  /** Remote `back` / stopPlayback — fully stops the current movie. */
+  @HostListener("window:stopPlayback", ["$event"])
+  async onStopPlayback(_event?: CustomEvent): Promise<void> {
+    await this.exitPlayback();
+  }
+
+  private async exitPlayback(): Promise<void> {
+    try {
+      if (this.useExoPlayer) {
+        try {
+          await this.exoPlayerService.pause();
+        } catch (err) {
+          console.warn("[Player] pause before exit failed:", err);
+        }
+        try {
+          await this.exoPlayerService.release();
+        } catch (err) {
+          console.warn("[Player] release before exit failed:", err);
+        }
+      } else if (this.useKodiPlayer) {
+        await this.stopKodiPlayback();
+      } else if (this.videoElem?.nativeElement) {
+        this.videoElem.nativeElement.pause();
+        this.videoElem.nativeElement.removeAttribute("src");
+        this.videoElem.nativeElement.load();
+      }
+    } finally {
+      this.paused = true;
+      this.router.navigateByUrl("/overview");
     }
   }
 
@@ -196,10 +234,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
 
     if (isBackKey) {
       event.preventDefault();
-      if (this.useKodiPlayer) {
-        await this.stopKodiPlayback();
-      }
-      this.router.navigateByUrl("/overview");
+      await this.exitPlayback();
       return;
     }
 
@@ -394,6 +429,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
     private apiConfig: ApiConfigService,
     private cdr: ChangeDetectorRef,
     public layout: LayoutService,
+    private remotePlayback: RemotePlaybackService,
   ) {
     this.isAndroid = this.platformService.isAndroid();
     this.useKodiPlayer = this.platformService.isKodi();
@@ -720,7 +756,9 @@ export class PlayerComponent implements OnInit, OnDestroy {
         ? 'coreelec'
         : this.platformService.getDeviceName(),
       browser: this.useKodiPlayer ? 'Kodi' : this.infoStore.videoInfo.browser,
-      atmosIntroEnabled: this.apiConfig.isAtmosIntroEnabled(),
+      atmosIntroEnabled:
+        this.infoStore.videoInfo.atmosIntroEnabled ??
+        this.apiConfig.isAtmosIntroEnabled(),
     };
 
     this.pullVideoSub = this.http
@@ -1071,6 +1109,9 @@ export class PlayerComponent implements OnInit, OnDestroy {
   }
   async ngOnInit(): Promise<void> {
     await this.apiConfig.ensureConfigLoaded();
+    this.remotePlaySub = this.remotePlayback.playCommands$.subscribe(() => {
+      void this.handleIncomingRemotePlay();
+    });
     // Target CoreELEC/Kodi whenever kodiBoxIp is configured (desktop + iPhone Safari).
     this.apiConfig.enableKodiPlaybackTarget();
     this.useKodiPlayer = this.apiConfig.isKodiRemotePlayback();
@@ -1145,8 +1186,24 @@ export class PlayerComponent implements OnInit, OnDestroy {
     }
   }
 
+  private async handleIncomingRemotePlay(): Promise<void> {
+    if (this.useExoPlayer) {
+      try {
+        await this.exoPlayerService.pause();
+      } catch (err) {
+        console.warn("[Player] Could not pause before remote play:", err);
+      }
+    } else if (this.useKodiPlayer) {
+      await this.stopKodiPlayback();
+    } else if (this.videoElem?.nativeElement) {
+      this.videoElem.nativeElement.pause();
+    }
+    this.getVideo();
+  }
+
   async ngOnDestroy(): Promise<void> {
     // Restore sidebar visibility when leaving the player
+    this.remotePlaySub?.unsubscribe();
     this.smartTv.changeVisibility(true);
     // Clear controls timeout
     if (this.playPauseListener) {

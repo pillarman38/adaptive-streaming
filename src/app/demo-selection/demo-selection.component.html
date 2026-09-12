@@ -10,11 +10,25 @@
     <div *ngIf="currentBox.resolution === '1920x1080'" class="bubbles"><p>HD</p></div>
     <div *ngIf="currentBox.audio === 'dts'" class="bubbles"><p>Dts HD 5.1</p></div>
     <div *ngIf="currentBox.audio === 'truehd' && isAndroid" class="bubbles"><p>Dolby Atmos</p></div>
+    <ng-container *ngIf="remotePlayback.status$ | async as status">
+      <p class="remote-play-status" *ngIf="status.state !== 'idle'">
+        <span *ngIf="status.state === 'sending'">Sending to Ugoos…</span>
+        <span *ngIf="status.state === 'playing'">Playing on Ugoos: {{ status.title }}</span>
+        <span *ngIf="status.state === 'error'">{{ status.message }}</span>
+      </p>
+    </ng-container>
   </div>
 
   <div class="compact-only-block compact-page-header" *ngIf="layout.isCompactLayout">
     <h1 class="compact-page-title">Demo Videos</h1>
   </div>
+  <ng-container *ngIf="remotePlayback.status$ | async as status">
+  <p class="remote-play-status" *ngIf="status.state !== 'idle'">
+    <span *ngIf="status.state === 'sending'">Sending to Ugoos…</span>
+    <span *ngIf="status.state === 'playing'">Playing on Ugoos: {{ status.title }}</span>
+    <span *ngIf="status.state === 'error'">{{ status.message }}</span>
+  </p>
+  </ng-container>
 
   <div id="list" #list class="tv-only-block" *ngIf="!layout.isCompactLayout">
     <div class="boxes" #boxes boxes *ngFor="let demo of demos; index as i"

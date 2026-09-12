@@ -41,6 +41,7 @@ export interface movieInfo {
   thumbnailPath?: string;
   isExtendedEdition?: number;
   created_at?: string;
+  atmosIntroEnabled?: boolean;
 }
 
 export interface showInfo {

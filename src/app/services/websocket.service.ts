@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Subject, Observable } from 'rxjs';
 import { ApiConfigService } from './api-config.service';
+import { PlatformService } from './platform.service';
 
 export type WebSocketClientRole = 'display' | 'controller';
 
@@ -10,6 +11,15 @@ export interface WebSocketMessage {
   data?: any;
   role?: WebSocketClientRole;
   clientId?: string;
+  /** playRequestResult */
+  ok?: boolean;
+  reason?: string;
+  title?: string;
+  /** playRequest payload */
+  movie?: any;
+  /** skipForward / skipBackward */
+  seconds?: number;
+  timestamp?: number;
   [key: string]: any;
 }
 
@@ -32,7 +42,10 @@ export class WebSocketService {
   private connectionStatusSubject = new Subject<boolean>();
   public connectionStatus$: Observable<boolean> = this.connectionStatusSubject.asObservable();
 
-  constructor(private apiConfig: ApiConfigService) {}
+  constructor(
+    private apiConfig: ApiConfigService,
+    private platformService: PlatformService
+  ) {}
 
   isDisplayClient(): boolean {
     return this.clientRole === 'display';
@@ -134,6 +147,7 @@ export class WebSocketService {
       type: 'register',
       role: this.clientRole,
       clientId: this.clientId,
+      device: this.platformService.getDeviceName(),
     });
   }
 
@@ -147,8 +161,8 @@ export class WebSocketService {
       return;
     }
 
-    if (message.type === 'voteFinish') {
-      this.clearPendingMessages('voteFinish');
+    if (message.type === 'voteFinish' || message.type === 'playRequest') {
+      this.clearPendingMessages(message.type);
     }
 
     this.pendingMessages.push(message);

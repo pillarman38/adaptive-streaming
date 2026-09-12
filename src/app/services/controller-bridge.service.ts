@@ -1,6 +1,19 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { WebSocketService, WebSocketMessage } from './websocket.service';
+import { PlatformService } from './platform.service';
 import { Subscription } from 'rxjs';
+
+/** Actions an external device can send to control Ugoos playback / UI. */
+export type PlayerControlAction =
+  | 'arrowUp'
+  | 'arrowDown'
+  | 'arrowLeft'
+  | 'arrowRight'
+  | 'enter'
+  | 'back'
+  | 'playPause'
+  | 'skipForward'
+  | 'skipBackward';
 
 @Injectable({
   providedIn: 'root'
@@ -8,25 +21,35 @@ import { Subscription } from 'rxjs';
 export class ControllerBridgeService implements OnDestroy {
   private messageSubscription?: Subscription;
 
-  constructor(private websocketService: WebSocketService) {
+  constructor(
+    private websocketService: WebSocketService,
+    private platformService: PlatformService
+  ) {
     this.initialize();
   }
 
   private initialize(): void {
-    // Subscribe to websocket messages
     this.messageSubscription = this.websocketService.messages$.subscribe(
       (message: WebSocketMessage) => {
         if (!this.websocketService.isDisplayClient()) {
           return;
         }
-        if (message.type === 'controller' && message.action) {
-          this.handleControllerAction(message.action);
+        // Prefer Ugoos for remote player control; other displays ignore these.
+        if (!this.platformService.isUgoos()) {
+          return;
+        }
+        if (
+          (message.type === 'controller' || message.type === 'playerControl') &&
+          message.action
+        ) {
+          this.handleControllerAction(message);
         }
       }
     );
   }
 
-  private handleControllerAction(action: string): void {
+  private handleControllerAction(message: WebSocketMessage): void {
+    const action = String(message.action || '');
     let keyCode: string;
     let code: string;
     let key: string;
@@ -58,32 +81,40 @@ export class ControllerBridgeService implements OnDestroy {
         key = 'Enter';
         break;
       case 'back':
-        keyCode = 'Escape';
-        code = 'Escape';
-        key = 'Escape';
-        break;
+        // Stop playback entirely (PlayerComponent listens for this).
+        window.dispatchEvent(
+          new CustomEvent('stopPlayback', {
+            detail: { action: 'back', source: 'remote' },
+            bubbles: true,
+            cancelable: true,
+          })
+        );
+        return;
       case 'playPause':
         keyCode = 'Space';
         code = 'Space';
         key = ' ';
         break;
       case 'skipForward':
-      case 'skipBackward':
-        // Dispatch custom event for skip actions
+      case 'skipBackward': {
+        const seconds =
+          typeof message.seconds === 'number' && message.seconds > 0
+            ? message.seconds
+            : 15;
         const skipEvent = new CustomEvent('skipAction', {
-          detail: { action: action },
+          detail: { action, seconds },
           bubbles: true,
           cancelable: true,
         });
-        console.log('[ControllerBridge] Dispatching skip action:', action);
+        console.log('[ControllerBridge] Dispatching skip action:', action, seconds);
         window.dispatchEvent(skipEvent);
         return;
+      }
       default:
         console.warn('[ControllerBridge] Unknown action:', action);
         return;
     }
 
-    // Create and dispatch a keyboard event
     const keyboardEvent = new KeyboardEvent('keydown', {
       key: key,
       code: code,

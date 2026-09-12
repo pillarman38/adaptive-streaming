@@ -14,6 +14,7 @@ import { ApiConfigService } from "../services/api-config.service";
 import { SmartTvLibSingletonService } from "../smart-tv-lib-singleton.service";
 import { PlatformService } from "../services/platform.service";
 import { LayoutService } from "../services/layout.service";
+import { RemotePlaybackService } from "../services/remote-playback.service";
 
 @Component({
   selector: "app-demo-selection",
@@ -34,7 +35,8 @@ export class DemoSelectionComponent implements OnInit {
     private apiConfig: ApiConfigService,
     private smartTv: SmartTvLibSingletonService,
     private platformService: PlatformService,
-    public layout: LayoutService
+    public layout: LayoutService,
+    public remotePlayback: RemotePlaybackService
   ) {}
 
   @ViewChild("wrapper") wrapper!: ElementRef;
@@ -118,7 +120,7 @@ export class DemoSelectionComponent implements OnInit {
     this.index = index;
     this.infoStore.demoSelectionIndex = index;
     this.infoStore.videoInfo = this.mapDemoToVideoInfo(demo);
-    this.router.navigateByUrl("/player");
+    this.remotePlayback.play(this.infoStore.videoInfo);
   }
 
   mapDemoToVideoInfo(demo: movieInfo): movieInfo {
