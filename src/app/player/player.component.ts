@@ -802,7 +802,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
           console.log("Zidoo device detected - launching Zidoo player");
           try {
             const title = this.infoStore.videoInfo.title || "";
-            const position = 0; // Start from beginning, could be enhanced to support resume
+            const position = Number(this.infoStore.videoInfo.seekTime) || 0;
             const result = await this.exoPlayerService.launchZidooPlayer(videoUrl, title, position);
             if (result.success) {
               if (result.fallback) {
@@ -945,6 +945,12 @@ export class PlayerComponent implements OnInit, OnDestroy {
             
             await this.exoPlayerService.play();
             this.paused = false;
+            if (this.infoStore.videoInfo.seekTime > 0) {
+              const seekTo = Number(this.infoStore.videoInfo.seekTime) || 0;
+              console.log('[Player] ExoPlayer seeking to seekTime:', seekTo);
+              await this.exoPlayerService.seekTo(seekTo);
+              this.currentTime = seekTo;
+            }
           } catch (error: any) {
             const errorMessage = error?.message || error?.toString() || 'Unknown error';
             console.error('Error loading/playing video:', errorMessage);
@@ -989,6 +995,11 @@ export class PlayerComponent implements OnInit, OnDestroy {
           // Add event listener for metadata load to detect audio tracks
           this.videoElem.nativeElement.addEventListener("loadedmetadata", () => {
             this.detectAudioTracks();
+            if (this.infoStore.videoInfo.seekTime > 0) {
+              const seekTo = Number(this.infoStore.videoInfo.seekTime) || 0;
+              this.videoElem.nativeElement.currentTime = seekTo;
+              this.currentTime = seekTo;
+            }
           });
           
           this.videoElem.nativeElement.load();

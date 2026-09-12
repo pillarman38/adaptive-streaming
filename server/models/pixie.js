@@ -97,13 +97,20 @@ async function playOnKodi(movie) {
     // leave local smb/nfs paths as-is for CoreELEC mounts
   }
 
-  console.log("[playRequest] opening on Kodi", target.host, fileUrl);
+  const seekTime = Math.max(0, Number(movie && movie.seekTime) || 0);
+  console.log(
+    "[playRequest] opening on Kodi",
+    target.host,
+    fileUrl,
+    seekTime > 0 ? `seekTime=${seekTime}` : ""
+  );
   await kodiRemote.openFile(fileUrl, {
-    introUrl,
+    introUrl: seekTime > 0 ? null : introUrl,
     subtitleUrl,
+    seekTime,
   });
 
-  return { fileUrl, host: target.host };
+  return { fileUrl, host: target.host, seekTime };
 }
 
 async function handleKodiPlayerControl(message) {
@@ -163,7 +170,34 @@ async function handlePlayRequest(connection, message) {
     (client) => client !== connection
   );
 
-  // 1) Angular app on a device named "ugoos" (rare; CoreELEC has no app).
+  // Prefer CoreELEC/Kodi when configured (normal Ugoos AM6B+ path).
+  // An old Capacitor "ugoos" client must not steal playRequest away from Kodi.
+  if (kodiRemote.isKodiConfigured()) {
+    try {
+      const played = await playOnKodi(movie);
+      sendJson(connection, {
+        type: "playRequestResult",
+        ok: true,
+        title: movie.title,
+        target: "kodi",
+        host: kodiRemote.getKodiTarget().host,
+        seekTime: played && played.seekTime != null ? played.seekTime : 0,
+      });
+      return;
+    } catch (err) {
+      console.error("[playRequest] Kodi playback failed:", err.message);
+      sendJson(connection, {
+        type: "playRequestResult",
+        ok: false,
+        reason: "kodi_failed",
+        title: movie.title,
+        error: err.message,
+      });
+      return;
+    }
+  }
+
+  // Angular Capacitor app on a device named "ugoos" (rare without Kodi config).
   if (ugoosTargets.length > 0) {
     console.log(
       "[playRequest] forwarding",
@@ -182,32 +216,7 @@ async function handlePlayRequest(connection, message) {
     return;
   }
 
-  // 2) CoreELEC/Kodi on the Ugoos (kodiBoxIp) — normal path.
-  if (kodiRemote.isKodiConfigured()) {
-    try {
-      await playOnKodi(movie);
-      sendJson(connection, {
-        type: "playRequestResult",
-        ok: true,
-        title: movie.title,
-        target: "kodi",
-        host: kodiRemote.getKodiTarget().host,
-      });
-      return;
-    } catch (err) {
-      console.error("[playRequest] Kodi playback failed:", err.message);
-      sendJson(connection, {
-        type: "playRequestResult",
-        ok: false,
-        reason: "kodi_failed",
-        title: movie.title,
-        error: err.message,
-      });
-      return;
-    }
-  }
-
-  // 3) Last resort: any other connected display browser.
+  // Last resort: any other connected display browser.
   const displayTargets = clients.filter(
     (client) =>
       client.readyState === 1 &&

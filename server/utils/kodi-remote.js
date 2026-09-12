@@ -121,12 +121,49 @@ async function waitUntilIdle(timeoutMs = 90000) {
   }
 }
 
+function secondsToKodiTimeObject(totalSeconds) {
+  const sec = Math.max(0, Number(totalSeconds) || 0);
+  const hours = Math.floor(sec / 3600);
+  const minutes = Math.floor((sec % 3600) / 60);
+  const seconds = Math.floor(sec % 60);
+  const milliseconds = Math.round((sec - Math.floor(sec)) * 1000);
+  return { hours, minutes, seconds, milliseconds };
+}
+
+async function waitForActivePlayer(timeoutMs = 20000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const playerId = await getActivePlayerId().catch(() => null);
+    if (playerId !== null) {
+      return playerId;
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return null;
+}
+
+/** Absolute seek (seconds). Used after Player.Open for scene start positions. */
+async function seek(seconds) {
+  const playerId = await waitForActivePlayer(20000);
+  if (playerId === null) {
+    return false;
+  }
+  const time = secondsToKodiTimeObject(seconds);
+  await kodiCall("Player.Seek", {
+    playerid: playerId,
+    value: { time },
+  });
+  return true;
+}
+
 async function openFile(fileUrl, options = {}) {
   if (!fileUrl) {
     throw new Error("Missing playback URL for Kodi");
   }
 
-  const introUrl = options.introUrl;
+  const seekTime = Math.max(0, Number(options.seekTime) || 0);
+  // Scene / resume starts: skip DV intro so we don't land at 0 after intro.
+  const introUrl = seekTime > 0 ? null : options.introUrl;
   if (introUrl) {
     try {
       console.log("[kodi-remote] opening intro:", introUrl);
@@ -146,8 +183,21 @@ async function openFile(fileUrl, options = {}) {
     }
   }
 
-  console.log("[kodi-remote] Player.Open", fileUrl);
-  await kodiCall("Player.Open", { item: { file: fileUrl } }, 120000);
+  const openParams = { item: { file: fileUrl } };
+  if (seekTime > 0) {
+    openParams.options = { resume: secondsToKodiTimeObject(seekTime) };
+  }
+  console.log("[kodi-remote] Player.Open", fileUrl, seekTime > 0 ? `seekTime=${seekTime}` : "");
+  await kodiCall("Player.Open", openParams, 120000);
+
+  if (seekTime > 0) {
+    // Resume-on-open is best-effort; enforce with Player.Seek once active.
+    const ok = await seek(seekTime);
+    console.log("[kodi-remote] post-open seek", seekTime, ok ? "ok" : "failed");
+    if (!ok) {
+      throw new Error(`Kodi seek to ${seekTime}s failed (no active player)`);
+    }
+  }
 
   if (options.subtitleUrl) {
     try {
@@ -218,6 +268,7 @@ module.exports = {
   kodiCall,
   openFile,
   playPause,
+  seek,
   seekRelative,
   stop,
   navigate,
